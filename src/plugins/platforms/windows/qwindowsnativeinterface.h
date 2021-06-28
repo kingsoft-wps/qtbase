@@ -76,7 +76,13 @@ public:
     void *nativeResourceForWindow(const QByteArray &resource, QWindow *window) override;
 #ifndef QT_NO_CURSOR
     void *nativeResourceForCursor(const QByteArray &resource, const QCursor &cursor) override;
+    bool registerCustomWindowCursor(const QCursor &cursor, void *hcur) override;
 #endif
+    void *nativeResourceForMimeData(const QByteArray &resource, const QMimeData *mime) override;
+    bool isWindowsDropMimeData(const QMimeData *mime) override;
+
+    QVariant fontEngineProperty(const QFontEngine *engine, const QString &name) override;
+
     Q_INVOKABLE void *createMessageWindow(const QString &classNameTemplate,
                                           const QString &windowName,
                                           void *eventProc) const;
@@ -86,6 +92,9 @@ public:
     Q_INVOKABLE void registerWindowsMime(void *mimeIn);
     Q_INVOKABLE void unregisterWindowsMime(void *mime);
     Q_INVOKABLE int registerMimeType(const QString &mimeType);
+    Q_INVOKABLE void addLastExcludeMimeType(const QString &mime);
+    Q_INVOKABLE void unregisterInternalTextMime();
+    Q_INVOKABLE void unregisterInternalHtmlMime();
     Q_INVOKABLE QFont logFontToQFont(const void *logFont, int verticalDpi);
 
     bool asyncExpose() const;

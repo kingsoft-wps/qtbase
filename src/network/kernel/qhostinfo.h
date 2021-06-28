@@ -88,6 +88,9 @@ public:
 
     static QHostInfo fromName(const QString &name);
     static QString localHostName();
+#ifdef Q_OS_MAC
+	static QString macHostName();//Remove the .local after the string returned by localHostName()
+#endif
     static QString localDomainName();
 
 #ifdef Q_CLANG_QDOC

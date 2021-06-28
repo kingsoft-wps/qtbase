@@ -277,6 +277,9 @@ void QMessageBoxPrivate::init(const QString &title, const QString &text)
     label->setTextInteractionFlags(Qt::TextInteractionFlags(q->style()->styleHint(QStyle::SH_MessageBox_TextInteractionFlags, 0, q)));
     label->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
     label->setOpenExternalLinks(true);
+#ifdef Q_OS_MAC
+    label->setFont(QFont(QStringLiteral("PingFangSC-Medium"),13,10));
+#endif // Q_OS_MAC
     iconLabel = new QLabel(q);
     iconLabel->setObjectName(QLatin1String("qt_msgboxex_icon_label"));
     iconLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
@@ -294,7 +297,7 @@ void QMessageBoxPrivate::init(const QString &title, const QString &text)
     q->setModal(true);
 #ifdef Q_OS_MAC
     QFont f = q->font();
-    f.setBold(true);
+    f.setBold(false);
     label->setFont(f);
 #endif
     icon = QMessageBox::NoIcon;

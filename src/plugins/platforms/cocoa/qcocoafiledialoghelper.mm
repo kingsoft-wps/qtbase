@@ -66,6 +66,10 @@
 
 #include <qpa/qplatformnativeinterface.h>
 
+#include <QApplication>
+#include <QWidget>
+#include "nscustomsavepanel.h"
+
 #import <AppKit/NSSavePanel.h>
 #import <CoreFoundation/CFNumber.h>
 
@@ -105,6 +109,8 @@ QT_NAMESPACE_ALIAS_OBJC_CLASS(QNSOpenSavePanelDelegate);
     NSView *mAccessoryView;
     NSPopUpButton *mPopUpButton;
     NSTextField *mTextField;
+    NSButton *mEncryptButton;
+    NSButton *mSaveToCloudButton;
     QCocoaFileDialogHelper *mHelper;
     NSString *mCurrentDir;
 
@@ -122,6 +128,8 @@ QT_NAMESPACE_ALIAS_OBJC_CLASS(QNSOpenSavePanelDelegate);
 {
     self = [super init];
     mOptions = options;
+    mEncryptButton = nil;
+    mSaveToCloudButton = nil;
     if (mOptions->acceptMode() == QFileDialogOptions::AcceptOpen){
         mOpenPanel = [NSOpenPanel openPanel];
         mSavePanel = mOpenPanel;
@@ -150,10 +158,20 @@ QT_NAMESPACE_ALIAS_OBJC_CLASS(QNSOpenSavePanelDelegate);
     }
 
     [mSavePanel setTitle:options->windowTitle().toNSString()];
+    [self createEncryptButton];
+    [self createSaveToCloudButton];
     [self createPopUpButton:selectedVisualNameFilter hideDetails:options->testOption(QFileDialogOptions::HideNameFilterDetails)];
     [self createTextField];
     [self createAccessory];
-    [mSavePanel setAccessoryView:mNameFilterDropDownList->size() > 1 ? mAccessoryView : nil];
+    if (mSaveToCloudButton)
+    {
+        [mSavePanel setAccessoryView:mAccessoryView];
+    }
+    else
+    {
+        [mSavePanel setAccessoryView:mNameFilterDropDownList->size() > 1 ? mAccessoryView : nil];
+    }
+
     // -setAccessoryView: can result in -panel:directoryDidChange:
     // resetting our mCurrentDir, set the delegate
     // here to make sure it gets the correct value.
@@ -178,6 +196,10 @@ QT_NAMESPACE_ALIAS_OBJC_CLASS(QNSOpenSavePanelDelegate);
 
     if ([mSavePanel respondsToSelector:@selector(orderOut:)])
         [mSavePanel orderOut:mSavePanel];
+    if (mEncryptButton)
+        [mEncryptButton release];
+    if (mSaveToCloudButton)
+        [mSaveToCloudButton release];
     [mSavePanel setAccessoryView:nil];
     [mPopUpButton release];
     [mTextField release];
@@ -394,6 +416,15 @@ static QString strippedText(QString s)
     return mNameFilterDropDownList->value([mPopUpButton indexOfSelectedItem]);
 }
 
+- (QString) getCurrentSaveFileName
+{
+    NSString *nameField = [mSavePanel nameFieldStringValue];
+    if ([nameField pathExtension].length>0) {
+        nameField = [nameField stringByDeletingPathExtension];
+    }
+    QString filename = QString::fromNSString(nameField);
+    return filename;
+}
 - (QList<QUrl>)selectedFiles
 {
     if (mOpenPanel) {
@@ -444,7 +475,8 @@ static QString strippedText(QString s)
         const QStringList ext = [self acceptableExtensionsForSave];
         [mSavePanel setAllowedFileTypes:ext.isEmpty() ? nil : qt_mac_QStringListToNSMutableArray(ext)];
     } else {
-        [mOpenPanel setAllowedFileTypes:nil]; // delegate panel:shouldEnableURL: does the file filtering for NSOpenPanel
+        const QStringList ext = [self acceptableExtensionsForOpen];
+        [mOpenPanel setAllowedFileTypes:ext.isEmpty() ? nil : qt_mac_QStringListToNSMutableArray(ext)];
     }
 
     if ([mSavePanel respondsToSelector:@selector(isVisible)] && [mSavePanel isVisible]) {
@@ -500,6 +532,20 @@ static QString strippedText(QString s)
     return result;
 }
 
+- (QStringList)acceptableExtensionsForOpen
+{
+    QStringList result;
+    for (int i=0; i<mSelectedNameFilter->count(); ++i) {
+        const QString &filter = mSelectedNameFilter->at(i);
+        if (filter.startsWith(QLatin1String("*."))
+                && !filter.contains(QLatin1Char('?'))
+                && filter.count(QLatin1Char('*')) == 1) {
+            result += filter.mid(2);
+        }
+    }
+    return result;
+}
+
 - (QString)removeExtensions:(const QString &)filter
 {
     QRegularExpression regExp(QString::fromLatin1(QPlatformFileDialogHelper::filterRegExp));
@@ -511,7 +557,7 @@ static QString strippedText(QString s)
 
 - (void)createTextField
 {
-    NSRect textRect = { { 0.0, 3.0 }, { 100.0, 25.0 } };
+    NSRect textRect = { { 0.0, mSaveToCloudButton ? 36.0 : 3.0 }, { 100.0, 25.0 } };
     mTextField = [[NSTextField alloc] initWithFrame:textRect];
     [[mTextField cell] setFont:[NSFont systemFontOfSize:
             [NSFont systemFontSizeForControlSize:NSControlSizeRegular]]];
@@ -524,9 +570,88 @@ static QString strippedText(QString s)
         [mTextField setStringValue:[self strip:mOptions->labelText(QFileDialogOptions::FileType)]];
 }
 
+- (void)createEncryptButton
+{
+    if (mOptions->isAccessoryButtonExplicitlySet(QFileDialogOptions::Encrypt))
+    {
+        NSRect btnRect = { { 350.0, 37.5 }, { 42.0, 25.0 } };
+        mEncryptButton = [[NSButton alloc]initWithFrame:btnRect];
+        mEncryptButton.bezelStyle = NSRoundedBezelStyle;
+        mEncryptButton.bordered = YES;
+#ifdef MAC_OS_X_VERSION_10_12
+        [mEncryptButton setButtonType:NSButtonTypeMomentaryPushIn];
+#else
+        [mEncryptButton setButtonType:NSMomentaryPushButton];
+#endif
+        //[mEncryptButton setTitle:[self strip:mOptions->accessoryButtonText(QFileDialogOptions::Encrypt)]];
+        mEncryptButton.toolTip = [self strip:mOptions->accessoryButtonText(QFileDialogOptions::Encrypt)];
+        [mEncryptButton setTitle: @"🔐"];
+        mEncryptButton.hidden = NO;
+#ifdef MAC_OS_X_VERSION_10_12
+        mEncryptButton.alignment = NSTextAlignmentCenter;
+#else
+        mEncryptButton.alignment = NSCenterTextAlignment;
+#endif
+        mEncryptButton.transparent = NO;
+        mEncryptButton.state = NSOffState;
+        mEncryptButton.highlighted = NO;
+
+        [mEncryptButton  setTarget:self];
+        [mEncryptButton setAction:@selector(encryptButtonClick:)];
+    }
+}
+
+- (void) encryptButtonClick:(id) sender
+{
+    assert(sender);
+    
+    // Encrypted document
+    mHelper->QNSEncryptFile();
+    // End eunloop loop
+    [[NSApplication sharedApplication] stopModal];
+}
+- (void)createSaveToCloudButton
+{
+    if (mOptions->isAccessoryButtonExplicitlySet(QFileDialogOptions::SaveToCloud))
+    {
+        NSRect btnRect = { { 95.0, 0.0 }, { 100.0, 25.0 } };
+        mSaveToCloudButton = [[NSButton alloc]initWithFrame:btnRect];
+        mSaveToCloudButton.bezelStyle = NSRoundedBezelStyle;
+        mSaveToCloudButton.bordered = YES;
+#ifdef MAC_OS_X_VERSION_10_12
+        [mSaveToCloudButton setButtonType:NSButtonTypeMomentaryPushIn];
+#else
+        [mSaveToCloudButton setButtonType:NSMomentaryPushButton];
+#endif
+        [mSaveToCloudButton setTitle:[self strip:mOptions->accessoryButtonText(QFileDialogOptions::SaveToCloud)]];
+        [mSaveToCloudButton sizeToFit];
+        mSaveToCloudButton.hidden = NO;
+#ifdef MAC_OS_X_VERSION_10_12
+        mSaveToCloudButton.alignment = NSTextAlignmentCenter;
+#else
+        mSaveToCloudButton.alignment = NSCenterTextAlignment;
+#endif
+        mSaveToCloudButton.transparent = NO;
+        mSaveToCloudButton.state = NSOffState;
+        mSaveToCloudButton.highlighted = NO;
+
+        [mSaveToCloudButton  setTarget:self];
+        [mSaveToCloudButton setAction:@selector(saveToCloudButtonClick:)];
+    }
+}
+
+- (void) saveToCloudButtonClick:(id) sender
+{
+    assert(sender);
+    
+    // Cloud documents
+    mHelper->QNSSaveToCloud();
+    // End the runloop loop
+    [[NSApplication sharedApplication] stopModal];
+}
 - (void)createPopUpButton:(const QString &)selectedFilter hideDetails:(BOOL)hideDetails
 {
-    NSRect popUpRect = { { 100.0, 5.0 }, { 250.0, 25.0 } };
+    NSRect popUpRect = { { 100.0, mSaveToCloudButton ? 38.0 : 5.0 }, { 250.0, 25.0 } };
     mPopUpButton = [[NSPopUpButton alloc] initWithFrame:popUpRect pullsDown:NO];
     [mPopUpButton setTarget:self];
     [mPopUpButton setAction:@selector(filterChanged:)];
@@ -557,10 +682,18 @@ static QString strippedText(QString s)
 
 - (void)createAccessory
 {
-    NSRect accessoryRect = { { 0.0, 0.0 }, { 450.0, 33.0 } };
+    bool isGreaterOne = mNameFilterDropDownList->size() > 1;
+    NSRect accessoryRect = { { 0.0, 0.0 }, { 450.0, (mSaveToCloudButton && isGreaterOne) ? 69.0 : 33.0 } };
     mAccessoryView = [[NSView alloc] initWithFrame:accessoryRect];
-    [mAccessoryView addSubview:mTextField];
-    [mAccessoryView addSubview:mPopUpButton];
+    if (isGreaterOne)
+    {
+        [mAccessoryView addSubview:mTextField];
+        [mAccessoryView addSubview:mPopUpButton];
+    }
+    if (mEncryptButton)
+        [mAccessoryView addSubview:mEncryptButton];
+    if (mSaveToCloudButton)
+        [mAccessoryView addSubview:mSaveToCloudButton];
 }
 
 @end
@@ -642,6 +775,12 @@ QList<QUrl> QCocoaFileDialogHelper::selectedFiles() const
     return QList<QUrl>();
 }
 
+QString QCocoaFileDialogHelper::userFileName() const
+{
+    if (mDelegate)
+         return [mDelegate getCurrentSaveFileName];
+    return QString();
+}
 void QCocoaFileDialogHelper::setFilter()
 {
     if (!mDelegate)
@@ -669,6 +808,15 @@ void QCocoaFileDialogHelper::selectNameFilter(const QString &filter)
         [mDelegate->mPopUpButton selectItemAtIndex:index];
         [mDelegate filterChanged:nil];
     }
+}
+void QCocoaFileDialogHelper::QNSEncryptFile()
+{
+    emit encryptFile();
+}
+
+void QCocoaFileDialogHelper::QNSSaveToCloud()
+{
+    emit saveToCloud();
 }
 
 QString QCocoaFileDialogHelper::selectedNameFilter() const

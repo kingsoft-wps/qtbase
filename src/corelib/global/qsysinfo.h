@@ -136,7 +136,7 @@ public:
         WV_CE_based = 0x0f00
     };
 
-#define Q_MV_OSX(major, minor) (major == 10 ? minor + 2 : (major == 9 ? 1 : 0))
+#define Q_MV_OSX(major, minor) (major * 100 + minor)
 #define Q_MV_IOS(major, minor) (QSysInfo::MV_IOS | major << 4 | minor)
 #define Q_MV_TVOS(major, minor) (QSysInfo::MV_TVOS | major << 4 | minor)
 #define Q_MV_WATCHOS(major, minor) (QSysInfo::MV_WATCHOS | major << 4 | minor)
@@ -160,6 +160,8 @@ public:
         MV_10_11 = Q_MV_OSX(10, 11),
         MV_10_12 = Q_MV_OSX(10, 12),
 
+        MV_10_13 = Q_MV_OSX(10, 13),
+        MV_10_14 = Q_MV_OSX(10, 14),
         /* codenames */
         MV_CHEETAH = MV_10_0,
         MV_PUMA = MV_10_1,

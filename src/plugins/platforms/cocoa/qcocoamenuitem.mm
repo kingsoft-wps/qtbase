@@ -267,6 +267,15 @@ NSMenuItem *QCocoaMenuItem::sync()
         case PreferencesRole:
             mergeItem = [loader preferencesMenuItem];
             break;
+        case CheckForUpdatesRole:
+            mergeItem = [loader checkUpdateMenuItem];
+            break;
+        case AppStoreEvalRole:
+            mergeItem = [loader appStoreEvalMenuItem];
+            break;
+        case ProxySettingRole:
+		    mergeItem = [loader proxySettingMenuItem];
+		    break;
         case ApplicationSpecificRole:
             mergeItem = [loader appSpecificMenuItem:this];
             break;
@@ -368,6 +377,12 @@ QString QCocoaMenuItem::mergeText()
         return qt_mac_applicationmenu_string(QuitAppMenuItem).arg(qt_mac_applicationName());
     } else if (m_text.contains('\t')) {
         return m_text.left(m_text.indexOf('\t'));
+    } else if (m_native == [loader checkUpdateMenuItem]) {
+        return qt_mac_applicationmenu_string(CheckUpdateItem);
+    } else if (m_native == [loader appStoreEvalMenuItem]) {
+        return qt_mac_applicationmenu_string(AppStoreEvalItem);
+    } else if (m_native == [loader proxySettingMenuItem]) {
+		return qt_mac_applicationmenu_string(ProxySettingMenuItem);
     }
     return m_text;
 }

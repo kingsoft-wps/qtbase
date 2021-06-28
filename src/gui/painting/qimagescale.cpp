@@ -43,6 +43,10 @@
 #include "qcolor.h"
 #include "qrgba64_p.h"
 
+#if defined(Q_PROCESSOR_ARM_64) && defined(Q_OS_MAC)
+#undef __ARM_NEON__
+#endif
+
 QT_BEGIN_NAMESPACE
 
 /*

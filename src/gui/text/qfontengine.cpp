@@ -53,6 +53,9 @@
 #include <qendian.h>
 #include <private/qstringiterator_p.h>
 
+#if QT_CONFIG(textcodec)
+#include <QtCore/qtextcodec.h>
+#endif
 #if QT_CONFIG(harfbuzz)
 #  include "qharfbuzzng_p.h"
 #  include <harfbuzz/hb-ot.h>
@@ -244,6 +247,31 @@ Q_AUTOTEST_EXPORT QList<QFontEngine *> QFontEngine_stopCollectingEngines()
 
 #define kBearingNotInitialized std::numeric_limits<qreal>::max()
 
+QStringList QFontEngine::changeCapJoinFamilys = QStringList() << QString::fromWCharArray(L"方正美黑_GBK")
+                                                              << QString::fromLatin1("FZMeiHei-M07")
+                                                              << QString::fromWCharArray(L"黑体")
+                                                              << QString::fromLatin1("SimHei")
+                                                              << QString::fromWCharArray(L"方正大黑_GBK")
+                                                              << QString::fromLatin1("FZDaHei-B02")
+                                                              << QString::fromWCharArray(L"方正黑体简体")
+                                                              << QString::fromLatin1("FZHei-B01S")
+                                                              << QString::fromWCharArray(L"方正黑体_GBK")
+                                                              << QString::fromLatin1("FZHei-B01")
+                                                              << QString::fromWCharArray(L"方正黑体")
+                                                              << QString::fromLatin1("FZHTK--GBK1-0")
+                                                              << QString::fromWCharArray(L"方正粗黑宋简体")
+                                                              << QString::fromLatin1("FZCHSJW--GB1-0");
+
+QStringList QFontEngine::forceDrawAsOutlineFamilys = QStringList() << QString::fromWCharArray(L"方正黑体简体")
+                                                                   << QString::fromLatin1("FZHei-B01S")
+                                                                   << QString::fromWCharArray(L"方正黑体_GBK")
+                                                                   << QString::fromLatin1("FZHei-B01")
+                                                                   << QString::fromWCharArray(L"方正黑体")
+                                                                   << QString::fromLatin1("FZHTK--GBK1-0")
+                                                                   << QString::fromWCharArray(L"方正粗黑宋简体")
+                                                                   << QString::fromLatin1("FZCHSJW--GB1-0")
+                                                                   << QString::fromWCharArray(L"宋体");
+
 QFontEngine::QFontEngine(Type type)
     : m_type(type), ref(0),
       font_(),
@@ -261,6 +289,7 @@ QFontEngine::QFontEngine(Type type)
 
     glyphFormat = Format_None;
     m_subPixelPositionCount = 0;
+    customBoldwidth = 0;
 
 #ifdef QT_BUILD_INTERNAL
     if (enginesCollector)
@@ -929,6 +958,12 @@ QFontEngine::Glyph *QFontEngine::glyphData(glyph_t, QFixed,
     return nullptr;
 }
 
+QFontEngine::Glyph *QFontEngine::glyphDataForCustomBold(glyph_t, QFixed, GlyphFormat,
+                                                        const QTransform &, int, int)
+{
+    return nullptr;
+}
+
 QImage QFontEngine::alphaMapForGlyph(glyph_t glyph)
 {
     glyph_metrics_t gm = boundingBox(glyph);
@@ -1223,7 +1258,8 @@ Qt::HANDLE QFontEngine::handle() const
     return nullptr;
 }
 
-const uchar *QFontEngine::getCMap(const uchar *table, uint tableSize, bool *isSymbolFont, int *cmapSize)
+const uchar *QFontEngine::getCMap(const uchar *table, uint tableSize, bool *isSymbolFont,
+                                  int *cmapSize, QTextCodec **cmapCodec /*= nullptr*/)
 {
     const uchar *header = table;
     const uchar *endPtr = table + tableSize;
@@ -1243,6 +1279,8 @@ const uchar *QFontEngine::getCMap(const uchar *table, uint tableSize, bool *isSy
         Invalid,
         AppleRoman,
         Symbol,
+        MicrosoftBIG5,
+        MicrosoftGB2312,
         Unicode11,
         Unicode,
         MicrosoftUnicode,
@@ -1287,6 +1325,18 @@ const uchar *QFontEngine::getCMap(const uchar *table, uint tableSize, bool *isSy
                 if (score < Symbol) {
                     tableToUse = n;
                     score = Symbol;
+                }
+                break;
+            case 3: // Chinese GB2312
+                if (score < MicrosoftGB2312) {
+                    tableToUse = n;
+                    score = MicrosoftGB2312;
+                }
+                break;
+            case 4: // Chinese BIG5
+                if (score < MicrosoftBIG5) {
+                    tableToUse = n;
+                    score = MicrosoftBIG5;
                 }
                 break;
             case 1:
@@ -1343,6 +1393,12 @@ resolveTable:
         return 0;
     *cmapSize = length;
 
+    if (cmapCodec && (score == MicrosoftGB2312 || score == MicrosoftBIG5)) {
+        QTextCodec *codec = QTextCodec::codecForName(score == MicrosoftGB2312 ? "GBK" : "Big5");
+        if (codec != NULL)
+            *cmapCodec = codec;
+    }
+
     // To support symbol fonts that contain a unicode table for the symbol area
     // we check the cmap tables and fall back to symbol font unless that would
     // involve losing information from the unicode table
@@ -1391,6 +1447,28 @@ quint32 QFontEngine::getTrueTypeGlyphIndex(const uchar *cmap, int cmapSize, uint
         const uchar *ptr = cmap + 6 + unicode;
         if (unicode < 256 && ptr < end)
             return quint32(*ptr);
+    } else if (format == 2) {
+        quint8 low = (quint8)unicode;
+        quint8 high = (quint8)(unicode >> 8);
+        const uchar *subHeaderKeys = cmap + 6;
+        const uchar *subHeaders = subHeaderKeys + 2 * 256;
+        const uchar *subHeader = subHeaders + qFromBigEndian<quint16>(subHeaderKeys + 2 * high);
+
+        quint16 first = qFromBigEndian<quint16>(subHeader);
+        quint16 entryCount = qFromBigEndian<quint16>(subHeader + 2);
+        low -= first;
+        if (low < 0 || low >= entryCount)
+            return 0;
+
+        qint16 idDelta = qFromBigEndian<qint16>(subHeader + 4);
+        subHeader += 6;
+        const uchar *pIndex = subHeader + qFromBigEndian<quint16>(subHeader) + 2 * low;
+        quint32 index = qFromBigEndian<quint16>(pIndex);
+        if (index != 0) {
+            index += idDelta;
+            index %= 65536;
+        }
+        return index;
     } else if (format == 4) {
         /* some fonts come with invalid cmap tables, where the last segment
            specified end = start = rangeoffset = 0xffff, delta = 0x0001
@@ -1552,6 +1630,48 @@ QFixed QFontEngine::lastRightBearing(const QGlyphLayout &glyphs, bool round)
     return 0;
 }
 
+QTransform QFontEngine::applyTextRotation(const QTransform &matrix) const
+{
+#ifdef Q_OS_WIN
+    return matrix;
+#else
+    if (qFuzzyIsNull(fontDef.escapementAngle)) {
+        return matrix;
+    } else {
+        QTransform result;
+        result.rotate(fontDef.escapementAngle);
+        result *= matrix;
+        return result;
+    }
+#endif
+}
+
+QFixed QFontEngine::getCustomBoldPixWidth(const QTransform &t)
+{
+    if (customBoldwidth <= 0)
+        return 0;
+
+    QLineF line(QPointF(0, 0), QPointF(1, 1));
+    line.setLength(customBoldwidth.toReal());
+    line = t.map(line);
+
+    return QFixed::fromReal(line.length()); // pen width(in pixel);
+}
+
+bool QFontEngine::changeCapJoinStyle()
+{
+    return changeCapJoinFamilys.contains(fontDef.family);
+}
+
+bool QFontEngine::forceDrawAsOutline()
+{
+    return forceDrawAsOutlineFamilys.contains(fontDef.family);
+}
+
+bool QFontEngine::hasCustomBoldWidth(int, int, int, int, int, int&, int&)
+{
+    return false;
+}
 
 QFontEngine::GlyphCacheEntry::GlyphCacheEntry()
 {
@@ -1812,7 +1932,7 @@ void QFontEngineMulti::setFallbackFamiliesList(const QStringList &fallbackFamili
 
 void QFontEngineMulti::ensureEngineAt(int at)
 {
-    if (!m_fallbackFamiliesQueried)
+    if (!m_fallbackFamiliesQueried && (at >= m_engines.size()))
         ensureFallbackFamiliesQueried();
     Q_ASSERT(at < m_engines.size());
     if (!m_engines.at(at)) {
@@ -2092,7 +2212,14 @@ void QFontEngineMulti::addOutlineToPath(qreal x, qreal y, const QGlyphLayout &gl
     for (i = start; i < end; ++i)
         glyphs.glyphs[i] = stripped(glyphs.glyphs[i]);
 
-    engine(which)->addOutlineToPath(x, y, glyphs.mid(start, end - start), path, flags);
+#ifdef Q_OS_MAC
+    // The problem of crashing when modifying the art word acquisition path
+    if (which >= m_engines.size())
+        which = highByte(glyphs.glyphs[0]);
+#endif // Q_OS_MAC
+
+    if (engine(which))
+        engine(which)->addOutlineToPath(x, y, glyphs.mid(start, end - start), path, flags);
 
     // reset the high byte for all glyphs
     const int hi = which << 24;

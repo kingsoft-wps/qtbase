@@ -50,6 +50,11 @@
 
 #include <cmath>
 
+#include <sys/sysctl.h>
+#include <QString>
+#include <private/qcore_mac_p.h>
+#include <QCoreApplication>
+#include "freetypemac_p.h"
 #if defined(Q_OS_MACOS)
 #import <AppKit/AppKit.h>
 #endif
@@ -362,10 +367,25 @@ glyph_metrics_t QCoreTextFontEngine::boundingBox(glyph_t glyph)
     if (synthesisFlags & QFontEngine::SynthesizedItalic) {
         rect.size.width += rect.size.height * SYNTHETIC_ITALIC_SKEW;
     }
+
+#ifdef Q_OS_MAC
+	if (fontDef.verticalMetrics)
+	{
+		ret.width = QFixed::fromReal(rect.size.height);
+		ret.height = QFixed::fromReal(rect.size.width);
+		ret.x = QFixed::fromReal(rect.origin.y);
+		ret.y = -QFixed::fromReal(rect.origin.x) - ret.height;
+	}
+	else
+	{
+#endif // Q_OS_MAC
     ret.width = QFixed::fromReal(rect.size.width);
     ret.height = QFixed::fromReal(rect.size.height);
     ret.x = QFixed::fromReal(rect.origin.x);
     ret.y = -QFixed::fromReal(rect.origin.y) - ret.height;
+#ifdef Q_OS_MAC
+    }
+#endif // Q_OS_MAC
     CGSize advances[1];
     CTFontGetAdvancesForGlyphs(ctfont, kCTFontOrientationHorizontal, &g, advances, 1);
     ret.xoff = QFixed::fromReal(advances[0].width);
@@ -481,7 +501,7 @@ void QCoreTextFontEngine::draw(CGContextRef ctx, qreal x, qreal y, const QTextIt
     CTFontDrawGlyphs(ctfont, cgGlyphs.data(), cgPositions.data(), glyphs.size(), ctx);
 
     if (synthesisFlags & QFontEngine::SynthesizedBold) {
-        CGContextSetTextPosition(ctx, positions[0].x.toReal() + 0.5 * lineThickness().toReal(),
+        CGContextSetTextPosition(ctx, positions[0].x.toReal() + 1.0 * lineThickness().toReal(),
                                  positions[0].y.toReal());
         CTFontDrawGlyphs(ctfont, cgGlyphs.data(), cgPositions.data(), glyphs.size(), ctx);
     }
@@ -547,9 +567,54 @@ void QCoreTextFontEngine::addGlyphsToPath(glyph_t *glyphs, QFixedPoint *position
 
     qreal stretch = fontDef.stretch ? qreal(fontDef.stretch) / 100 : 1.0;
     for (int i = 0; i < nGlyphs; ++i) {
-        QCFType<CGPathRef> cgpath = CTFontCreatePathForGlyph(ctfont, glyphs[i], &cgMatrix);
-        ConvertPathInfo info(path, positions[i].toPointF(), stretch);
-        CGPathApply(cgpath, &info, convertCGPathToQPainterPath);
+        CGAffineTransform curMatrix = cgMatrix;
+        QPointF pos = positions[i].toPointF();
+
+        if (fontDef.verticalMetrics) {
+            CGGlyph g = glyphs[i];
+            qreal advance = CTFontGetAdvancesForGlyphs(ctfont, kCTFontHorizontalOrientation, &g, 0, 1);
+            qreal ascent = CTFontGetAscent(ctfont);
+            qreal descent = CTFontGetDescent(ctfont);
+            qreal midX = (ascent - descent) / 2;
+            qreal midY = advance / 2;
+            pos.rx() += midX + midY;
+            pos.ry() -= midX - midY;
+            curMatrix = CGAffineTransformRotate(cgMatrix, M_PI / 2);
+        }
+
+        QCFType<CGPathRef> cgpath = CTFontCreatePathForGlyph(ctfont, glyphs[i], &curMatrix);
+        ConvertPathInfo info(path, pos);
+        if (fontDef.manualBolden)
+        {
+            glyphInfo freeTypeInfo;
+            freeTypeInfo.fontPath = fontPath();
+            freeTypeInfo.glyphId = glyphs[i];
+            freeTypeInfo.glyphPos = pos;
+            freeTypeInfo.pixelSize = fontDef.pixelSize;
+            freeTypeInfo.fontFamily = fontDef.family;
+            freeTypeInfo.fontFaceName = fontDef.styleName;
+            freeTypeInfo.stretch = stretch;
+            if (synthesisFlags & QFontEngine::SynthesizedItalic)
+            {
+                freeTypeInfo.italic = true;
+                freeTypeInfo.italicFactor = SYNTHETIC_ITALIC_SKEW;
+            }
+            else
+            {
+                freeTypeInfo.italic = false;
+                freeTypeInfo.italicFactor = 0;
+            }
+            freeTypeInfo.verticalMetric = fontDef.verticalMetrics;
+            if (freeTypeFontMgr::instance()->getFreeTypePath(path, freeTypeInfo) < 0)
+            {
+                fontDef.manualBolden = false;
+                CGPathApply(cgpath, &info, convertCGPathToQPainterPath);
+            }
+        }
+        else
+        {
+            CGPathApply(cgpath, &info, convertCGPathToQPainterPath);
+        }
     }
 }
 
@@ -765,7 +830,14 @@ QImage QCoreTextFontEngine::imageForGlyph(glyph_t glyph, QFixed subPixelPosition
     CGContextSetShouldAntialias(ctx, shouldAntialias());
 
     const bool shouldSmooth = shouldSmoothFont();
-    CGContextSetShouldSmoothFonts(ctx, shouldSmooth);
+	if (@available(macOS 10.14, *)) 
+	{
+        CGContextSetShouldSmoothFonts(ctx, false);
+	}
+	else
+	{
+        CGContextSetShouldSmoothFonts(ctx, shouldSmooth);
+	}
 
 #if defined(Q_OS_MACOS)
     auto glyphColor = [&] {
@@ -810,6 +882,16 @@ QImage QCoreTextFontEngine::imageForGlyph(glyph_t glyph, QFixed subPixelPosition
     qreal pos_x = -br.x.truncate() + subPixelPosition.toReal();
     qreal pos_y = im.height() + br.y.toReal();
 
+#ifdef Q_OS_MAC
+	if (fontDef.verticalMetrics)
+	{
+		pos_x--;
+		pos_y--;
+		cgMatrix = CGAffineTransformRotate(cgMatrix, M_PI / 2);
+		pos_x = im.width() - pos_x;
+	}
+#endif // Q_OS_MAC
+
     if (!hasColorGlyphs()) {
         CGContextSetTextMatrix(ctx, cgMatrix);
 #if defined(Q_OS_MACOS)
@@ -820,11 +902,13 @@ QImage QCoreTextFontEngine::imageForGlyph(glyph_t glyph, QFixed subPixelPosition
         CGContextSetTextDrawingMode(ctx, kCGTextFill);
         CGContextSetTextPosition(ctx, pos_x, pos_y);
 
-        CTFontDrawGlyphs(ctfont, &cgGlyph, &CGPointZero, 1, ctx);
+	//CTFontDrawGlyphs(ctfont, &cgGlyph, &CGPointZero, 1, ctx);
+	CGContextSetFont(ctx, cgFont);
+	CGContextShowGlyphsWithAdvances(ctx, &cgGlyph, &CGSizeZero, 1);
 
         if (synthesisFlags & QFontEngine::SynthesizedBold) {
-            CGContextSetTextPosition(ctx, pos_x + 0.5 * lineThickness().toReal(), pos_y);
-            CTFontDrawGlyphs(ctfont, &cgGlyph, &CGPointZero, 1, ctx);
+            CGContextSetTextPosition(ctx, pos_x + lineThickness().toReal(), pos_y);
+            CGContextShowGlyphsWithAdvances(ctx, &cgGlyph, &CGSizeZero, 1);
         }
     } else {
         CGContextSetRGBFillColor(ctx, color.redF(), color.greenF(), color.blueF(), color.alphaF());
@@ -942,12 +1026,24 @@ void QCoreTextFontEngine::getUnscaledGlyph(glyph_t glyph, QPainterPath *path, gl
 {
     CGAffineTransform cgMatrix = CGAffineTransformIdentity;
 
+	QPointF pos(0, 0);
+	if (fontDef.verticalMetrics) {
+		CGGlyph g = glyph;
+		qreal advance = CTFontGetAdvancesForGlyphs(ctfont, kCTFontHorizontalOrientation, &g, 0, 1);
+		qreal ascent = CTFontGetAscent(ctfont);
+		qreal descent = CTFontGetDescent(ctfont);
+		qreal midX = (ascent - descent) / 2;
+		qreal midY = advance / 2;
+		pos.rx() += midX + midY;
+		pos.ry() -= midX - midY;
+		cgMatrix = CGAffineTransformRotate(cgMatrix, -M_PI / 2);
+	}
     qreal emSquare = CTFontGetUnitsPerEm(ctfont);
     qreal scale = emSquare / CTFontGetSize(ctfont);
     cgMatrix = CGAffineTransformScale(cgMatrix, scale, -scale);
 
     QCFType<CGPathRef> cgpath = CTFontCreatePathForGlyph(ctfont, (CGGlyph) glyph, &cgMatrix);
-    ConvertPathInfo info(path, QPointF(0,0));
+    ConvertPathInfo info(path, pos);
     CGPathApply(cgpath, &info, convertCGPathToQPainterPath);
 
     *metric = boundingBox(glyph);
@@ -1052,4 +1148,15 @@ void QCoreTextFontEngine::doKerning(QGlyphLayout *g, ShaperFlags flags) const
     QFontEngine::doKerning(g, flags);
 }
 
+QString QCoreTextFontEngine::fontPath()
+{
+    CTFontDescriptorRef fontDescriptorRef = CTFontCopyFontDescriptor(ctfont);
+    CFURLRef url = (CFURLRef)CTFontDescriptorCopyAttribute(fontDescriptorRef, kCTFontURLAttribute);
+
+    NSString *cfFontPath = [NSString stringWithString:[(NSURL *)CFBridgingRelease(url) path]];
+    QString fontPath = QString::fromUtf8([cfFontPath UTF8String]);
+    CFRelease(fontDescriptorRef);
+
+    return fontPath;
+}
 QT_END_NAMESPACE

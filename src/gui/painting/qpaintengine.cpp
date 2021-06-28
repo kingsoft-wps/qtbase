@@ -119,6 +119,11 @@ QTextItem::RenderFlags QTextItem::renderFlags() const
     return ti->flags;
 }
 
+QTextItem::CustomRenderOperateFlags QTextItem::customRenderOprFlags() const
+{
+    const QTextItemInt *ti = static_cast<const QTextItemInt *>(this);
+    return ti->oprFlags;
+}
 /*!
     \fn QString QTextItem::text() const
 
@@ -623,7 +628,59 @@ void QPaintEngine::drawImage(const QRectF &r, const QImage &image, const QRectF 
         im = im.copy(qFloor(sr.x()), qFloor(sr.y()),
                      qCeil(sr.width()), qCeil(sr.height()));
     QPixmap pm = QPixmap::fromImage(im, flags);
+    if (pm.isNull())
+        return;
     drawPixmap(r, pm, QRectF(QPointF(0, 0), pm.size()));
+}
+
+void QPaintEngine::drawImage(const QRectF &targetRect, const QImage &image, const QRectF &sourceRect,
+                             const QImageEffects *effects,
+                             Qt::ImageConversionFlags flags/* = Qt::AutoColor*/)
+{
+    QPainter *originPainter = painter();
+    Q_ASSERT(originPainter);
+
+    QPaintDevice *pdev = originPainter->device();
+    if (!pdev) {
+        qWarning("QPaintEngine::drawImage: PaintDevice is null!");
+        return;
+    }
+
+    QPolygonF devPolygon(QRectF(-1, -1, pdev->width() + 1, pdev->height() + 1));
+    devPolygon = originPainter->combinedTransform().inverted().map(devPolygon);
+    QPolygonF targetPolygon(targetRect);
+    QRectF clipedTargetRect = targetPolygon.intersected(devPolygon).boundingRect();
+    QRectF clipedSrcRect(sourceRect);
+
+    if (clipedTargetRect.isEmpty())
+        return;
+
+    if (clipedTargetRect != targetRect)
+    {
+        qreal lpos = sourceRect.left() + (clipedTargetRect.left() - targetRect.left()) / targetRect.width() * sourceRect.width();
+        qreal rpos = sourceRect.left() + (clipedTargetRect.right() - targetRect.left()) / targetRect.width() * sourceRect.width();
+        qreal tpos = sourceRect.top() + (clipedTargetRect.top() - targetRect.top()) / targetRect.height() * sourceRect.height();
+        qreal bpos = sourceRect.top() + (clipedTargetRect.bottom() - targetRect.top()) / targetRect.height() * sourceRect.height();
+        clipedSrcRect.setRect(lpos, tpos, rpos - lpos, bpos - tpos);
+        clipedSrcRect = clipedSrcRect.toAlignedRect();
+    }
+
+    QImage effectImg(clipedSrcRect.width(), clipedSrcRect.height(), QImage::Format_ARGB32_Premultiplied);
+    effectImg.fill(0);
+    QPainter imgPainter(&effectImg);
+    imgPainter.translate(-clipedSrcRect.left(), -clipedSrcRect.top());
+
+#ifdef Q_OS_LINUX
+    const bool syncOpacity = (type() != QPaintEngine::Pdf || pdev->devType() != QInternal::Printer);
+#else
+    const bool syncOpacity = true;
+#endif
+    if (syncOpacity)
+        imgPainter.setOpacity(originPainter->opacity());
+    imgPainter.drawImage(image.rect(), image, image.rect(), flags, effects);
+    imgPainter.end();
+
+    originPainter->drawImage(clipedTargetRect, effectImg, effectImg.rect(), flags);
 }
 
 /*!

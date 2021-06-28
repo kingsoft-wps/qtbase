@@ -256,6 +256,34 @@ static inline ControlElement<T> *ptr(QWidget *widget)
     return 0;
 }
 
+struct FocusRollback
+{
+    bool needRestore;
+    QPointer<QWidget> oldFocus;
+    QWidget *parent;
+
+    FocusRollback(QWidget *parent, bool wasVisible)
+    {
+        needRestore = wasVisible;
+        if (needRestore) {
+            this->parent = parent;
+            oldFocus = QApplication::focusWidget();
+        }
+    }
+
+    ~FocusRollback()
+    {
+        if (!needRestore)
+            return;
+
+        QWidget *newFocus = QApplication::focusWidget();
+        if (oldFocus && newFocus != oldFocus && parent->isAncestorOf(oldFocus)
+            && parent->isAncestorOf(newFocus)) {
+            oldFocus->setFocus();
+        }
+    }
+};
+
 QString QMdiSubWindowPrivate::originalWindowTitle()
 {
     Q_Q(QMdiSubWindow);
@@ -303,7 +331,7 @@ static void showToolTip(QHelpEvent *helpEvent, QWidget *widget, const QStyleOpti
     Q_ASSERT(helpEvent->type() == QEvent::ToolTip);
     Q_ASSERT(widget);
 
-    if (widget->style()->styleHint(QStyle::SH_TitleBar_ShowToolTipsOnButtons, &opt, widget))
+    if (0 == widget->style()->styleHint(QStyle::SH_TitleBar_ShowToolTipsOnButtons, &opt, widget))
         return;
 
     // Convert CC_MdiControls to CC_TitleBar. Sub controls of different complex
@@ -894,6 +922,9 @@ QMdiSubWindowPrivate::QMdiSubWindowPrivate()
       activeSubControl(QStyle::SC_None),
       focusInReason(Qt::ActiveWindowFocusReason)
 {
+#ifdef Q_OS_MAC
+    windowStateBeforeMini |= Qt::WindowActive,
+#endif
     initOperationMap();
 }
 
@@ -944,7 +975,7 @@ void QMdiSubWindowPrivate::_q_enterInteractiveMode()
 #ifndef QT_NO_CURSOR
     q->cursor().setPos(q->mapToGlobal(pressPos));
 #endif
-    mousePressPosition = q->mapToParent(pressPos);
+    mousePressPosition = q->mapToGlobal(pressPos);
     oldGeometry = q->geometry();
     isInInteractiveMode = true;
     q->setFocus();
@@ -1276,6 +1307,7 @@ void QMdiSubWindowPrivate::setNormalMode()
     // Hide the window before we change the geometry to avoid multiple resize
     // events and wrong window state.
     const bool wasVisible = q->isVisible();
+    FocusRollback focusRollback(q, wasVisible);
     if (wasVisible)
         q->setVisible(false);
 
@@ -1364,6 +1396,7 @@ void QMdiSubWindowPrivate::setMaximizeMode()
     // Hide the window before we change the geometry to avoid multiple resize
     // events and wrong window state.
     const bool wasVisible = q->isVisible();
+    FocusRollback focusRollback(q, wasVisible);
     if (wasVisible)
         q->setVisible(false);
 
@@ -3011,16 +3044,32 @@ void QMdiSubWindow::changeEvent(QEvent *changeEvent)
         setVisible(true);
     }
 
+#ifdef Q_OS_MAC
+    // If the mac side is maximized and minimized, it will return directly without the following operations.
+    if (newState & Qt::WindowMinimized)
+    {
+        d->windowStateBeforeMini = this->isMaximized() ? Qt::WindowMaximized : oldState;
+    }
+#endif
     if (!d->oldGeometry.isValid())
         d->oldGeometry = geometry();
 
     if ((oldState & Qt::WindowActive) && (newState & Qt::WindowActive))
         d->currentOperation = QMdiSubWindowPrivate::None;
 
+#ifdef Q_OS_MAC
+    // There is no need to minimize operation in the maximized state
+    if (!(oldState & Qt::WindowMinimized) && (newState & Qt::WindowMinimized) && this->isMaximized())
+        return ;
+#endif
     if (!(oldState & Qt::WindowMinimized) && (newState & Qt::WindowMinimized))
         d->setMinimizeMode();
     else if (!(oldState & Qt::WindowMaximized) && (newState & Qt::WindowMaximized))
         d->setMaximizeMode();
+#ifdef Q_OS_MAC
+    else if ((oldState & Qt::WindowMinimized) && (newState & Qt::WindowActive) && (d->windowStateBeforeMini & Qt::WindowMaximized))
+        d->setMaximizeMode();
+#endif
     else if (!(newState & (Qt::WindowMaximized | Qt::WindowMinimized | Qt::WindowFullScreen)))
         d->setNormalMode();
 
@@ -3211,7 +3260,7 @@ void QMdiSubWindow::mousePressEvent(QMouseEvent *mouseEvent)
 
     if (d->currentOperation != QMdiSubWindowPrivate::None) {
         d->updateCursor();
-        d->mousePressPosition = mapToParent(mouseEvent->pos());
+        d->mousePressPosition = mouseEvent->globalPos();
         if (d->resizeEnabled || d->moveEnabled)
             d->oldGeometry = geometry();
 #if QT_CONFIG(rubberband)
@@ -3250,7 +3299,8 @@ void QMdiSubWindow::mouseDoubleClickEvent(QMouseEvent *mouseEvent)
     Q_D(QMdiSubWindow);
     if (!d->isMoveOperation()) {
 #if QT_CONFIG(menu)
-        if (d->hoveredSubControl == QStyle::SC_TitleBarSysMenu)
+        if (d->hoveredSubControl == QStyle::SC_TitleBarSysMenu
+            && d->titleBarHeight() > 0)
             close();
 #endif
         return;
@@ -3348,7 +3398,7 @@ void QMdiSubWindow::mouseMoveEvent(QMouseEvent *mouseEvent)
 
     if ((mouseEvent->buttons() & Qt::LeftButton) || d->isInInteractiveMode) {
         if ((d->isResizeOperation() && d->resizeEnabled) || (d->isMoveOperation() && d->moveEnabled))
-            d->setNewGeometry(mapToParent(mouseEvent->pos()));
+            d->setNewGeometry(mouseEvent->globalPos());
         return;
     }
 

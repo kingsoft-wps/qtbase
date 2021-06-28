@@ -83,6 +83,8 @@ public:
     void setImage(const QImage &, Mode mode  = Clipboard);
     void setPixmap(const QPixmap &, Mode mode  = Clipboard);
 
+    void flushClipboard();
+
 Q_SIGNALS:
     void changed(QClipboard::Mode mode);
     void selectionChanged();

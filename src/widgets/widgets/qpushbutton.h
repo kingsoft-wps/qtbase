@@ -85,6 +85,9 @@ public:
 public Q_SLOTS:
 #if QT_CONFIG(menu)
     void showMenu();
+#ifdef Q_OS_MAC
+    void onHideMenu();
+#endif // Q_OS_MAC
 #endif
 
 protected:

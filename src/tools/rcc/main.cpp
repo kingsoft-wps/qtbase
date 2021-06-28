@@ -148,6 +148,9 @@ int runRcc(int argc, char *argv[])
     QCommandLineOption verboseOption(QStringLiteral("verbose"), QStringLiteral("Enable verbose mode."));
     parser.addOption(verboseOption);
 
+    QCommandLineOption removeduplicateOption(QStringLiteral("removeduplicate"), QStringLiteral("remove the duplicate data"));
+    parser.addOption(removeduplicateOption);
+
     QCommandLineOption listOption(QStringLiteral("list"), QStringLiteral("Only list .qrc file entries, do not generate code."));
     parser.addOption(listOption);
 
@@ -209,6 +212,8 @@ int runRcc(int argc, char *argv[])
         library.setUseNameSpace(!library.useNameSpace());
     if (parser.isSet(verboseOption))
         library.setVerbose(true);
+    if (parser.isSet(removeduplicateOption))
+        library.setRemoveDuplicate(true);
 
     const bool list = parser.isSet(listOption);
     const bool map = parser.isSet(mapOption);

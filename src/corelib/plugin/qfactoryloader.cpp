@@ -205,7 +205,23 @@ void QFactoryLoader::update()
 #ifdef Q_OS_WIN
                     QStringList(QStringLiteral("*.dll")),
 #endif
-                    QDir::Files);
+                    QDir::Files | QDir::Hidden);
+#ifdef Q_OS_WIN
+        if (plugins.empty()) {
+            qDebug() << "Retry";
+            plugins = QDir(path).entryList(
+                    QStringList(QStringLiteral("*.dll")),
+                    QDir::Files | QDir::Hidden);
+        }
+        if (plugins.empty() && 0 == d->suffix.compare(QLatin1String("/platforms"), d->cs)) {
+            qDebug() << "Retry Use Default";
+#ifdef QT_DEBUG
+            plugins << QLatin1String("qdirect2dd.dll") << QLatin1String("qwindowsd.dll");
+#else
+            plugins << QLatin1String("qdirect2d.dll") << QLatin1String("qwindows.dll");
+#endif
+        }
+#endif
         QLibraryPrivate *library = 0;
 
         for (int j = 0; j < plugins.count(); ++j) {
@@ -236,7 +252,11 @@ void QFactoryLoader::update()
 
             Q_TRACE(QFactoryLoader_update, fileName);
 
+#if defined(Q_OS_WIN)
+            library = QLibraryPrivate::findOrCreate(QFileInfo(fileName).absoluteFilePath());
+#else
             library = QLibraryPrivate::findOrCreate(QFileInfo(fileName).canonicalFilePath());
+#endif
             if (!library->isPlugin()) {
                 if (qt_debug_component()) {
                     qDebug() << library->errorString << endl

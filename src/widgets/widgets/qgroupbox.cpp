@@ -56,6 +56,9 @@
 #include <private/qwidget_p.h>
 
 #include "qdebug.h"
+#ifdef Q_OS_LINUX
+#include <private/qstylehelper_p.h>
+#endif
 
 QT_BEGIN_NAMESPACE
 
@@ -455,7 +458,15 @@ void QGroupBoxPrivate::calculateFrame()
     QStyleOptionGroupBox box;
     q->initStyleOption(&box);
     QRect contentsRect = q->style()->subControlRect(QStyle::CC_GroupBox, &box, QStyle::SC_GroupBoxContents, q);
-    q->setContentsMargins(contentsRect.left() - box.rect.left(), contentsRect.top() - box.rect.top(),
+    int topMargin = contentsRect.top() - box.rect.top();
+#ifdef Q_OS_LINUX
+    if (!box.text.isEmpty() && QStyleHelper::dpiScaled(1.0) > 1.0)
+    {
+        QRect labelRect = q->style()->subControlRect(QStyle::CC_GroupBox, &box, QStyle::SC_GroupBoxLabel, q);
+        topMargin = labelRect.height();
+    }
+#endif
+    q->setContentsMargins(contentsRect.left() - box.rect.left(), topMargin,
                           box.rect.right() - contentsRect.right(), box.rect.bottom() - contentsRect.bottom());
     setLayoutItemMargins(QStyle::SE_GroupBoxLayoutItem, &box);
 }

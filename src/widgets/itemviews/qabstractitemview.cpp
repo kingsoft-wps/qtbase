@@ -142,6 +142,9 @@ void QAbstractItemViewPrivate::init()
 
     viewport->setBackgroundRole(QPalette::Base);
 
+#ifdef Q_OS_MAC
+    viewport->setBackgroundRole(QPalette::Light);
+#endif
     q->setAttribute(Qt::WA_InputMethodEnabled);
 
     verticalScrollMode = static_cast<QAbstractItemView::ScrollMode>(q->style()->styleHint(QStyle::SH_ItemView_ScrollMode, 0, q, 0));
@@ -2242,14 +2245,15 @@ void QAbstractItemView::focusInEvent(QFocusEvent *event)
         QModelIndex index = moveCursor(MoveNext, Qt::NoModifier); // first visible index
         if (index.isValid() && d->isIndexEnabled(index) && event->reason() != Qt::MouseFocusReason) {
             selectionModel()->setCurrentIndex(index, QItemSelectionModel::NoUpdate);
-            currentIndexValid = true;
+            if (NoEditTriggers != d->editTriggers)
+                currentIndexValid = true;
         }
         d->autoScroll = autoScroll;
     }
 
-    if (model && currentIndexValid)
+    if (model && currentIndexValid && NoEditTriggers != d->editTriggers)
         setAttribute(Qt::WA_InputMethodEnabled, (currentIndex().flags() & Qt::ItemIsEditable));
-    else if (!currentIndexValid)
+    else if (!currentIndexValid || NoEditTriggers == d->editTriggers)
         setAttribute(Qt::WA_InputMethodEnabled, false);
 
     d->viewport->update();
@@ -3666,7 +3670,8 @@ void QAbstractItemView::currentChanged(const QModelIndex &current, const QModelI
             d->shouldScrollToCurrentOnShow = d->autoScroll;
         }
     }
-    setAttribute(Qt::WA_InputMethodEnabled, (current.isValid() && (current.flags() & Qt::ItemIsEditable)));
+    if (NoEditTriggers != d->editTriggers)
+        setAttribute(Qt::WA_InputMethodEnabled, (current.isValid() && (current.flags() & Qt::ItemIsEditable)));
 }
 
 #if QT_CONFIG(draganddrop)
@@ -3910,7 +3915,9 @@ void QAbstractItemView::doAutoScroll()
     // if nothing changed, stop scrolling
     bool verticalUnchanged = (verticalValue == verticalScroll->value());
     bool horizontalUnchanged = (horizontalValue == horizontalScroll->value());
-    if (verticalUnchanged && horizontalUnchanged) {
+    if ((verticalUnchanged && horizontalUnchanged)
+        || pos.y() < area.top()
+        || pos.y() > area.bottom()) {
         stopAutoScroll();
     } else {
 #if QT_CONFIG(draganddrop)

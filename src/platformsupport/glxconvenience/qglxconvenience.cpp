@@ -456,3 +456,123 @@ bool qglx_reduceFormat(QSurfaceFormat *format)
 
     return false;
 }
+
+
+#ifdef Q_OS_LINUX
+
+GLXFBConfig qglx_findFBConfig(Display *display, int screen , const QSurfaceFormat &format, int drawableBit, int flags)
+{
+    GLXFBConfig config = 0;
+    if (!display)
+        return config;
+
+    const QVector<int> spec = qglx_buildSpec(format, drawableBit, flags);
+
+    int confcount = 0;
+    QXlibArrayPointer<GLXFBConfig> configs(glXChooseFBConfig(display, screen, spec.constData(), &confcount));
+
+    if (confcount <= 0)
+            return config;
+
+
+    const int requestedRed = qMax(0, format.redBufferSize());
+    const int requestedGreen = qMax(0, format.greenBufferSize());
+    const int requestedBlue = qMax(0, format.blueBufferSize());
+    const int requestedAlpha = qMax(0, format.alphaBufferSize());
+
+    for (int i = 0; i < confcount; i++) {
+        GLXFBConfig candidate = configs[i];
+
+        if ((flags & QGLX_SUPPORTS_SRGB) && format.colorSpace() == QSurfaceFormat::sRGBColorSpace) {
+            int srgbCapable = 0;
+            glXGetFBConfigAttrib(display, candidate, GLX_FRAMEBUFFER_SRGB_CAPABLE_ARB, &srgbCapable);
+            if (!srgbCapable)
+                continue;
+        }
+
+        QXlibPointer<XVisualInfo> visual(glXGetVisualFromFBConfig(display, candidate));
+        if (visual.isNull())
+            continue;
+
+        const int actualRed = qPopulationCount(visual->red_mask);
+        const int actualGreen = qPopulationCount(visual->green_mask);
+        const int actualBlue = qPopulationCount(visual->blue_mask);
+        const int actualAlpha = visual->depth - actualRed - actualGreen - actualBlue;
+
+        if (requestedRed && actualRed != requestedRed)
+            continue;
+        if (requestedGreen && actualGreen != requestedGreen)
+            continue;
+        if (requestedBlue && actualBlue != requestedBlue)
+            continue;
+        if (requestedAlpha && actualAlpha != requestedAlpha)
+            continue;
+
+        config = candidate;
+        break;
+    }
+
+    return config;
+}
+
+/*
+ * @return  -1: failed; 0: QSurfaceFormat::DefaultColorSpace; 1:QSurfaceFormat::sRGBColorSpace
+*/
+int qglx_testColorSapce()
+{
+    static int retColorSpace = -1;
+    static bool bInit = false;
+
+    if (bInit)
+        return retColorSpace;
+    bInit = true;    // only run once
+
+    Display* display = XOpenDisplay(getenv("DISPLAY"));
+    if (!display)
+        return retColorSpace;
+
+    int glx_major, glx_minor;	// Make sure GLX version is above 1.3
+    if (!glXQueryVersion(display, &glx_major, &glx_minor) ||
+            ((glx_major == 1) && (glx_minor < 3)) || (glx_major < 1)) {
+        XCloseDisplay(display);
+        return retColorSpace;
+    }
+
+    const int rgba_size = 8;
+    const int depth_size = rgba_size * 3;
+    QSurfaceFormat format(QSurfaceFormat::defaultFormat());
+    format.setRedBufferSize(rgba_size);
+    format.setGreenBufferSize(rgba_size);
+    format.setBlueBufferSize(rgba_size);
+    format.setAlphaBufferSize(rgba_size);
+    format.setDepthBufferSize(depth_size);
+
+    int screen = DefaultScreen(display);
+    const char *glxExts = glXQueryExtensionsString(display, screen);
+    int flags = 0;
+    if (glxExts && (strstr(glxExts, "GLX_EXT_framebuffer_sRGB") || strstr(glxExts, "GLX_ARB_framebuffer_sRGB")))
+        flags |= QGLX_SUPPORTS_SRGB;
+
+    QSurfaceFormat::ColorSpace colorSpace = format.colorSpace();
+    int drawableBit = GLX_WINDOW_BIT;
+    GLXFBConfig config = qglx_findFBConfig(display, screen, format, drawableBit, flags);
+    if (config) {
+        retColorSpace = colorSpace;
+    }
+    else
+    {
+        if (QSurfaceFormat::DefaultColorSpace == colorSpace)	// Switch between two enumerations
+            colorSpace = QSurfaceFormat::sRGBColorSpace;
+        else
+            colorSpace = QSurfaceFormat::DefaultColorSpace;
+        format.setColorSpace(colorSpace);
+
+        config = qglx_findFBConfig(display, screen, format, drawableBit, flags);
+        if (config)
+            retColorSpace = colorSpace;
+    }
+    XCloseDisplay(display);
+
+    return retColorSpace;
+}
+#endif

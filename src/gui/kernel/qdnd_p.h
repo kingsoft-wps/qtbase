@@ -104,6 +104,8 @@ public:
     QDrag *object() const { return m_object; }
     QObject *source() const;
 
+    bool notifyCanceled(const QDrag *drag, const QPoint &pos);
+
 private:
     QObject *m_currentDropTarget;
     QPlatformDrag *m_platformDrag;

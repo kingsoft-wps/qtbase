@@ -790,7 +790,7 @@ static void convertPath(const QPainterPath &path, QVector<TTF_POINT> *points, QV
                         // see if we can optimize out the last onCurve point
                         int mx = (points->at(points->size() - 2).x + base[2].x) >> 1;
                         int my = (points->at(points->size() - 2).y + base[2].y) >> 1;
-                        if (qAbs(mx - base[3].x) <= split_limit && qAbs(my = base[3].y) <= split_limit)
+                        if (qAbs(mx - base[3].x) <= split_limit && qAbs(my - base[3].y) <= split_limit)
                             points->takeLast();
                         try_reduce = false;
                     }
@@ -835,6 +835,10 @@ static void convertPath(const QPainterPath &path, QVector<TTF_POINT> *points, QV
 //         qDebug() << "   appending oncurve point " << QPoint(p.x, p.y);
         points->append(p);
     }
+#ifdef Q_OS_LINUX
+    if (points->isEmpty())
+        return;
+#endif
     int start = endPoints->size() ? endPoints->at(endPoints->size()-1) + 1 : 0;
     int end = points->size() - 1;
     if (points->at(end).x == points->at(start).x

@@ -161,6 +161,7 @@ QCocoaWindow::QCocoaWindow(QWindow *win, WId nativeHandle)
     , m_drawContentBorderGradient(false)
     , m_topContentBorderThickness(0)
     , m_bottomContentBorderThickness(0)
+    , m_nsWindowTitleView(nil)
 {
     qCDebug(lcQpaWindow) << "QCocoaWindow::QCocoaWindow" << window();
 
@@ -182,7 +183,8 @@ void QCocoaWindow::initialize()
     setGeometry(initialGeometry(window(), windowGeometry(), defaultWindowWidth, defaultWindowHeight));
 
     recreateWindowIfNeeded();
-    window()->setGeometry(geometry());
+    if (window())
+        window()->setGeometry(geometry());
 
     m_initialized = true;
 }
@@ -218,10 +220,42 @@ QCocoaWindow::~QCocoaWindow()
 
     [m_view release];
     [m_nsWindow release];
+
+    if (m_nsWindowTitleView)
+        [m_nsWindowTitleView release];
+}
+
+void QCocoaWindow::createWindowTitleView()
+{
+    if (m_nsWindowTitleView || !m_nsWindow)
+        return ;
+
+    NSRect boundsRect = [[[m_nsWindow contentView] superview] bounds];
+    m_nsWindowTitleView = [[QCocoaWindowTitleView alloc] initWithFrame:boundsRect];
+    [m_nsWindowTitleView setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
+	[m_nsWindow setTitle:@""];
+
+    if (m_backgroundClr.isValid())
+    {
+        [m_nsWindowTitleView setBackgroundColor: [NSColor colorWithRed:m_backgroundClr.red() / 255.0
+            green:m_backgroundClr.green() / 255.0 blue:m_backgroundClr.blue() / 255.0 alpha:1]];
+    }
+    if (!m_title.isEmpty())
+    {
+        [m_nsWindowTitleView setTitle: m_title.toNSString()];
+    }
+    if (m_titleClr.isValid())
+    {
+        [m_nsWindowTitleView setTitleColor: [NSColor colorWithRed:m_titleClr.red() / 255.0
+            green:m_titleClr.green() / 255.0 blue:m_titleClr.blue() / 255.0 alpha:1]];
+    }
+    [[[m_nsWindow contentView] superview] addSubview:m_nsWindowTitleView positioned:NSWindowBelow relativeTo:[[[[m_nsWindow contentView] superview] subviews] objectAtIndex:0]];
 }
 
 QSurfaceFormat QCocoaWindow::format() const
 {
+    if (!window())
+        return QSurfaceFormat();
     QSurfaceFormat format = window()->requestedFormat();
 
     // Upgrade the default surface format to include an alpha channel. The default RGB format
@@ -306,6 +340,8 @@ void QCocoaWindow::setVisible(bool visible)
 
     QMacAutoReleasePool pool;
     QCocoaWindow *parentCocoaWindow = nullptr;
+    if (!window())
+        return;
     if (window()->transientParent())
         parentCocoaWindow = static_cast<QCocoaWindow *>(window()->transientParent()->handle());
 
@@ -444,7 +480,7 @@ NSInteger QCocoaWindow::windowLevel(Qt::WindowFlags flags)
     if (type == Qt::Tool)
         windowLevel = NSFloatingWindowLevel;
     else if ((type & Qt::Popup) == Qt::Popup)
-        windowLevel = NSPopUpMenuWindowLevel;
+        windowLevel = NSMainMenuWindowLevel;
 
     // StayOnTop window should appear above Tool windows.
     if (flags & Qt::WindowStaysOnTopHint)
@@ -453,6 +489,8 @@ NSInteger QCocoaWindow::windowLevel(Qt::WindowFlags flags)
     if (type == Qt::ToolTip)
         windowLevel = NSScreenSaverWindowLevel;
 
+    if (!window())
+        return windowLevel;
     auto *transientParent = window()->transientParent();
     if (transientParent && transientParent->handle()) {
         // We try to keep windows in at least the same window level as
@@ -519,6 +557,8 @@ NSUInteger QCocoaWindow::windowStyleMask(Qt::WindowFlags flags)
         if (type != Qt::Dialog)
             styleMask |= NSWindowStyleMaskMiniaturizable;
     }
+    if (flags & Qt::WindowFullSizeContent)
+        styleMask |= NSWindowStyleMaskFullSizeContentView;
 
     if (type == Qt::Tool)
         styleMask |= NSWindowStyleMaskUtilityWindow;
@@ -585,6 +625,8 @@ void QCocoaWindow::setWindowFlags(Qt::WindowFlags flags)
 
     m_view.window.hasShadow = !(flags & Qt::NoDropShadowWindowHint);
 
+    if (!window())
+        return;
     if (!(flags & Qt::FramelessWindowHint))
         setWindowTitle(window()->title());
 
@@ -613,6 +655,8 @@ void QCocoaWindow::setWindowFlags(Qt::WindowFlags flags)
 */
 void QCocoaWindow::setWindowState(Qt::WindowStates state)
 {
+    if (!window())
+        return;
     if (window()->isVisible())
         applyWindowState(state); // Window state set for hidden windows take effect when show() is called
 }
@@ -764,6 +808,8 @@ void QCocoaWindow::windowDidEnterFullScreen()
         "FullScreen category processes window notifications first");
 
     // Reset to original styleMask
+    if (!window())
+        return;
     setWindowFlags(window()->flags());
 
     handleWindowStateChanged();
@@ -788,6 +834,8 @@ void QCocoaWindow::windowDidExitFullScreen()
         "FullScreen category processes window notifications first");
 
     // Reset to original styleMask
+    if (!window())
+        return;
     setWindowFlags(window()->flags());
 
     Qt::WindowState requestedState = window()->windowState();
@@ -824,6 +872,9 @@ void QCocoaWindow::handleWindowStateChanged(HandleFlags flags)
     if (!(flags & HandleUnconditionally) && currentState == m_lastReportedWindowState)
         return;
 
+    if (!window())
+        return;
+
     qCDebug(lcQpaWindow) << "QCocoaWindow::handleWindowStateChanged" <<
         m_lastReportedWindowState << "-->" << currentState;
 
@@ -839,8 +890,26 @@ void QCocoaWindow::setWindowTitle(const QString &title)
     if (!isContentView())
         return;
 
+    if (window()->flags() & Qt::WindowFullSizeContent)
+        return;
+
     QMacAutoReleasePool pool;
-    m_view.window.title = title.toNSString();
+
+    m_title = title;
+    if (m_nsWindowTitleView)
+    {
+        // set empty title
+        [m_nsWindow setTitle:@""];
+        [m_nsWindowTitleView setTitle:title.toNSString()];
+        [m_nsWindowTitleView setNeedsDisplay:YES];
+    }
+    else
+    {
+        [m_nsWindow setTitle: title.toNSString()];
+    }
+
+    if (!window())
+        return;
 
     if (title.isEmpty() && !window()->filePath().isEmpty()) {
         // Clearing the title should restore the default filename
@@ -855,6 +924,8 @@ void QCocoaWindow::setWindowFilePath(const QString &filePath)
 
     QMacAutoReleasePool pool;
 
+    if (!window())
+        return;
     if (window()->title().isNull())
         [m_view.window setTitleWithRepresentedFilename:filePath.toNSString()];
     else
@@ -862,6 +933,90 @@ void QCocoaWindow::setWindowFilePath(const QString &filePath)
 
     // Changing the file path may affect icon visibility
     setWindowIcon(window()->icon());
+}
+
+// Customize window barTitle attributes on mac
+void QCocoaWindow::setTitlebarAppearsTransparent(bool b)
+{
+    setContentBorderEnabled(b);
+}
+
+void QCocoaWindow::setBackgroundColor(const QColor &clr)
+{
+    QMacAutoReleasePool pool;
+    if (!m_nsWindow)
+        return;
+
+    NSColor *color = [NSColor colorWithRed:clr.red() / 255.0 green:clr.green() / 255.0
+            blue:clr.blue() / 255.0 alpha:1];
+    m_backgroundClr = clr;
+	m_nsWindow.backgroundColor = color;
+    if (m_nsWindowTitleView)
+    {
+        [m_nsWindowTitleView setBackgroundColor:color];
+        [m_nsWindowTitleView setNeedsDisplay:YES];
+    }
+}
+
+void QCocoaWindow::setTitleTextColor(const QColor &clr)
+{
+    QMacAutoReleasePool pool;
+    if (!m_nsWindow)
+        return;
+
+    NSColor *color = [NSColor colorWithRed:clr.red() / 255.0 green:clr.green() / 255.0
+            blue:clr.blue() / 255.0 alpha:1];
+
+    m_titleClr = clr;
+    if (m_nsWindowTitleView)
+    {
+        [m_nsWindowTitleView setTitleColor:color];
+        [m_nsWindowTitleView setNeedsDisplay:YES];
+    }
+}
+// Moving NSWindow without redrawing
+void QCocoaWindow::setNSWindowGeometryNoRedraw(const QRect &rect)
+{
+    if (m_nsWindow)
+    {
+        NSRect bounds = QCocoaScreen::mapToNative(rect);
+        [m_nsWindow setFrame:[m_nsWindow frameRectForContentRect:bounds] display:NO animate:NO];
+    }
+    else
+    {
+        QPlatformWindow::setGeometry(rect);
+    }
+}
+
+// Whether to hide the top titlebar
+void QCocoaWindow::setTitlebarHide(bool b)
+{
+    if (!m_nsWindow)
+        return;
+
+    if (b)
+        m_nsWindow.titleVisibility = NSWindowTitleHidden;
+    else
+        m_nsWindow.titleVisibility = NSWindowTitleVisible;
+}
+
+// Set whether to show all
+void QCocoaWindow::setContentViewFullSize(bool b)
+{
+    if (!m_nsWindow)
+        return;
+
+#ifdef MAC_OS_X_VERSION_10_12
+    if (b)
+        m_nsWindow.styleMask = m_nsWindow.styleMask | NSWindowStyleMaskFullSizeContentView;
+    else
+        m_nsWindow.styleMask = m_nsWindow.styleMask & ~NSWindowStyleMaskFullSizeContentView;
+#else
+    if (b)
+        m_nsWindow.styleMask = m_nsWindow.styleMask | NSFullSizeContentViewWindowMask;
+    else
+        m_nsWindow.styleMask = m_nsWindow.styleMask & ~NSFullSizeContentViewWindowMask;
+#endif
 }
 
 void QCocoaWindow::setWindowIcon(const QIcon &icon)
@@ -946,6 +1101,8 @@ bool QCocoaWindow::isExposed() const
 
 bool QCocoaWindow::isEmbedded() const
 {
+    if (!window())
+        return true;
     // Child QWindows are not embedded
     if (window()->parent())
         return false;
@@ -965,6 +1122,8 @@ bool QCocoaWindow::isOpaque() const
     // OpenGL surfaces can be ordered either above(default) or below the NSWindow.
     // When ordering below the window must be tranclucent.
     static GLint openglSourfaceOrder = qt_mac_resolveOption(1, "QT_MAC_OPENGL_SURFACE_ORDER");
+    if (!window())
+        return true;
 
     bool translucent = window()->format().alphaBufferSize() > 0
                         || window()->opacity() < 1
@@ -996,6 +1155,8 @@ void QCocoaWindow::propagateSizeHints()
     window.contentMaxSize = NSSizeFromCGSize(windowMaximumSize().toCGSize());
 
     // The window may end up with a fixed size; in this case the zoom button should be disabled.
+    if (!this->window())
+        return;
     setWindowZoomButton(this->window()->flags());
 
     // sizeIncrement is observed to take values of (-1, -1) and (0, 0) for windows that should be
@@ -1075,6 +1236,10 @@ bool QCocoaWindow::setMouseGrabEnabled(bool grab)
 WId QCocoaWindow::winId() const
 {
     return WId(m_view);
+}
+WId QCocoaWindow::windowId() const
+{
+    return WId(m_nsWindow);
 }
 
 void QCocoaWindow::setParent(const QPlatformWindow *parentWindow)
@@ -1369,7 +1534,7 @@ void QCocoaWindow::handleExposeEvent(const QRegion &region)
 bool QCocoaWindow::windowIsPopupType(Qt::WindowType type) const
 {
     if (type == Qt::Widget)
-        type = window()->type();
+        type = window() ? window()->type() : type;
     if (type == Qt::Tool)
         return false; // Qt::Tool has the Popup bit set but isn't, at least on Mac.
 
@@ -1414,6 +1579,8 @@ void QCocoaWindow::recreateWindowIfNeeded()
 
     if (!m_view.window)
         recreateReason |= MissingWindow;
+    if (!window())
+        return;
 
     // If the modality has changed the style mask will need updating
     if (m_windowModality != window()->modality())
@@ -1556,6 +1723,8 @@ QCocoaNSWindow *QCocoaWindow::createNSWindow(bool shouldBePanel)
 {
     QMacAutoReleasePool pool;
 
+    if (!window())
+        return nullptr;
     Qt::WindowType type = window()->type();
     Qt::WindowFlags flags = window()->flags();
 
@@ -1617,9 +1786,15 @@ QCocoaNSWindow *QCocoaWindow::createNSWindow(bool shouldBePanel)
     if (!resultingScreen)
         resultingScreen = targetCocoaScreen;
 
-    if (resultingScreen->screen() != window()->screen()) {
+    if (resultingScreen) {
+        if (resultingScreen->screen() != window()->screen()) {
+            QWindowSystemInterface::handleWindowScreenChanged<
+                QWindowSystemInterface::SynchronousDelivery>(window(), resultingScreen->screen());
+        }
+    }
+    else {
         QWindowSystemInterface::handleWindowScreenChanged<
-            QWindowSystemInterface::SynchronousDelivery>(window(), resultingScreen->screen());
+            QWindowSystemInterface::SynchronousDelivery>(window(), nullptr);
     }
 
     static QSharedPointer<QNSWindowDelegate> sharedDelegate([[QNSWindowDelegate alloc] init],
@@ -1858,6 +2033,8 @@ bool QCocoaWindow::shouldRefuseKeyWindowAndFirstResponder()
     // This function speaks up if there's any reason
     // to refuse key window or first responder state.
 
+    if (!window())
+        return true;
     if (window()->flags() & Qt::WindowDoesNotAcceptFocus)
         return true;
 

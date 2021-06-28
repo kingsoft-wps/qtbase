@@ -41,6 +41,7 @@
 #include <private/qpainter_p.h>
 #include <private/qtextengine_p.h>
 #include <qdebug.h>
+#include <QtGui/qcomplexstroker.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -92,7 +93,7 @@ void QEmulationPaintEngine::fill(const QVectorPath &path, const QBrush &brush)
     }
 
     Qt::BrushStyle style = qbrush_style(brush);
-    if (style >= Qt::LinearGradientPattern && style <= Qt::ConicalGradientPattern) {
+    if (qbrush_is_gradient(brush)) {
         QGradient::CoordinateMode coMode = brush.gradient()->coordinateMode();
         if (coMode > QGradient::LogicalMode) {
             QBrush copy = brush;
@@ -115,6 +116,26 @@ void QEmulationPaintEngine::fill(const QVectorPath &path, const QBrush &brush)
     real_engine->fill(path, brush);
 }
 
+static QRectF getBoundingRect(const QVectorPath &strokePath, const QPen &pen)
+{
+    QPainterPath path2fill;
+    QPainterPath path2stroke = strokePath.convertToPainterPath();
+    if (strokePath.hasImplicitClose())
+        path2stroke.closeSubpath();
+
+    if (qpen_is_complex(pen)) {
+        auto stroker = QComplexStroker::fromPen(pen);
+        path2fill = stroker.createStroke(path2stroke);
+    } else {
+        QPainterPathStroker stroker;
+        stroker.setWidth(pen.widthF());
+        stroker.setJoinStyle(pen.joinStyle());
+        stroker.setCapStyle(pen.capStyle());
+        path2fill = stroker.createStroke(path2stroke);
+    }
+    return path2fill.boundingRect();
+}
+
 void QEmulationPaintEngine::stroke(const QVectorPath &path, const QPen &pen)
 {
     QPainterState *s = state();
@@ -128,12 +149,13 @@ void QEmulationPaintEngine::stroke(const QVectorPath &path, const QPen &pen)
 
     QBrush brush = pen.brush();
     QPen copy = pen;
-    Qt::BrushStyle style = qbrush_style(brush);
-    if (style >= Qt::LinearGradientPattern && style <= Qt::ConicalGradientPattern ) {
+    if (qbrush_is_gradient(brush)) {
         QGradient::CoordinateMode coMode = brush.gradient()->coordinateMode();
         if (coMode > QGradient::LogicalMode) {
             const QPaintDevice *d = real_engine->painter()->device();
-            QRectF r = (coMode == QGradient::StretchToDeviceMode) ? QRectF(0, 0, d->width(), d->height()) : path.controlPointRect();
+            QRectF r = (coMode == QGradient::StretchToDeviceMode)
+                ? QRectF(0, 0, d->width(), d->height())
+                : getBoundingRect(path, pen); // consider the width of pen, or r may be empty
             combineXForm(&brush, r);
             copy.setBrush(brush);
             real_engine->stroke(path, copy);
@@ -165,8 +187,7 @@ void QEmulationPaintEngine::drawTextItem(const QPointF &p, const QTextItem &text
     }
 
     QPainterState *s = state();
-    Qt::BrushStyle style = qbrush_style(s->pen.brush());
-    if (style >= Qt::LinearGradientPattern && style <= Qt::ConicalGradientPattern)
+    if (qbrush_is_gradient(s->pen.brush()))
     {
         QPen savedPen = s->pen;
         QGradient g = *s->pen.brush().gradient();
@@ -210,6 +231,14 @@ void QEmulationPaintEngine::drawImage(const QRectF &r, const QImage &pm, const Q
 {
     real_engine->drawImage(r, pm, sr, flags);
 }
+
+void QEmulationPaintEngine::drawImage(const QRectF &r, const QImage &pm, const QRectF &sr, 
+                           const QImageEffects *effects,
+                           Qt::ImageConversionFlags flags/* = Qt::AutoColor*/)
+{
+    real_engine->drawImage(r, pm, sr, effects, flags);
+}
+
 
 void QEmulationPaintEngine::clipEnabledChanged()
 {

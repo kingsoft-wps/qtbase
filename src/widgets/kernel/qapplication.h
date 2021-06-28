@@ -115,6 +115,7 @@ public:
     static QFont font(const QWidget*);
     static QFont font(const char *className);
     static void setFont(const QFont &, const char* className = nullptr);
+    static void setFont(const QFont &, bool bResetAll);
     static QFontMetrics fontMetrics();
 
 #if QT_VERSION < 0x060000 // remove these forwarders in Qt 6
@@ -169,6 +170,9 @@ public:
     static bool isEffectEnabled(Qt::UIEffect);
     static void setEffectEnabled(Qt::UIEffect, bool enable = true);
 
+#ifdef Q_OS_MAC
+    static void closeAllPopopWidgets();
+#endif
 #if QT_DEPRECATED_SINCE(5, 0)
     QT_DEPRECATED static QLocale keyboardInputLocale()
     { return qApp ? QGuiApplication::inputMethod()->locale() : QLocale::c(); }
@@ -200,6 +204,10 @@ public Q_SLOTS:
     static void closeAllWindows();
     static void aboutQt();
 
+public:
+    virtual void closeInputMethod(QWidget *w);
+    static void clearButtonDown();
+
 protected:
     bool event(QEvent *) override;
     bool compressEvent(QEvent *, QObject *receiver, QPostEventList *) override;
@@ -227,6 +235,16 @@ private:
 #ifndef QT_NO_GESTURES
     friend class QGestureManager;
 #endif
+
+private:
+    // GPU deviceLost count, non-zero if TDR happened.
+    QAtomicInt  m_devLostCnt;
+
+public:
+    void recordDeviceLost();
+    int getDeviceLostCount() const;
+    bool hasDeviceLost() const;
+    virtual void onDeviceLost();
 };
 
 QT_END_NAMESPACE

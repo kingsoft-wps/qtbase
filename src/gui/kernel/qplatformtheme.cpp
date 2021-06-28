@@ -347,6 +347,7 @@ const QKeyBinding QPlatformThemePrivate::keyBindings[] = {
     {QKeySequence::DeleteCompleteLine,      0,          Qt::CTRL | Qt::Key_U,                   KB_X11},
     {QKeySequence::Backspace,               0,          Qt::META | Qt::Key_H,                   KB_Mac},
     {QKeySequence::Cancel,                  0,          Qt::Key_Escape,                         KB_All},
+    {QKeySequence::Cancel,                  0,          Qt::SHIFT | Qt::Key_Escape,             KB_All},
     {QKeySequence::Cancel,                  0,          Qt::CTRL | Qt::Key_Period,              KB_Mac}
 };
 

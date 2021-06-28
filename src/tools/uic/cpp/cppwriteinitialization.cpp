@@ -1125,6 +1125,20 @@ QString WriteInitialization::writeStringListProperty(const DomStringList *list) 
     return propertyValue;
 }
 
+QString WriteInitialization::writeStringListPropertyEx(const DomStringList *list) const
+{
+    QString propertyValue;
+    QTextStream str(&propertyValue);
+    str << "QStringList()";
+    const QStringList values = list->elementString();
+    if (values.isEmpty())
+        return propertyValue;
+    // The layout depends on this attribute and cannot be translated
+    for (int i = 0; i < values.size(); ++i)
+        str << " << QString::fromUtf8(" << fixString(values.at(i), m_dindent) << ')';
+    return propertyValue;
+}
+
 void WriteInitialization::writeProperties(const QString &varName,
                                           const QString &className,
                                           const DomPropertyList &lst,
@@ -1159,7 +1173,7 @@ void WriteInitialization::writeProperties(const QString &varName,
         QString propertyName = p->attributeName();
         QString propertyValue;
         bool delayProperty = false;
-
+        bool forceNoTr = false;
         // special case for the property `geometry': Do not use position
         if (isTopLevel && propertyName == QLatin1String("geometry") && p->elementRect()) {
             const DomRect *r = p->elementRect();
@@ -1444,10 +1458,15 @@ void WriteInitialization::writeProperties(const QString &varName,
                             .arg(dt->elementSecond());
             break;
         }
-        case DomProperty::StringList:
-            propertyValue = writeStringListProperty(p->elementStringList());
+        case DomProperty::StringList:{
+            if (stdset || delayProperty || propertyName != QLatin1String("units")) {
+                propertyValue = writeStringListProperty(p->elementStringList());
+            } else {
+                propertyValue = writeStringListPropertyEx(p->elementStringList());
+                forceNoTr = true;
+            }
             break;
-
+        }
         case DomProperty::Url: {
             const DomUrl* u = p->elementUrl();
             propertyValue = QString::fromLatin1("QUrl(QString::fromUtf8(%1))")
@@ -1474,7 +1493,7 @@ void WriteInitialization::writeProperties(const QString &varName,
             else if (propertyName == QLatin1String("accessibleName") || propertyName == QLatin1String("accessibleDescription"))
                 defineC = accessibilityDefineC;
 
-            QTextStream &o = delayProperty ? m_delayedOut : autoTrOutput(p);
+            QTextStream &o = forceNoTr ? m_output : (delayProperty ? m_delayedOut : autoTrOutput(p));
 
             if (defineC)
                 openIfndef(o, QLatin1String(defineC));
@@ -1996,6 +2015,22 @@ void WriteInitialization::initializeComboBox(DomWidget *w)
     if (items.isEmpty())
         return;
 
+    bool use7xLast = true;
+    for (int i = 0; i < items.size(); ++i) {
+        const DomItem *item = items.at(i);
+        const DomPropertyMap properties = propertyMap(item->elementProperty());
+        const DomProperty *text = properties.value(QLatin1String("text"));
+        const DomProperty *icon = properties.value(QLatin1String("icon"));
+
+        if (nullptr != icon || !needsTranslation(text->elementString())) {
+            use7xLast = false;
+            break;
+        }
+    }
+
+    if (use7xLast && !items.empty())
+        m_refreshOut << m_indent << varName << "->setProperty(\"_q_use7xsize\", false);\n";
+
     for (int i = 0; i < items.size(); ++i) {
         const DomItem *item = items.at(i);
         const DomPropertyMap properties = propertyMap(item->elementProperty());
@@ -2017,6 +2052,9 @@ void WriteInitialization::initializeComboBox(DomWidget *w)
             m_output << noTrCall(text->elementString()) << ");\n";
         }
     }
+    if (use7xLast && !items.empty())
+        m_output << m_indent << varName << "->setProperty(\"_q_use7xsize\", true);\n";
+
     m_refreshOut << "\n";
 }
 

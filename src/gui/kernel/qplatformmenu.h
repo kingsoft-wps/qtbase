@@ -67,6 +67,9 @@ public:
     // copied from, and must stay in sync with, QAction menu roles.
     enum MenuRole { NoRole = 0, TextHeuristicRole, ApplicationSpecificRole, AboutQtRole,
                     AboutRole, PreferencesRole, QuitRole,
+#ifdef Q_OS_MAC
+                    CheckForUpdatesRole, AppStoreEvalRole, ProxySettingRole,
+#endif // Q_OS_MAC
                     // However these roles are private, perhaps temporarily.
                     // They could be added as public QAction roles if necessary.
                     CutRole, CopyRole, PasteRole, SelectAllRole,

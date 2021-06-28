@@ -79,6 +79,7 @@ public:
 
     QPlatformWindow *createPlatformWindow(QWindow *window) const override;
     QPlatformWindow *createForeignWindow(QWindow *window, WId nativeHandle) const override;
+    QPlatformWindow *findPlatformWindow(WId nativeHandle) const override;
 #ifndef QT_NO_OPENGL
     QPlatformOpenGLContext *createPlatformOpenGLContext(QOpenGLContext *context) const override;
     QOpenGLContext::OpenGLModuleType openGLModuleType() override;

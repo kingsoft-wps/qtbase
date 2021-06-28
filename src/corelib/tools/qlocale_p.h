@@ -121,7 +121,10 @@ public:
         NativeLanguageName, // QString
         NativeCountryName, // QString
         StandaloneMonthNameLong, // QString, in: int
-        StandaloneMonthNameShort // QString, in: int
+        StandaloneMonthNameShort, // QString, in: int
+#ifdef Q_OS_MAC
+        SystemLanguage, // QString in: current system language
+#endif // Q_OS_MAC
     };
     virtual QVariant query(QueryType type, QVariant in) const;
     virtual QLocale fallbackUiLocale() const;

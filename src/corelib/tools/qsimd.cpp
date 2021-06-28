@@ -478,7 +478,7 @@ static void bufReadLine(int fd, QSimpleBuffer &line, QSimpleBuffer &buffer)
             buffer.resize(buffer.size + QSimpleBuffer::chunk_size);
             buffer.size = oldsize;
         }
-        ssize_t read_bytes = ::qt_safe_read(fd, buffer.data + buffer.size, QSimpleBuffer::chunk_size);
+        ssize_t read_bytes = QT_PREPEND_NAMESPACE(qt_safe_read)(fd, buffer.data + buffer.size, QSimpleBuffer::chunk_size);
         if (read_bytes > 0) buffer.size += read_bytes;
         else return;
     }
@@ -490,7 +490,7 @@ static void bufReadLine(int fd, QSimpleBuffer &line, QSimpleBuffer &buffer)
 //
 static bool procCpuinfoContains(const char *prefix, const char *string)
 {
-    int cpuinfo_fd = ::qt_safe_open("/proc/cpuinfo", O_RDONLY);
+    int cpuinfo_fd = QT_PREPEND_NAMESPACE(qt_safe_open)("/proc/cpuinfo", O_RDONLY);
     if (cpuinfo_fd == -1)
         return false;
 
@@ -518,7 +518,7 @@ static bool procCpuinfoContains(const char *prefix, const char *string)
         }
     } while (line.size);
 
-    ::qt_safe_close(cpuinfo_fd);
+    QT_PREPEND_NAMESPACE(qt_safe_close)(cpuinfo_fd);
     return present;
 }
 #endif

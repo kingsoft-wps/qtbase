@@ -774,7 +774,12 @@ static bool drawLine(QCosmeticStroker *stroker, qreal rx1, qreal ry1, qreal rx2,
 
         int y = (y1 + 32) >> 6;
         int ys = (y2 + 32) >> 6;
+        
+#ifdef Q_OS_MAC
+        int round = (xinc < 0) ? 32 : 0;
+#else
         int round = (xinc > 0) ? 32 : 0;
+#endif // Q_OS_MAC
 
         // If capAdjust made us round away from what calculateLastPoint gave us,
         // round back the other way so we start and end on the right point.
@@ -864,7 +869,13 @@ static bool drawLine(QCosmeticStroker *stroker, qreal rx1, qreal ry1, qreal rx2,
 
         int x = (x1 + 32) >> 6;
         int xs = (x2 + 32) >> 6;
+
+#ifdef Q_OS_MAC
+        int round = (yinc < 0) ? 32 : 0;
+#else
         int round = (yinc > 0) ? 32 : 0;
+#endif // Q_OS_MAC
+        
 
         // If capAdjust made us round away from what calculateLastPoint gave us,
         // round back the other way so we start and end on the right point.

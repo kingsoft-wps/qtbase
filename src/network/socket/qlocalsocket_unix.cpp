@@ -41,6 +41,9 @@
 #include "qlocalsocket_p.h"
 #include "qnet_unix_p.h"
 
+#ifdef Q_OS_MAC
+#include "qstandardpaths.h"
+#endif
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -59,6 +62,13 @@
 #define QT_CONNECT_TIMEOUT 30000
 
 QT_BEGIN_NAMESPACE
+
+#ifdef Q_OS_MAC
+inline QString getDomainSocketPath()
+{
+    return ".";
+}
+#endif // Q_OS_MAC
 
 QLocalSocketPrivate::QLocalSocketPrivate() : QIODevicePrivate(),
         delayConnect(0),
@@ -269,11 +279,18 @@ void QLocalSocketPrivate::_q_connectToSocket()
     Q_Q(QLocalSocket);
     QString connectingPathName;
 
+#ifdef Q_OS_MAC
+	WorkDirHelper helper(QStandardPaths::writableLocation(QStandardPaths::HomeLocation));
+#endif
     // determine the full server path
     if (connectingName.startsWith(QLatin1Char('/'))) {
         connectingPathName = connectingName;
     } else {
+#ifdef Q_OS_MAC
+        connectingPathName = getDomainSocketPath();
+#else
         connectingPathName = QDir::tempPath();
+#endif // Q_OS_MAC
         connectingPathName += QLatin1Char('/') + connectingName;
     }
 

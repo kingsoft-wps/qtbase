@@ -465,6 +465,9 @@ public:
     QFileDialogOptions::FileMode fileMode;
     QFileDialogOptions::AcceptMode acceptMode;
     QString labels[QFileDialogOptions::DialogLabelCount];
+#ifdef Q_OS_MAC
+    QString buttons[QFileDialogOptions::AccessoryButtonCount];
+#endif // Q_OS_MAC
     QDir::Filters filters;
     QList<QUrl> sidebarUrls;
     bool useDefaultNameFilters;
@@ -681,6 +684,24 @@ bool QFileDialogOptions::isLabelExplicitlySet(DialogLabel label)
     return unsigned(label) < unsigned(DialogLabelCount) && !d->labels[label].isEmpty();
 }
 
+#ifdef Q_OS_MAC
+void QFileDialogOptions::setAccessoryButtonText(AccessoryButton button, const QString &text)
+{
+    if (button >= 0 && button < AccessoryButtonCount)
+        d->buttons[button] = text;
+}
+
+QString QFileDialogOptions::accessoryButtonText(AccessoryButton button) const
+{
+    return (button >= 0 && button < AccessoryButtonCount) ? d->buttons[button] : QString();
+}
+
+bool QFileDialogOptions::isAccessoryButtonExplicitlySet(AccessoryButton button)
+{
+    return button >= 0 && button < AccessoryButtonCount && !d->buttons[button].isEmpty();
+}
+
+#endif
 QUrl QFileDialogOptions::initialDirectory() const
 {
     return d->initialDirectory;

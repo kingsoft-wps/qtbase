@@ -248,6 +248,61 @@ QT_NAMESPACE_ALIAS_OBJC_CLASS(QDarkNSBox);
 }
 @end
 
+// -----------------------------------------
+@interface CustomNSButtonCell : NSButtonCell
+@end
+
+// -----------------------------------------
+@implementation CustomNSButtonCell
+
+- (NSRect)drawTitle:(NSAttributedString *)title withFrame:(NSRect)frame inView:(NSView *)controlView
+{
+    [super drawTitle:title withFrame:frame inView:controlView];
+}
+
+- (void)drawBezelWithFrame:(NSRect)frame inView:(NSView *)controlView
+{
+    // General Declarations
+    // [[NSGraphicsContext currentContext] saveGraphicsState];
+
+    // Color Declarations
+    NSColor* fillColor = [NSColor controlColor];
+    NSColor* strokeColor = [NSColor gridColor];
+    //
+    if ([self state] == NSControlStateValueOn || [self isHighlighted])
+    {
+        if (@available(macOS 10.14, *)) {
+            fillColor = [NSColor selectedContentBackgroundColor];
+        } else {
+            // Fallback on earlier versions
+            fillColor = [NSColor keyboardFocusIndicatorColor];
+        }
+    }
+    else
+    {
+        if (@available(macOS 10.14, *)) {
+            fillColor = [NSColor controlColor];
+        } else {
+            // Fallback on earlier versions
+            fillColor = [NSColor controlBackgroundColor];
+        }
+    }
+
+    // Rectangle Drawing
+    NSBezierPath* rectanglePath = [NSBezierPath bezierPathWithRoundedRect:
+            frame xRadius:4 yRadius:4];
+
+    // Fill Path
+    [fillColor setFill];
+    [rectanglePath fill];
+
+    // Strole Path
+    [strokeColor set];
+    [rectanglePath stroke];
+
+    // [NSGraphicsContext restoreGraphicsState];
+}
+@end
 QT_BEGIN_NAMESPACE
 
 // The following constants are used for adjusting the size
@@ -1633,8 +1688,7 @@ QRectF QMacStylePrivate::CocoaControl::adjustedControlFrame(const QRectF &rect) 
                         .adjusted(focusRingWidth, focusRingWidth, -focusRingWidth, -focusRingWidth);
     } else if (type == QMacStylePrivate::Button_PushButton) {
         // Start from the style option's top-left corner.
-        frameRect = QRectF(rect.topLeft(),
-                           QSizeF(rect.width(), frameSize.height()));
+        frameRect = QRectF(rect.topLeft(),QSizeF(rect.width(), rect.height()));
         if (size == QStyleHelper::SizeSmall)
             frameRect = frameRect.translated(0, 1.5);
         else if (size == QStyleHelper::SizeMini)
@@ -1663,7 +1717,7 @@ QMarginsF QMacStylePrivate::CocoaControl::titleMargins() const
 {
     if (type == QMacStylePrivate::Button_PushButton) {
         if (size == QStyleHelper::SizeLarge)
-            return QMarginsF(12, 5, 12, 9);
+            return QMarginsF(12, 0, 12, 4);
         if (size == QStyleHelper::SizeSmall)
             return QMarginsF(12, 4, 12, 9);
         if (size == QStyleHelper::SizeMini)
@@ -1723,9 +1777,7 @@ QMacStylePrivate::CocoaControlType cocoaControlType(const QStyleOption *opt, con
         // and WA_MacNormalSize is not set, make the button square.
         // Threshold used to be at 34, not 32.
         const auto maxNonSquareHeight = pushButtonDefaultHeight[QStyleHelper::SizeLarge];
-        const bool isSquare = (btn->features & QStyleOptionButton::Flat)
-                || (btn->rect.height() > maxNonSquareHeight
-                    && !(w && w->testAttribute(Qt::WA_MacNormalSize)));
+        const bool isSquare = (btn->features & QStyleOptionButton::Flat);
         return (isSquare? QMacStylePrivate::Button_SquareButton :
                 hasMenu ? QMacStylePrivate::Button_PullDown :
                 QMacStylePrivate::Button_PushButton);
@@ -2030,6 +2082,12 @@ NSCell *QMacStylePrivate::cocoaCell(CocoaControl widget) const
             cell = bc;
             break;
         }
+ 	case Button_PushButton: {
+            CustomNSButtonCell *bc = [[CustomNSButtonCell alloc] init];
+            bc.buttonType = NSPushOnPushOffButton;
+            cell = bc;
+            break;
+        }
         default:
             break;
         }
@@ -2234,7 +2292,8 @@ void QMacStyle::unpolish(QWidget* w)
     QCommonStyle::unpolish(w);
 
     if (qobject_cast<QScrollBar*>(w)) {
-        w->setAttribute(Qt::WA_OpaquePaintEvent, true);
+	// Avoid the transparent background of the scroll bar after switching from dark to dark
+        w->setAttribute(Qt::WA_OpaquePaintEvent, false);
         w->setAttribute(Qt::WA_Hover, false);
         w->setMouseTracking(false);
     }
@@ -2390,8 +2449,10 @@ int QMacStyle::pixelMetric(PixelMetric metric, const QStyleOption *opt, const QW
         break;
     case PM_TitleBarHeight: {
         NSUInteger style = NSWindowStyleMaskTitled;
+#ifndef Q_OS_MAC
         if (widget && ((widget->windowFlags() & Qt::Tool) == Qt::Tool))
             style |= NSWindowStyleMaskUtilityWindow;
+#endif
         ret = int([NSWindow frameRectForContentRect:NSZeroRect
                                           styleMask:style].size.height);
         break; }
@@ -3337,10 +3398,33 @@ void QMacStyle::drawPrimitive(PrimitiveElement pe, const QStyleOption *opt, QPai
 
     case PE_Frame: {
         QPen oldPen = p->pen();
-        p->setPen(opt->palette.base().color().darker(140));
+	// First set it to a color close to the default border of macOS
+        QString normalLineColor = "#949494";
+        QString darkLineColor = "#7B7B7B";
+        if (w)
+        {
+            QString frameNormalLineColor = w->property("FrameNormalLineColor").toString();
+            QString frameDarkLineColor = w->property("FrameDarkLineColor").toString();
+            if (!frameNormalLineColor.isEmpty())
+            {
+                normalLineColor = frameNormalLineColor;
+            }
+            if (!frameDarkLineColor.isEmpty())
+            {
+                darkLineColor = frameDarkLineColor;
+            }
+        }
+        //
+        if (qt_mac_applicationIsInDarkMode())
+        {
+            p->setPen(QColor(darkLineColor));
+        }
+        else
+        {
+
+            p->setPen(QColor(normalLineColor));
+        }
         p->drawRect(opt->rect.adjusted(0, 0, -1, -1));
-        p->setPen(opt->palette.base().color().darker(180));
-        p->drawLine(opt->rect.topLeft(), opt->rect.topRight());
         p->setPen(oldPen);
         break; }
 
@@ -3398,7 +3482,16 @@ void QMacStyle::drawPrimitive(PrimitiveElement pe, const QStyleOption *opt, QPai
                 // calls QMacStyle::drawPrimitive(PE_FrameLineEdit). We use NSTextFieldCell
                 // to handle PE_FrameLineEdit, which will use system-default background.
                 // In 'Dark' mode it's transparent and thus it's not over-painted.
-                QCommonStyle::drawPrimitive(pe, opt, p, w);
+                if (qobject_cast<QComboBox*>(w->parent()))
+                {
+                    QStyleOptionFrame option = *panel;
+                    option.palette.setBrush(QPalette::Base, Qt::transparent);
+                    QCommonStyle::drawPrimitive(pe, &option, p, w);
+                }
+                else
+                {
+                    QCommonStyle::drawPrimitive(pe, opt, p, w);
+                }
             } else {
                 // In 'Light' mode, if panel->lineWidth > 0, we have to use the correct
                 // background color when drawing PE_FrameLineEdit, so let's call it
@@ -3726,6 +3819,18 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
             const auto cs = d->effectiveAquaSizeConstrain(btn, w);
             const auto cw = QMacStylePrivate::CocoaControl(ct, cs);
             auto *pb = static_cast<NSButton *>(d->cocoaControl(cw));
+            CustomNSButtonCell *customNSButtonCell = static_cast<CustomNSButtonCell *>(d->cocoaCell(cw));
+            bool isUseCustomNSButtonCell = false;
+            if (w && w->property("NSRegularSquareBezelStyle").toString() == QString("true"))
+            {
+                customNSButtonCell.bezelStyle = NSRegularSquareBezelStyle;
+                isUseCustomNSButtonCell = true;
+            }
+            else if (w && w->property("NSTexturedSquareBezelStyle").toString() == QString("true"))
+            {
+                customNSButtonCell.bezelStyle = NSTexturedSquareBezelStyle;
+                isUseCustomNSButtonCell = true;
+            }
             // Ensure same size and location as we used to have with HITheme.
             // This is more convoluted than we initialy thought. See for example
             // differences between plain and menu button frames.
@@ -3736,7 +3841,17 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
             [pb highlight:isPressed];
             pb.state = isHighlighted && !isPressed ? NSOnState : NSOffState;
             d->drawNSViewInRect(pb, frameRect, p, ^(CGContextRef, const CGRect &r) {
-                [pb.cell drawBezelWithFrame:r inView:pb.superview];
+                if (isUseCustomNSButtonCell)
+                {
+                    customNSButtonCell.enabled = pb.enabled;
+                    customNSButtonCell.highlighted = pb.highlighted;
+                    customNSButtonCell.state = pb.state;
+                    [customNSButtonCell drawBezelWithFrame:r inView:pb.superview];
+                }
+                else
+                {
+                    [pb.cell drawBezelWithFrame:r inView:pb.superview];
+                }
             });
             [pb highlight:NO];
 
@@ -3777,7 +3892,13 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                     else if (cw.type == QMacStylePrivate::Button_PullDown)
                         focusRect -= pullDownButtonShadowMargins[cw.size];
                 }
-                d->drawFocusRing(p, focusRect, hMargin, vMargin, cw);
+                // Ignore the focus ring of PushButton for now
+				if (w)
+				{
+					QVariant varProp = w->property("FocusRing");
+					if (varProp.isValid() && varProp.toBool())
+						d->drawFocusRing(p, focusRect, hMargin, vMargin, cw);
+				}
             }
         }
         break;
@@ -3804,6 +3925,20 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                             || ((btn.features & QStyleOptionButton::DefaultButton) && !d->autoDefaultButton)
                             || d->autoDefaultButton == btn.styleObject)))
                 btn.palette.setColor(QPalette::ButtonText, Qt::white);
+            }
+            bool isUseCustomNSButtonCell = false;
+            if (w && w->property("NSRegularSquareBezelStyle").toString() == QString("true"))
+            {
+                isUseCustomNSButtonCell = true;
+            }
+            else if (w && w->property("NSTexturedSquareBezelStyle").toString() == QString("true"))
+            {
+                isUseCustomNSButtonCell = true;
+            }
+
+            if (isUseCustomNSButtonCell)
+            {
+                btn.rect.adjust(0, 4, 0, 0);
             }
 
             if ((!hasIcon && !hasMenu) || (hasIcon && !hasText)) {
@@ -4221,6 +4356,9 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                         QStyleHelper::SizeLarge;
         const int hMargin = proxy()->pixelMetric(QStyle::PM_FocusFrameHMargin, opt, w);
         const int vMargin = proxy()->pixelMetric(QStyle::PM_FocusFrameVMargin, opt, w);
+#ifdef Q_OS_MAC
+        if (ffw && ffw->property("NoFocusRing").isValid() && ffw->property("NoFocusRing").toBool())
+#endif // Q_OS_MAC
         d->drawFocusRing(p, opt->rect, hMargin, vMargin, QMacStylePrivate::CocoaControl(ct, cs));
         break; }
     case CE_MenuEmptyArea:
@@ -5295,6 +5433,9 @@ void QMacStyle::drawComplexControl(ComplexControl cc, const QStyleOptionComplex 
 
             const QColor bgColor = QStyleHelper::backgroundColor(opt->palette, widget);
             const bool hasDarkBg = bgColor.red() < 128 && bgColor.green() < 128 && bgColor.blue() < 128;
+#ifdef Q_OS_MAC
+            scroller.knobStyle = NSScrollerKnobStyleDefault;
+#else
             if (isTransient) {
                 // macOS behavior: as soon as one color channel is >= 128,
                 // the background is considered bright, scroller is dark.
@@ -5303,6 +5444,7 @@ void QMacStyle::drawComplexControl(ComplexControl cc, const QStyleOptionComplex 
                 scroller.knobStyle = NSScrollerKnobStyleDefault;
             }
 
+#endif
             scroller.scrollerStyle = isTransient ? NSScrollerStyleOverlay : NSScrollerStyleLegacy;
 
             if (!setupScroller(scroller, sb))
@@ -5596,6 +5738,7 @@ void QMacStyle::drawComplexControl(ComplexControl cc, const QStyleOptionComplex 
                 } else if (cw.type == QMacStylePrivate::ComboBox) {
                     focusRect = frameRect - comboBoxFocusRingMargins[cw.size];
                 }
+                if (widget && widget->property("NoFocusRing").toString() != QString("true"))
                 d->drawFocusRing(p, focusRect, hMargin, vMargin, cw);
             }
         }
@@ -6033,10 +6176,8 @@ QRect QMacStyle::subControlRect(ComplexControl cc, const QStyleOptionComplex *op
                                 qRound(inner.origin.x - combo->rect.left() + inner.size.width),
                                 editRect.bottom() - comboTop + 2);
                 } else {
-                    ret = QRect(combo->rect.x() + 4 - 11,
-                                combo->rect.y() + 1,
-                                editRect.width() + 10 + 11,
-                                1);
+                    ret = combo->rect;
+
                  }
                 break; }
             default:

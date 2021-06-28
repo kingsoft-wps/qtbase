@@ -111,6 +111,8 @@ public:
     inline static void setPos(const QPoint &p) { setPos(p.x(), p.y()); }
     inline static void setPos(QScreen *screen, const QPoint &p) { setPos(screen, p.x(), p.y()); }
 
+    uint hashCode() const;
+
 private:
     friend Q_GUI_EXPORT bool operator==(const QCursor &lhs, const QCursor &rhs) Q_DECL_NOTHROW;
     QCursorData *d;

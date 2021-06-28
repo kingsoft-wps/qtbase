@@ -66,10 +66,11 @@ class Q_PRINTSUPPORT_EXPORT QPrinter : public QPagedPaintDevice
 {
     Q_DECLARE_PRIVATE(QPrinter)
 public:
-    enum PrinterMode { ScreenResolution, PrinterResolution, HighResolution };
+    enum PrinterMode { ScreenResolution, PrinterResolution, HighResolution, ExportResolution };
 
     explicit QPrinter(PrinterMode mode = ScreenResolution);
     explicit QPrinter(const QPrinterInfo& printer, PrinterMode mode = ScreenResolution);
+    explicit QPrinter(const QString& printer, PrinterMode mode = ScreenResolution);
     ~QPrinter();
 
     int devType() const override;
@@ -256,10 +257,14 @@ public:
 
     void setPageMargins(qreal left, qreal top, qreal right, qreal bottom, Unit unit);
     void getPageMargins(qreal *left, qreal *top, qreal *right, qreal *bottom, Unit unit) const;
+    void setEngineProperty(int printEngineProperty, QVariant value);
 
 protected:
     int metric(PaintDeviceMetric) const override;
     void setEngines(QPrintEngine *printEngine, QPaintEngine *paintEngine);
+
+private:
+    QSize resolutionXY() const;
 
 private:
     Q_DISABLE_COPY(QPrinter)

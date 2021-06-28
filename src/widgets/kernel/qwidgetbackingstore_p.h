@@ -144,6 +144,10 @@ private:
 
     static bool flushPaint(QWidget *widget, const QRegion &rgn);
     static void unflushPaint(QWidget *widget, const QRegion &rgn);
+    static void qt_flush_part(QWidget *widget, const QRegion &region, QBackingStore *backingStore,
+                              QWidget *tlw,
+                              QPlatformTextureList *widgetTextures,
+                              QWidgetBackingStore *widgetBackingStore);
     static void qt_flush(QWidget *widget, const QRegion &region, QBackingStore *backingStore,
                          QWidget *tlw,
                          QPlatformTextureList *widgetTextures,

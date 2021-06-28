@@ -52,7 +52,10 @@ enum {
     HideAppMenuItem,
     HideOthersAppMenuItem,
     ShowAllAppMenuItem,
-    QuitAppMenuItem
+    QuitAppMenuItem,
+    CheckUpdateItem,
+    AppStoreEvalItem,
+    ProxySettingMenuItem,
 };
 
 

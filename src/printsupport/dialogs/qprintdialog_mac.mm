@@ -38,6 +38,7 @@
 ****************************************************************************/
 
 #include <AppKit/AppKit.h>
+#include <PDFKit/PDFKit.h>
 
 #include "qprintdialog.h"
 #include "qabstractprintdialog_p.h"
@@ -47,6 +48,11 @@
 #include <QtPrintSupport/qprinter.h>
 #include <QtPrintSupport/qprintengine.h>
 #include <qpa/qplatformprintdevice.h>
+
+#ifdef Q_OS_MAC
+#import "qprintdialogpreview_mac.h"
+#include <qpa/qplatformtheme.h>
+#endif // Q_OS_MAC
 
 QT_BEGIN_NAMESPACE
 
@@ -64,6 +70,11 @@ public:
     void closeCocoaPrintPanel();
 
     inline QPrintDialog *printDialog() { return q_func(); }
+#ifdef Q_OS_MAC
+    int GetPageCount(bool paperOrientationLand, float rectWidth, float rectHeight, bool isSelectionOnly);
+    void GetPaperSize(float *paperWidth, float *paperHeight){}
+    void GetPrintJobName(QString &jobName){}
+#endif // Q_OS_MAC
 
     NSPrintInfo *printInfo;
     NSPrintPanel *printPanel;
@@ -219,36 +230,169 @@ void QPrintDialogPrivate::openCocoaPrintPanel(Qt::WindowModality modality)
         PMSetFirstPage(settings, q->fromPage(), false);
         PMSetLastPage(settings, q->toPage(), false);
     }
+#ifdef Q_OS_MAC
+    QString jobNameFrom;
+    q->GetPrintJobName(jobNameFrom);
+    CFStringRef refjobNameFrom = CFStringCreateWithCharacters(0, reinterpret_cast<const UniChar *>(jobNameFrom.unicode()), jobNameFrom.length());
+    PMPrintSettingsSetJobName(settings, refjobNameFrom);
+#endif // Q_OS_MAC
     [printInfo updateFromPMPrintSettings];
 
     QPrintDialog::PrintDialogOptions qtOptions = q->options();
     NSPrintPanelOptions macOptions = NSPrintPanelShowsCopies;
     if (qtOptions & QPrintDialog::PrintPageRange)
         macOptions |= NSPrintPanelShowsPageRange;
+
+#ifdef Q_OS_MAC
+    if (qtOptions & QPrintDialog::PrintSelection)
+        macOptions |= NSPrintPanelShowsPrintSelection;
+#endif // Q_OS_MAC
+#ifdef Q_OS_MAC
+    if (qtOptions & QPrintDialog::PrintShowPageSize)
+    {
+        //Change to the configuration options below to move the paper direction and size to the top position
+        macOptions |= NSPrintPanelShowsPaperSize
+                | NSPrintPanelShowsOrientation;
+    }
+#else
     if (qtOptions & QPrintDialog::PrintShowPageSize)
         macOptions |= NSPrintPanelShowsPaperSize | NSPrintPanelShowsPageSetupAccessory
                       | NSPrintPanelShowsOrientation;
-
+#endif // Q_OS_MAC
+#ifdef Q_OS_MAC
+    macOptions |= NSPrintPanelShowsPreview;
+#endif // Q_OS_MAC
     printPanel = [NSPrintPanel printPanel];
     [printPanel retain];
     [printPanel setOptions:macOptions];
+#ifdef Q_OS_MAC
+    if (qtOptions & QPrintDialog::PrintNeedViewController)
+    {
+        NSViewController *pViewCtroller = (NSViewController*)q->GetViewController();
+        [printPanel addAccessoryController:pViewCtroller];
+        [pViewCtroller release];
+    }
 
+    [[NSColor blackColor] set];
+    //Use A4 paper size by default
+    float paperW = 0;
+    float paperH = 0;
+    float paperWFromSetup = 0;
+    float paperHFromSetup = 0;
+    q->GetPaperSize(&paperWFromSetup, &paperHFromSetup);
+    if (qtOptions & QPrintDialog::PaperOrientationLand)
+    {
+
+        paperW = qMax(paperWFromSetup, paperHFromSetup);
+        paperH = qMin(paperWFromSetup, paperHFromSetup);
+    }
+    else
+    {
+        paperW = qMin(paperWFromSetup, paperHFromSetup);
+        paperH = qMax(paperWFromSetup, paperHFromSetup);
+    }
+    NSRect frameRect = NSMakeRect(0, 0, paperW, paperH);
+
+    [printInfo setPaperSize:frameRect.size];//The size of the initial paper, the same as the frame, A4 paper is used by default
+    [printInfo setHorizontalPagination: NSFitPagination];
+    [printInfo setVerticalPagination: NSAutoPagination];
+    //Set from the business layer to see if the default is horizontal paper
+    if (qtOptions & QPrintDialog::PaperOrientationLand)
+    {
+       [printInfo setOrientation: NSPaperOrientationLandscape];
+    }
+    else
+    {
+        [printInfo setOrientation: NSPaperOrientationPortrait];
+    }
+
+    [printInfo setVerticallyCentered:YES];
+    NSPrintOperation *op = nil;
+    QPrintDialogPreview *previewView = nil;
+    PDFDocument *document = nil;
+    QString pdfFilePath;
+    QString userKey;
+    QString ownerKey;
+    q->GetPDFFilePathAndPassword(pdfFilePath, userKey, ownerKey);
+
+    if (!pdfFilePath.isEmpty())
+    {
+        //Printing process of PDF
+        CFStringRef cfPath = pdfFilePath.toCFString();
+        NSString *str = (__bridge NSString *)cfPath;
+        NSString *newString = [str stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+        NSURL* url = [NSURL URLWithString:newString];
+        document = [[PDFDocument alloc] initWithURL:url];
+        if ([document isLocked])
+        {
+            CFStringRef cfUserKey = userKey.toCFString();
+            NSString *nsUserKey = (__bridge NSString *)cfUserKey;
+            [document unlockWithPassword:nsUserKey];
+            CFRelease(cfUserKey);
+        }
+        if ([document isEncrypted])
+        {
+            CFStringRef cfOwnerKey = ownerKey.toCFString();
+            NSString *nsOwnerKey = (__bridge NSString *)cfOwnerKey;
+            [document unlockWithPassword:nsOwnerKey];
+            CFRelease(cfOwnerKey);
+        }
+
+        op = [document printOperationForPrintInfo:printInfo scalingMode:kPDFPrintPageScaleToFit autoRotate:YES];
+        CFRelease(cfPath);
+    }
+    else
+    {
+        //Printing process of the other three components
+        previewView = [[QPrintDialogPreview alloc] initWithFrame: frameRect];
+        previewView.wantsLayer = YES;
+        [previewView setFatherDiag:q];
+        op = [NSPrintOperation printOperationWithView:previewView printInfo:printInfo];
+    }
+
+    [op setShowsProgressPanel:YES];
+    [op setShowsPrintPanel:YES];
+    [op setPrintPanel:printPanel];
+    [op setJobTitle:jobNameFrom.toNSString()];
+	
+	// Call processEvents in case the event dispatcher has been interrupted, and needs to do
+	// cleanup of modal sessions. Do this before showing the native dialog, otherwise it will
+	// close down during the cleanup.
+	qApp->processEvents(QEventLoop::ExcludeUserInputEvents | QEventLoop::ExcludeSocketNotifiers);
+	
+	// Make sure we don't interrupt the runModalWithPrintInfo call.
+	(void) QMetaObject::invokeMethod(qApp->platformNativeInterface(),
+									 "clearCurrentThreadCocoaEventDispatcherInterruptFlag");
+
+    BOOL ret = [op runOperation];
+    if (document)
+        [document release];
+    if (previewView)
+        [previewView release];
+
+#else
     // Call processEvents in case the event dispatcher has been interrupted, and needs to do
     // cleanup of modal sessions. Do this before showing the native dialog, otherwise it will
     // close down during the cleanup (QTBUG-17913):
     qApp->processEvents(QEventLoop::ExcludeUserInputEvents | QEventLoop::ExcludeSocketNotifiers);
+#endif // Q_OS_MAC
 
     QT_MANGLE_NAMESPACE(QCocoaPrintPanelDelegate) *delegate = [[QT_MANGLE_NAMESPACE(QCocoaPrintPanelDelegate) alloc] initWithNSPrintInfo:printInfo];
     if (modality == Qt::ApplicationModal || !q->parentWidget()) {
         if (modality == Qt::NonModal)
             qWarning("QPrintDialog is required to be modal on OS X");
 
+#ifdef Q_OS_MAC
+		//int rval = [printPanel runModalWithPrintInfo:printInfo];
+		[delegate printPanelDidEnd:printPanel returnCode:ret contextInfo:q];
+#else
         // Make sure we don't interrupt the runModalWithPrintInfo call.
         (void) QMetaObject::invokeMethod(qApp->platformNativeInterface(),
                                          "clearCurrentThreadCocoaEventDispatcherInterruptFlag");
 
         int rval = [printPanel runModalWithPrintInfo:printInfo];
         [delegate printPanelDidEnd:printPanel returnCode:rval contextInfo:q];
+#endif // Q_OS_MAC
     } else {
         Q_ASSERT(q->parentWidget());
         QWindow *parentWindow = q->parentWidget()->windowHandle();
@@ -267,6 +411,22 @@ void QPrintDialogPrivate::closeCocoaPrintPanel()
     printInfo = 0;
     [printPanel release];
     printPanel = 0;
+
+#ifdef Q_OS_MAC
+    // Bug#422555 temporary plan
+    if (qt_mac_applicationIsInDarkMode())
+    {
+        if (@available(macOS 10.14, *)) 
+        {
+            [NSAppearance setCurrentAppearance:[NSAppearance appearanceNamed:NSAppearanceNameDarkAqua]];
+        }
+        QPlatformTheme *theme = QGuiApplicationPrivate::instance()->platformTheme();
+        if (theme)
+        {
+            theme->handleSystemThemeChange();
+        }
+    }
+#endif // Q_OS_MAC
 }
 
 static bool warnIfNotNative(QPrinter *printer)
@@ -351,7 +511,175 @@ void QPrintDialog::setVisible(bool visible)
         }
     }
 }
+#if defined (Q_OS_MAC)
 
+void QPrintDialog::PrintPage(void* ctx, int pageNum, const PrintPageInfo &info)
+{
+    // override
+}
+
+int QPrintDialog::GetPageCount(bool paperOrientationLand, float rectWidth, float rectHeight, bool isSelectionOnly)
+{
+    return 1;
+}
+
+void* QPrintDialog::GetViewController()
+{
+    //Subclass to achieve
+    return NULL;
+}
+
+void QPrintDialog::GetPaperSize(float *paperWidth, float *paperHeight)
+{
+    //Subclass to achieve
+    return;
+}
+
+void QPrintDialog::GetPrintJobName(QString &jobName)
+{
+    //Subclass to achieve
+    return;
+}
+
+void QPrintDialog::GetPDFFilePathAndPassword(QString &filePath, QString &userKey, QString &ownerKey)
+{
+    //Subclass to achieve
+    return;
+}
+
+//CGImageRef to NSImage
+NSImage *qt_mac_cgimage_to_nsimage(CGImageRef image)
+{
+    NSImage *newImage = [[NSImage alloc] initWithCGImage:image size:NSZeroSize];
+    return newImage;
+}
+static void qt_mac_deleteImage(void *image, const void *, size_t)
+{
+    delete static_cast<QImage *>(image);
+}
+
+CGDataProviderRef qt_mac_CGDataProvider(const QImage &image)
+{
+    return CGDataProviderCreateWithData(new QImage(image), image.bits(),
+                                        image.byteCount(), qt_mac_deleteImage);
+}
+
+CGImageRef qt_mac_toCGImage(const QImage &inImage)
+{
+    if (inImage.isNull())
+        return 0;
+
+    QImage image = inImage;
+
+    uint cgflags = kCGImageAlphaNone;
+    switch (image.format()) {
+    case QImage::Format_ARGB32:
+        cgflags = kCGImageAlphaFirst | kCGBitmapByteOrder32Host;
+        break;
+    case QImage::Format_RGB32:
+        cgflags = kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Host;
+        break;
+    case QImage::Format_RGB888:
+        cgflags = kCGImageAlphaNone | kCGBitmapByteOrder32Big;
+        break;
+    case QImage::Format_RGBA8888_Premultiplied:
+        cgflags = kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big;
+        break;
+    case QImage::Format_RGBA8888:
+        cgflags = kCGImageAlphaLast | kCGBitmapByteOrder32Big;
+        break;
+    case QImage::Format_RGBX8888:
+        cgflags = kCGImageAlphaNoneSkipLast | kCGBitmapByteOrder32Big;
+        break;
+    default:
+        // Everything not recognized explicitly is converted to ARGB32_Premultiplied.
+        image = inImage.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        // no break;
+    case QImage::Format_ARGB32_Premultiplied:
+        cgflags = kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host;
+        break;
+    }
+
+    CGDataProviderRef dataProvider = qt_mac_CGDataProvider(image);
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGImageRef  imageRef = CGImageCreate(image.width(), image.height(), 8, 32,
+                                         image.bytesPerLine(),
+                                         colorSpace,
+                                         cgflags, dataProvider, 0, false, kCGRenderingIntentDefault);
+   CGDataProviderRelease(dataProvider);
+   CGColorSpaceRelease(colorSpace);
+   return imageRef;
+}
+
+void QPrintDialog::DrawImageToContext(void *ctx, const QImage &img, const QRect &destRc)
+{
+    CGContextRef context = (CGContextRef)ctx;
+    QPrintDialog::PrintDialogOptions qtOptions = this->options();
+
+    //If the current is WPP and it is vertical, the paper needs to be converted accordingly
+    QRect rc = destRc;
+    if (qtOptions & QPrintDialog::PaperPortraitSpecial)
+    {
+        Q_D(QPrintDialog);
+        if ([d->printInfo orientation] == NSPaperOrientationPortrait)
+        {
+            int newHeight = img.height() * destRc.width() / img.width();
+            rc = QRect(rc.left(), rc.top() + (rc.height() - newHeight) / 2, rc.width(), newHeight);
+        }
+        else
+        {
+            int newWidth = img.width() * destRc.height() / img.height();
+            rc = QRect(rc.left() + (rc.width() - newWidth)/2, rc.top(), newWidth, rc.height());
+        }
+    }
+
+    //Convert the QImage drawn by the kernel to NSImage
+    CGImageRef imageRef = qt_mac_toCGImage(img);
+    CGContextDrawImage(context, CGRectMake(rc.left(), rc.top(), rc.width(), rc.height()), imageRef);
+    CGImageRelease(imageRef);
+}
+
+void QPrintDialog::DrawPDFDocumentToContext(void *ctx, QString *filename, int rotate /*= 0*/, unsigned int pageIndex /*= 1*/, const char* password /*= nullptr*/)
+{
+    CFStringRef path;
+    CFURLRef url;
+    CGPDFDocumentRef document;
+    size_t count;
+
+    path = filename->toCFString();
+
+    url = CFURLCreateWithFileSystemPath(NULL, path, kCFURLPOSIXPathStyle, 0);
+
+    CFRelease(path);
+    document = CGPDFDocumentCreateWithURL(url);
+    CFRelease(url);
+    if(CGPDFDocumentIsEncrypted(document))
+    {
+        CGPDFDocumentUnlockWithPassword(document, password);
+    }
+    count = CGPDFDocumentGetNumberOfPages(document);
+    if (count != 0)
+    {
+        CGPDFPageRef pageRef;
+        CGContextRef context = (CGContextRef)ctx;
+        CGContextSaveGState(context);
+	pageRef = CGPDFDocumentGetPage(document, pageIndex);
+
+        CGAffineTransform pdfTransform = CGPDFPageGetDrawingTransform(pageRef, kCGPDFCropBox, CGContextGetClipBoundingBox(context), rotate, true);
+        CGContextConcatCTM(context, pdfTransform);
+
+        CGContextSetInterpolationQuality(context, kCGInterpolationHigh);
+        CGContextSetRenderingIntent(context, kCGRenderingIntentDefault);
+        CGContextDrawPDFPage(context, pageRef);
+        CGContextRestoreGState(context);
+
+        CFRelease(document);
+    }
+
+    return;
+}
+
+#endif
 QT_END_NAMESPACE
 
 #include "moc_qprintdialog.cpp"

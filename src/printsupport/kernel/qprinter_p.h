@@ -99,9 +99,10 @@ public:
     }
 
     void init(const QPrinterInfo &printer, QPrinter::PrinterMode mode);
-
+    void init(const QString &printer, QPrinter::PrinterMode mode);
     QPrinterInfo findValidPrinter(const QPrinterInfo &printer = QPrinterInfo());
     void initEngines(QPrinter::OutputFormat format, const QPrinterInfo &printer);
+    void initEngines(QPrinter::OutputFormat format, const QString &printer);
     void changeEngines(QPrinter::OutputFormat format, const QPrinterInfo &printer);
 #if QT_CONFIG(printpreviewwidget)
     QList<const QPicture *> previewPages() const;

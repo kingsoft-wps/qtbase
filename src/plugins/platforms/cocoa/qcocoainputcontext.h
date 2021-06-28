@@ -55,7 +55,7 @@ public:
 
     bool isValid() const override { return true; }
 
-    void reset() override;
+    void reset(bool bCancel = false) override;
 
     QLocale locale() const override { return m_locale; }
     void updateLocale();

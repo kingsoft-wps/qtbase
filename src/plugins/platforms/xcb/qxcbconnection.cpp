@@ -596,8 +596,14 @@ void QXcbConnection::handleXcbEvent(xcb_generic_event_t *event)
     }
     case XCB_ENTER_NOTIFY:
 #if QT_CONFIG(xcb_xinput)
-        if (hasXInput2() && !xi2MouseEventsDisabled())
-            break;
+		if (hasXInput2() && !xi2MouseEventsDisabled())
+		{
+			auto e = reinterpret_cast<xcb_enter_notify_event_t *>(event);
+			if (QXcbWindowEventListener *eventListener = windowEventListenerFromId(e->event))
+				eventListener->handleNativeEvent(event);
+
+			break;
+		}
 #endif
         HANDLE_PLATFORM_WINDOW_EVENT(xcb_enter_notify_event_t, event, handleEnterNotifyEvent);
     case XCB_LEAVE_NOTIFY:
@@ -862,7 +868,7 @@ xcb_window_t QXcbConnection::clientLeader()
 
 
         QXcbWindow::setWindowTitle(connection(), m_clientLeader,
-                                   QStringLiteral("Qt Client Leader Window"));
+                                   QGuiApplication::applicationDisplayName());
 
         xcb_change_property(xcb_connection(),
                             XCB_PROP_MODE_REPLACE,

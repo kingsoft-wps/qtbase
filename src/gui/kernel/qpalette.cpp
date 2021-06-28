@@ -805,7 +805,7 @@ void QPalette::setBrush(ColorGroup cg, ColorRole cr, const QBrush &b)
     // ### Qt 6 - remove this special case
     // Part 2 - Update initial color to the given color group
     if (cr == Text && d->br[cg][PlaceholderText].style() == Qt::NoBrush) {
-        QColor col = brush(Text).color();
+        QColor col = brush(cg, Text).color();
         col.setAlpha(128);
         setBrush(cg, PlaceholderText, QBrush(col, Qt::NoBrush));
     }

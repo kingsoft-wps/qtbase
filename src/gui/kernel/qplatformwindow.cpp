@@ -116,6 +116,13 @@ QSurfaceFormat QPlatformWindow::format() const
 }
 
 /*!
+Set the actual surface format of the window.
+*/
+void QPlatformWindow::setFormat(const QSurfaceFormat& format)
+{
+    Q_UNUSED(format);
+}
+/*!
     This function is called by Qt whenever a window is moved or resized using the QWindow API.
 
     Unless you also override QPlatformWindow::geometry(), you need to call the baseclass
@@ -306,6 +313,21 @@ WId QPlatformWindow::winId() const
     return WId(1);
 }
 
+#ifdef Q_OS_MAC
+/*!
+  Reimplement in subclasses to return a handle to the native window
+*/
+WId QPlatformWindow::windowId() const
+{
+    // Return anything but 0. Returning 0 would cause havoc with QWidgets on
+    // very basic platform plugins that do not reimplement this function,
+    // because the top-level widget's internalWinId() would always be 0 which
+    // would mean top-levels are never treated as native.
+    return WId(1);
+}
+
+#endif // Q_OS_MAC
+
 //jl: It would be useful to have a property on the platform window which indicated if the sub-class
 // supported the setParent. If not, then geometry would be in screen coordinates.
 /*!
@@ -364,6 +386,15 @@ void QPlatformWindow::raise() { qWarning("This plugin does not support raise()")
 void QPlatformWindow::lower() { qWarning("This plugin does not support lower()"); }
 
 /*!
+Reimplement to be able to let Qt under the target window
+*/
+void QPlatformWindow::stackUnder(const QPlatformWindow* w)
+{
+    Q_UNUSED(w);
+    qWarning("This plugin does not support lower()"); 
+}
+
+/*!
   Reimplement to propagate the size hints of the QWindow.
 
   The size hints include QWindow::minimumSize(), QWindow::maximumSize(),
@@ -406,6 +437,11 @@ void QPlatformWindow::setMask(const QRegion &region)
 void QPlatformWindow::requestActivateWindow()
 {
     QWindowSystemInterface::handleWindowActivated(window());
+}
+
+void QPlatformWindow::requestFocusWindow()
+{
+    requestActivateWindow();
 }
 
 /*!
@@ -557,10 +593,13 @@ QString QPlatformWindow::formatWindowTitle(const QString &title, const QString &
         if (!fullTitle.isEmpty())
             fullTitle += separator;
         fullTitle += *QGuiApplicationPrivate::displayName;
-    } else if (fullTitle.isEmpty()) {
+    } 
+#ifndef Q_OS_WIN
+    else if (fullTitle.isEmpty()) {
         // Don't let the window title be completely empty, use the app name as fallback.
         fullTitle = QCoreApplication::applicationName();
     }
+#endif
     return fullTitle;
 }
 
@@ -696,9 +735,12 @@ static QSize fixInitialSize(QSize size, const QWindow *w,
     However if the given window already has geometry which the application has
     initialized, it takes priority.
 */
-QRect QPlatformWindow::initialGeometry(const QWindow *w,
-    const QRect &initialGeometry, int defaultWidth, int defaultHeight)
+QRect QPlatformWindow::initialGeometry(const QWindow *w, const QRect &initialGeometry,
+                                       int defaultWidth, int defaultHeight,
+                                       const QScreen **resultingScreenReturn)
 {
+    if (resultingScreenReturn)
+        *resultingScreenReturn = w->screen();
     if (!w->isTopLevel()) {
         const qreal factor = QHighDpiScaling::factor(w);
         const QSize size = fixInitialSize(QHighDpi::fromNative(initialGeometry.size(), factor),
@@ -714,6 +756,8 @@ QRect QPlatformWindow::initialGeometry(const QWindow *w,
         : QGuiApplication::screenAt(initialGeometry.center());
     if (!screen)
         return initialGeometry;
+    if (resultingScreenReturn)
+        *resultingScreenReturn = screen;
     // initialGeometry refers to window's screen
     QRect rect(QHighDpi::fromNativePixels(initialGeometry, w));
     if (wp->resizeAutomatic)
@@ -793,6 +837,22 @@ void QPlatformWindow::deliverUpdateRequest()
     QCoreApplication::sendEvent(w, &request);
 }
 
+
+void QPlatformWindow::syncTransientParent()
+{
+
+}
+
+void QPlatformWindow::updateWindowExpose()
+{
+
+}
+
+void QPlatformWindow::resetDeviceDependentResources()
+{
+}
+
+
 /*!
     Returns the QWindow minimum size.
 */
@@ -869,6 +929,35 @@ QRectF QPlatformWindow::windowClosestAcceptableGeometry(const QRectF &nativeRect
     return QPlatformWindow::closestAcceptableGeometry(window(), nativeRect);
 }
 
+#ifdef Q_OS_MAC
+// Customize window barTitle attributes on mac
+void QPlatformWindow::setTitlebarAppearsTransparent(bool)
+{
+    // children class implementation
+}
+
+void QPlatformWindow::setBackgroundColor(const QColor &)
+{
+    // children class implementation
+}
+
+// Move NSWindow without redrawing
+void QPlatformWindow::setNSWindowGeometryNoRedraw(const QRect &)
+{
+    // children class implementation
+}
+// Whether to hide the top titlebar
+void QPlatformWindow::setTitlebarHide(bool)
+{
+    // children class implementation
+}
+
+// Set whether to show all
+void QPlatformWindow::setContentViewFullSize(bool)
+{
+    // children class implementation
+}
+#endif
 /*!
     \class QPlatformWindow
     \since 4.8

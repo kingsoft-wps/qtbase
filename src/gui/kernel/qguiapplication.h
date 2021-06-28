@@ -153,6 +153,10 @@ public:
 
     static void setQuitOnLastWindowClosed(bool quit);
     static bool quitOnLastWindowClosed();
+	
+#ifdef Q_OS_MAC
+	static void clearCurrentThreadCocoaEventDispatcherInterruptFlag();
+#endif // Q_OS_MAC
 
     static Qt::ApplicationState applicationState();
 

@@ -231,6 +231,11 @@ QHash<QPlatformTheme::Palette, QPalette*> qt_mac_createRolePalettes()
         } else if (mac_widget_colors[i].paletteRole == QPlatformTheme::TextLineEditPalette
                    || mac_widget_colors[i].paletteRole == QPlatformTheme::ComboBoxPalette) {
             pal.setBrush(QPalette::Active, QPalette::Base, qt_mac_toQColor([NSColor textBackgroundColor]));
+            if (qt_mac_applicationIsInDarkMode()) 
+            {
+                QColor c = qt_mac_toQColor([NSColor textBackgroundColor]);
+                pal.setBrush(QPalette::Active, QPalette::Base, c.lighter());
+            }
             pal.setBrush(QPalette::Disabled, QPalette::Base,
                          pal.brush(QPalette::Active, QPalette::Base));
         } else if (mac_widget_colors[i].paletteRole == QPlatformTheme::LabelPalette) {

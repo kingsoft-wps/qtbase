@@ -192,6 +192,8 @@ private:
     // used in parseString()
     signed char Done;
 
+    // if xml Content string is all Space ,not be ignored ;used in parseContent()
+    bool isUseBlankSpace;
 
     // variables
     QXmlContentHandler *contentHnd;
@@ -230,6 +232,10 @@ private:
     static const int dtdRecursionLimit = 2;
     // The maximum amount of characters an entity value may contain, after expansion.
     static const int entityCharacterLimit = 1024;
+
+    void setUseBlankSpace(bool flag) { isUseBlankSpace = flag; }
+    bool getUseBlankSpace() { return isUseBlankSpace; }
+    bool checkSpace(const QString &str);
 
     const QString &string();
     void stringClear();

@@ -180,6 +180,8 @@ struct QTexturedBrushData : public QBrushData
     QTexturedBrushData() {
         m_has_pixmap_texture = false;
         m_pixmap = 0;
+        m_wrapMode = Qt::TextureTiling;
+        initTilingData();
     }
     ~QTexturedBrushData() {
         delete m_pixmap;
@@ -219,9 +221,120 @@ struct QTexturedBrushData : public QBrushData
         return m_image;
     }
 
+      Qt::TextureWrapMode textureWrapMode() const{
+        return m_wrapMode;
+    }
+
+    void setTextureWrapMode(Qt::TextureWrapMode wrapMode){
+        if (m_wrapMode == wrapMode)
+            return;
+        
+        if (wrapMode == Qt::TextureStretching)
+            initStretchingData();
+        else if (m_wrapMode == Qt::TextureStretching)
+            initTilingData();
+
+        m_wrapMode = wrapMode;
+    }
+
+    Qt::TextureAlignment textureAlignment() const {
+        return m_data.tile.alignment;
+    }
+
+    void setTextureAlignment(Qt::TextureAlignment alignment){
+        m_data.tile.alignment = alignment;
+    }
+
+    void getTextureOffset(qreal &offsetX, qreal &offsetY) const{
+        offsetX = m_data.tile.offsetX;
+        offsetY = m_data.tile.offsetY;
+    }
+    void setTextureOffset(qreal offsetX, qreal offsetY){
+        m_data.tile.offsetX = offsetX;
+        m_data.tile.offsetY = offsetY;
+    }
+
+    void getTexturePatternStyle(qint32 &patternStyle, QRgb &foreColor, QRgb &backColor) const
+    {
+        patternStyle = m_data.tile.patternStyle;
+        foreColor = m_data.tile.foreColor;
+        backColor = m_data.tile.backColor;
+    }
+
+    void setTexturePatternStyle(qint32 patternStyle, QRgb foreColor, QRgb backColor)
+    {
+        m_data.tile.patternStyle = patternStyle;
+        m_data.tile.foreColor = foreColor;
+        m_data.tile.backColor = backColor;
+    }
+
+    void getTextureScale(qreal &scaleX, qreal &scaleY) const{
+        scaleX = m_data.tile.scaleX;
+        scaleY = m_data.tile.scaleY;
+    }
+    void setTextureScale(qreal scaleX, qreal scaleY){
+        m_data.tile.scaleX = scaleX;
+        m_data.tile.scaleY = scaleY;
+    }
+
+    // for TexturePattern brush with TextureWrapMode == TextureWrapModeExpand
+    void getTextureStretchingOffset(qreal &left, qreal &right, qreal &top, qreal &bottom) const{
+        left = m_data.expand.l;
+        right = m_data.expand.r;
+        top = m_data.expand.t;
+        bottom = m_data.expand.b;
+    }
+
+    void setTextureStretchingOffset(qreal left = 0, qreal right = 0, qreal top = 0, qreal bottom = 0){
+        m_data.expand.l = left;
+        m_data.expand.r = right;
+        m_data.expand.t = top;
+        m_data.expand.b = bottom;
+    }
+
+    void setDestRect(const QRectF& destRect)
+	{
+		m_textureDestRect = destRect;
+	}
+
+	void getDestRect(QRectF& destRect)
+	{
+		destRect = m_textureDestRect;
+	}
+
+
+    void initTilingData(){
+        m_data.tile.alignment = Qt::TextureAlignmentNone;
+        m_data.tile.offsetX = m_data.tile.offsetY = 0;
+        m_data.tile.scaleX = m_data.tile.scaleY = 1.0;
+        m_data.tile.patternStyle = -1;
+        m_data.tile.foreColor = 0;
+        m_data.tile.backColor = 0;
+    }
+
+    void initStretchingData(){
+        m_data.expand.l = m_data.expand.r = m_data.expand.t = m_data.expand.b = 0;
+    }
+
+
     QPixmap *m_pixmap;
     QImage m_image;
+    QRectF m_textureDestRect;
     bool m_has_pixmap_texture;
+
+    Qt::TextureWrapMode m_wrapMode;
+    union {
+        struct {
+            Qt::TextureAlignment alignment;
+            qreal offsetX, offsetY;
+            qreal scaleX, scaleY;
+            qint32 patternStyle;
+            QRgb foreColor, backColor;
+        } tile;
+        struct {
+            qreal l, r, t, b;
+        } expand;
+    } m_data;
 };
 
 // returns true if the brush has a pixmap (or bitmap) set as the
@@ -250,6 +363,7 @@ struct QBrushDataPointerDeleter
         case Qt::LinearGradientPattern:
         case Qt::RadialGradientPattern:
         case Qt::ConicalGradientPattern:
+        case Qt::PathGradientPattern:
             delete static_cast<QGradientBrushData*>(d);
             break;
         default:
@@ -378,6 +492,7 @@ static bool qbrush_check_type(Qt::BrushStyle style) {
     case Qt::LinearGradientPattern:
     case Qt::RadialGradientPattern:
     case Qt::ConicalGradientPattern:
+    case Qt::PathGradientPattern:
         qWarning("QBrush: Wrong use of a gradient pattern");
         break;
     default:
@@ -405,6 +520,7 @@ void QBrush::init(const QColor &color, Qt::BrushStyle style)
     case Qt::LinearGradientPattern:
     case Qt::RadialGradientPattern:
     case Qt::ConicalGradientPattern:
+    case Qt::PathGradientPattern:
         d.reset(new QGradientBrushData);
         break;
     default:
@@ -540,8 +656,8 @@ QBrush::QBrush(const QBrush &other)
     Constructs a brush based on the given \a gradient.
 
     The brush style is set to the corresponding gradient style (either
-    Qt::LinearGradientPattern, Qt::RadialGradientPattern or
-    Qt::ConicalGradientPattern).
+    Qt::LinearGradientPattern, Qt::RadialGradientPattern,
+    Qt::ConicalGradientPattern or case Qt::PathGradientPattern).
 */
 QBrush::QBrush(const QGradient &gradient)
 {
@@ -554,7 +670,8 @@ QBrush::QBrush(const QGradient &gradient)
     const Qt::BrushStyle enum_table[] = {
         Qt::LinearGradientPattern,
         Qt::RadialGradientPattern,
-        Qt::ConicalGradientPattern
+        Qt::ConicalGradientPattern,
+        Qt::PathGradientPattern
     };
 
     init(QColor(), enum_table[gradient.type()]);
@@ -579,7 +696,7 @@ static Q_DECL_CONSTEXPR inline bool use_same_brushdata(Qt::BrushStyle lhs, Qt::B
 {
     return lhs == rhs // includes Qt::TexturePattern
         || (lhs >= Qt::NoBrush && lhs <= Qt::DiagCrossPattern && rhs >= Qt::NoBrush && rhs <= Qt::DiagCrossPattern)
-        || (lhs >= Qt::LinearGradientPattern && lhs <= Qt::ConicalGradientPattern && rhs >= Qt::LinearGradientPattern && rhs <= Qt::ConicalGradientPattern)
+        || (lhs >= Qt::LinearGradientPattern && lhs <= Qt::PathGradientPattern && rhs >= Qt::LinearGradientPattern && rhs <= Qt::PathGradientPattern)
            ;
 }
 
@@ -600,18 +717,24 @@ void QBrush::detach(Qt::BrushStyle newStyle)
                 tbd->setPixmap(data->pixmap());
             else
                 tbd->setImage(data->image());
+
+            tbd->m_wrapMode = data->m_wrapMode;
+            tbd->m_textureDestRect = data->m_textureDestRect;
+            memcpy(&(tbd->m_data), &(data->m_data), sizeof(tbd->m_data));
         }
         x.reset(tbd);
         break;
         }
     case Qt::LinearGradientPattern:
     case Qt::RadialGradientPattern:
-    case Qt::ConicalGradientPattern: {
+    case Qt::ConicalGradientPattern:
+    case Qt::PathGradientPattern: {
         QGradientBrushData *gbd = new QGradientBrushData;
         switch (d->style) {
         case Qt::LinearGradientPattern:
         case Qt::RadialGradientPattern:
         case Qt::ConicalGradientPattern:
+        case Qt::PathGradientPattern:
             gbd->gradient =
                     static_cast<QGradientBrushData *>(d.data())->gradient;
             break;
@@ -629,6 +752,7 @@ void QBrush::detach(Qt::BrushStyle newStyle)
     x->style = newStyle;
     x->color = d->color;
     x->transform = d->transform;
+    x->colorEffect = d->colorEffect;
     d.swap(x);
 }
 
@@ -729,6 +853,17 @@ void QBrush::setColor(const QColor &c)
     d->color = c;
 }
 
+void QBrush::setColorEffect(const QImageEffects &effect)
+{
+    detach(d->style);
+    d->colorEffect = effect;
+}
+
+const QImageEffects &QBrush::colorEffect() const
+{
+    return d->colorEffect;
+}
+
 /*!
     \fn void QBrush::setColor(Qt::GlobalColor color)
     \overload
@@ -820,6 +955,280 @@ void QBrush::setTextureImage(const QImage &image)
     }
 }
 
+/*!
+    Returns the wrap mode of the texture brush
+    Note:the current brush's style must be TexturePattern
+
+    \sa textureImage(), setTexture(), setTextureAlignment(), setTextureOffset(),
+    setTextureScale()
+*/
+Qt::TextureWrapMode QBrush::textureWrapMode() const
+{
+    if (d->style != Qt::TexturePattern) {
+        qWarning("Not a TexturePattern");
+        return Qt::TextureTiling;
+    }
+    QTexturedBrushData *data  = static_cast<QTexturedBrushData*>(d.data());
+    return data->textureWrapMode();
+}
+
+/*!
+    Set the wrap mode of the texture brush
+    Note:the current brush's style must be TexturePattern
+
+    \sa textureImage(), setTexture(), setTextureAlignment(), setTextureOffset(), 
+    setTextureScale(), setTextureStretchingOffset()
+*/
+void QBrush::setTextureWrapMode(Qt::TextureWrapMode wrapMode)
+{
+    if (d->style != Qt::TexturePattern) {
+        qWarning("Not a TexturePattern");
+        return;
+    }
+    if (textureWrapMode() == wrapMode)
+        return;
+    else
+        detach(Qt::TexturePattern);
+
+    QTexturedBrushData *data  = static_cast<QTexturedBrushData*>(d.data());
+    data->setTextureWrapMode(wrapMode);
+}
+
+/*!
+    Returns the alignment mode of the texture brush
+    Note:the current brush's style must be TexturePattern and the wrap mode 
+    must not be TextureWrapModeStretching.
+
+    \sa setTextureAlignment(), setTextureOffset(), setTextureScale()
+*/
+Qt::TextureAlignment QBrush::textureAlignment() const
+{
+    if (d->style != Qt::TexturePattern || textureWrapMode() > Qt::TextureNoTiling) {
+        qWarning("Not a TexturePattern with tile mode");
+        return Qt::TextureAlignmentNone;
+    }
+    QTexturedBrushData *data  = static_cast<QTexturedBrushData*>(d.data());
+    return data->textureAlignment();
+}
+
+/*!
+    Set the alignment mode of the texture brush
+    Note:the current brush's style must be TexturePattern and the wrap mode 
+    must not be TextureWrapModeStretching. 
+
+    \sa textureAlignment(), setTextureOffset(), setTextureScale()
+*/
+void QBrush::setTextureAlignment(Qt::TextureAlignment alignment)
+{
+    if (d->style != Qt::TexturePattern || textureWrapMode() > Qt::TextureNoTiling) {
+        qWarning("Not a TexturePattern with tile mode");
+        return;
+    }
+    if (textureAlignment() == alignment)
+        return;
+    else
+        detach(Qt::TexturePattern);
+
+    QTexturedBrushData *data  = static_cast<QTexturedBrushData*>(d.data());
+    data->setTextureAlignment(alignment);
+}
+
+/*!
+    Returns the offset of the texture brush
+    Note:the current brush's style must be TexturePattern and the wrap mode 
+    must not be TextureWrapModeStretching.
+
+    \sa setTextureAlignment(), setTextureOffset(), setTextureScale()
+*/
+void QBrush::getTextureOffset(qreal &offsetX, qreal &offsetY) const
+{
+    if (d->style != Qt::TexturePattern || textureWrapMode() > Qt::TextureNoTiling) {
+        qWarning("Not a TexturePattern with tile mode");
+        return;
+    }
+    QTexturedBrushData *data  = static_cast<QTexturedBrushData*>(d.data());
+    data->getTextureOffset(offsetX, offsetY);
+}
+
+/*!
+    Set the offset of the texture brush
+    Note:the current brush's style must be TexturePattern and the wrap mode 
+    must not be TextureWrapModeStretching.
+    The brush's matrix will be changed.
+
+    \sa setTextureAlignment(), getTextureOffset(), setTextureScale()
+*/
+void QBrush::setTextureOffset(qreal offsetX, qreal offsetY)
+{
+    if (d->style != Qt::TexturePattern || textureWrapMode() > Qt::TextureNoTiling) {
+        qWarning("Not a TexturePattern with tile mode");
+        return;
+    }
+
+    detach(Qt::TexturePattern);
+
+    QTexturedBrushData *data  = static_cast<QTexturedBrushData*>(d.data());
+    data->setTextureOffset(offsetX, offsetY);
+}
+
+/*!
+    Returns the pattern type of the texture brush
+    Note:the current brush's style must be TexturePattern and the wrap mode
+    must not be TextureWrapModeStretching.
+*/
+void QBrush::getTexturePatternStyle(qint32 &patternStyle, QRgb &foreColor, QRgb &backColor) const
+{
+    if (d->style != Qt::TexturePattern || textureWrapMode() > Qt::TextureNoTiling) {
+        qWarning("Not a TexturePattern with tile mode");
+        return;
+    }
+    QTexturedBrushData *data = static_cast<QTexturedBrushData *>(d.data());
+    data->getTexturePatternStyle(patternStyle, foreColor, backColor);
+}
+
+/*!
+    Set the type of the texture brush
+    Note:the current brush's style must be TexturePattern and the wrap mode
+    must not be TextureWrapModeStretching.
+*/
+void QBrush::setTexturePatternStyle(qint32 patternStyle, QRgb foreColor, QRgb backColor)
+{
+    if (d->style != Qt::TexturePattern || textureWrapMode() > Qt::TextureNoTiling) {
+        qWarning("Not a TexturePattern with tile mode");
+        return;
+    }
+
+    detach(Qt::TexturePattern);
+
+    QTexturedBrushData *data = static_cast<QTexturedBrushData *>(d.data());
+    data->setTexturePatternStyle(patternStyle, foreColor, backColor);
+}
+
+/*!
+    Returns the scale of the texture brush
+    Note:the current brush's style must be TexturePattern and the wrap mode 
+    must not be TextureWrapModeStretching.
+
+    \sa setTextureAlignment(), setTextureOffset(), setTextureScale()
+*/
+void QBrush::getTextureScale(qreal &scaleX, qreal &scaleY) const
+{
+    if (d->style != Qt::TexturePattern || textureWrapMode() > Qt::TextureNoTiling) {
+        qWarning("Not a TexturePattern with tile mode");
+        return;
+    }
+    QTexturedBrushData *data  = static_cast<QTexturedBrushData*>(d.data());
+    data->getTextureScale(scaleX, scaleY);
+}
+
+/*!
+    Set the scale of the texture brush
+    Note:the current brush's style must be TexturePattern and the wrap mode 
+    must not be TextureWrapModeStretching.
+    The brush's matrix will be changed.
+
+    \sa setTextureAlignment(), setTextureOffset(), setTextureScale()
+*/
+void QBrush::setTextureScale(qreal scaleX, qreal scaleY)
+{
+    if (d->style != Qt::TexturePattern || textureWrapMode() > Qt::TextureNoTiling) {
+        qWarning("Not a TexturePattern with tile mode");
+        return;
+    }
+
+    detach(Qt::TexturePattern);
+
+    QTexturedBrushData *data  = static_cast<QTexturedBrushData*>(d.data());
+    data->setTextureScale(scaleX, scaleY);
+}
+
+void QBrush::setTextureDestRect(const QRectF& rct)
+{
+	if (d->style != Qt::TexturePattern) {
+		qWarning("Not a TexturePattern with tile mode");
+		return;
+	}
+
+	detach(Qt::TexturePattern);
+
+	QTexturedBrushData *data  = static_cast<QTexturedBrushData*>(d.data());
+	data->setDestRect(rct);
+}
+
+void QBrush::getTextureDestRect(QRectF& rct) const
+{
+	if (d->style != Qt::TexturePattern) {
+		qWarning("Not a TexturePattern with tile mode");
+		return;
+	}
+
+	QTexturedBrushData *data  = static_cast<QTexturedBrushData*>(d.data());
+	data->getDestRect(rct);
+}
+
+/*!
+    Set the texture brush to the expand mode and set the offset
+    Note:the current brush's style must be TexturePattern
+
+    \sa setTextureStretchingOffset()
+*/
+void QBrush::setTextureStretching(qreal left/* = 0*/, 
+                              qreal right/* = 0*/, 
+                              qreal top/* = 0*/, 
+                              qreal bottom/* = 0*/)
+{
+    if (d->style != Qt::TexturePattern) {
+        qWarning("Not a TexturePattern");
+        return;
+    }
+
+    detach(Qt::TexturePattern);
+
+    QTexturedBrushData *data  = static_cast<QTexturedBrushData*>(d.data());
+    data->setTextureWrapMode(Qt::TextureStretching);
+    data->setTextureStretchingOffset(left, right, top, bottom);
+}
+
+/*!
+    Returns the offset of the texture brush in four direction
+    Note:the current brush's style must be TexturePattern and the wrap mode 
+    must be TextureWrapModeStretching.
+
+    \sa getTextureStretchingOffset()
+*/
+void QBrush::getTextureStretchingOffset(qreal &left, qreal &right, qreal &top, qreal &bottom) const
+{
+    if (d->style != Qt::TexturePattern || textureWrapMode() != Qt::TextureStretching) {
+        qWarning("Not a TexturePattern with expand mode");
+        return;
+    }
+    QTexturedBrushData *data  = static_cast<QTexturedBrushData*>(d.data());
+    data->getTextureStretchingOffset(left, right, top, bottom);
+}
+
+/*!
+    Returns the offset of the texture brush in four direction
+    Note:the current brush's style must be TexturePattern and the wrap mode 
+    must be TextureWrapModeStretching.
+    The brush's matrix will be changed.
+
+    \sa getTextureStretchingOffset()
+*/
+void QBrush::setTextureStretchingOffset(qreal left/* = 0*/,
+                                    qreal right/* = 0*/,
+                                    qreal top/* = 0*/, 
+                                    qreal bottom/* = 0*/)
+{
+    if (d->style != Qt::TexturePattern || textureWrapMode() != Qt::TextureStretching) {
+        qWarning("Not a TexturePattern with expand mode");
+        return;
+    }
+
+    detach(Qt::TexturePattern);
+
+    QTexturedBrushData *data  = static_cast<QTexturedBrushData*>(d.data());
+    data->setTextureStretchingOffset(left, right, top, bottom);
+}
 
 /*!
     Returns the gradient describing this brush.
@@ -828,7 +1237,8 @@ const QGradient *QBrush::gradient() const
 {
     if (d->style == Qt::LinearGradientPattern
         || d->style == Qt::RadialGradientPattern
-        || d->style == Qt::ConicalGradientPattern) {
+        || d->style == Qt::ConicalGradientPattern
+        || d->style == Qt::PathGradientPattern) {
         return &static_cast<const QGradientBrushData *>(d.data())->gradient;
     }
     return 0;
@@ -876,7 +1286,8 @@ bool QBrush::isOpaque() const
 
     if (d->style == Qt::LinearGradientPattern
         || d->style == Qt::RadialGradientPattern
-        || d->style == Qt::ConicalGradientPattern) {
+        || d->style == Qt::ConicalGradientPattern
+        || d->style == Qt::PathGradientPattern) {
         QGradientStops stops = gradient()->stops();
         for (int i=0; i<stops.size(); ++i)
             if (stops.at(i).second.alpha() != 255)
@@ -964,6 +1375,35 @@ bool QBrush::operator==(const QBrush &b) const
     switch (d->style) {
     case Qt::TexturePattern:
         {
+            if (textureWrapMode() != b.textureWrapMode())
+                return false;
+            if (textureWrapMode() == Qt::TextureStretching) {
+                qreal l1, t1, r1, b1;
+                qreal l2, t2, r2, b2;
+                getTextureStretchingOffset(l1, r1, t1, b1);
+                b.getTextureStretchingOffset(l2, r2, t2, b2);
+                if (QRectF(l1, r1, t1, b1) != QRectF(l2, r2, t2, b2))
+                    return false;
+            } else {
+                if (textureAlignment() != b.textureAlignment())
+                    return false;
+                qreal x1, y1, x2, y2;
+                getTextureOffset(x1, y1);
+                b.getTextureOffset(x2, y2);
+                if (x1 != x2 || y1 != y2)
+                    return false;
+                getTextureScale(x1, y1);
+                b.getTextureScale(x2, y2);
+                if (x1 != x2 || y1 != y2)
+                    return false; 
+            }
+
+            QRectF textureRect1, textureRect2;
+            getTextureDestRect(textureRect1);
+            b.getTextureDestRect(textureRect2);
+            if (textureRect1 != textureRect2)
+                return false;
+
             // Note this produces false negatives if the textures have identical data,
             // but does not share the same data in memory. Since equality is likely to
             // be used to avoid iterating over the data for a texture update, this should
@@ -996,6 +1436,7 @@ bool QBrush::operator==(const QBrush &b) const
     case Qt::LinearGradientPattern:
     case Qt::RadialGradientPattern:
     case Qt::ConicalGradientPattern:
+    case Qt::PathGradientPattern:
         {
             const QGradientBrushData *d1 = static_cast<QGradientBrushData *>(d.data());
             const QGradientBrushData *d2 = static_cast<QGradientBrushData *>(b.d.data());
@@ -1031,7 +1472,8 @@ QDebug operator<<(QDebug dbg, const QBrush &b)
      "LinearGradientPattern",
      "RadialGradientPattern",
      "ConicalGradientPattern",
-     "", "", "", "", "", "",
+     "PathGradientPattern",
+     "", "", "", "", "",
      "TexturePattern" // 24
     };
 
@@ -1061,7 +1503,7 @@ QDataStream &operator<<(QDataStream &s, const QBrush &b)
     bool gradient_style = false;
 
     if (style == Qt::LinearGradientPattern || style == Qt::RadialGradientPattern
-        || style == Qt::ConicalGradientPattern)
+        || style == Qt::ConicalGradientPattern || style == Qt::PathGradientPattern)
         gradient_style = true;
 
     if (s.version() < QDataStream::Qt_4_0 && gradient_style)
@@ -1073,6 +1515,23 @@ QDataStream &operator<<(QDataStream &s, const QBrush &b)
             s << b.textureImage();
         else
             s << b.texture();
+
+        s << quint8(b.textureWrapMode());
+        if (b.textureWrapMode() == Qt::TextureStretching) {
+            qreal l, r, t, bo;
+            b.getTextureStretchingOffset(l, r, t, bo);
+            s << double(l) << double(r) << double(t) << double(bo);
+        } else {
+            qreal dx, dy, sx, sy;
+            s << (quint8)b.textureAlignment();
+            b.getTextureOffset(dx, dy);
+            s << double(dx) << double(dy);
+            b.getTextureScale(sx, sy);
+            s << double(sx) << double(sy);
+        }
+        QRectF rcTextureDest;
+        b.getTextureDestRect(rcTextureDest);
+        s << rcTextureDest;
     } else if (s.version() >= QDataStream::Qt_4_0 && gradient_style) {
         const QGradient *gradient = b.gradient();
         int type_as_int = int(gradient->type());
@@ -1109,9 +1568,12 @@ QDataStream &operator<<(QDataStream &s, const QBrush &b)
             s << static_cast<const QRadialGradient *>(gradient)->center();
             s << static_cast<const QRadialGradient *>(gradient)->focalPoint();
             s << (double) static_cast<const QRadialGradient *>(gradient)->radius();
-        } else { // type == Conical
+        } else if (gradient->type() == QGradient::ConicalGradient) {
             s << static_cast<const QConicalGradient *>(gradient)->center();
             s << (double) static_cast<const QConicalGradient *>(gradient)->angle();
+        } else { // type == path
+            s << static_cast<const QPathGradient *>(gradient)->center();
+            s << static_cast<const QPathGradient *>(gradient)->path();
         }
     }
     if (s.version() >= QDataStream::Qt_4_3)
@@ -1146,9 +1608,27 @@ QDataStream &operator>>(QDataStream &s, QBrush &b)
             s >> pm;
             b.setTexture(qMove(pm));
         }
-    } else if (style == Qt::LinearGradientPattern
-               || style == Qt::RadialGradientPattern
-               || style == Qt::ConicalGradientPattern) {
+        quint8 wm;
+        s >> wm;
+        b.setTextureWrapMode((Qt::TextureWrapMode)wm);
+        if (wm == Qt::TextureStretching) {
+            double l, r, t, bo;
+            s >> l >> r >> t >> bo;
+            b.setTextureStretching(l, r, t, bo);
+        } else {
+            quint8 alignment;
+            s >> alignment;
+            double dx, dy, sx, sy;
+            s >> dx >> dy >> sx >> sy;
+            b.setTextureAlignment(Qt::TextureAlignment(alignment));
+            b.setTextureOffset(dx, dy);
+            b.setTextureScale(sx, sy);
+        }
+        QRectF rcTextureDest;
+        s >> rcTextureDest;
+        b.setTextureDestRect(rcTextureDest);
+    } else if (style == Qt::LinearGradientPattern || style == Qt::RadialGradientPattern
+               || style == Qt::ConicalGradientPattern || style == Qt::PathGradientPattern) {
 
         int type_as_int;
         QGradient::Type type;
@@ -1208,7 +1688,7 @@ QDataStream &operator>>(QDataStream &s, QBrush &b)
             rg.setCoordinateMode(cmode);
             rg.setInterpolationMode(imode);
             b = QBrush(rg);
-        } else { // type == QGradient::ConicalGradient
+        } else if (type == QGradient::ConicalGradient) {
             QPointF center;
             double angle;
             s >> center;
@@ -1219,6 +1699,17 @@ QDataStream &operator>>(QDataStream &s, QBrush &b)
             cg.setCoordinateMode(cmode);
             cg.setInterpolationMode(imode);
             b = QBrush(cg);
+        } else {// type == QGradient::PathGradient
+            QPointF center;
+            QPainterPath path;
+            s >> center;
+            s >> path;
+            QPathGradient pg(center, path);
+            pg.setStops(stops);
+            pg.setSpread(spread);
+            pg.setCoordinateMode(cmode);
+            pg.setInterpolationMode(imode);
+            b = QBrush(pg);
         }
     } else {
         b = QBrush(color, (Qt::BrushStyle)style);
@@ -1682,10 +2173,16 @@ bool QGradient::operator==(const QGradient &gradient) const
             || m_data.radial.fy != gradient.m_data.radial.fy
             || m_data.radial.cradius != gradient.m_data.radial.cradius)
             return false;
-    } else { // m_type == ConicalGradient
+    } else if (m_type == ConicalGradient) {
         if (m_data.conical.cx != gradient.m_data.conical.cx
             || m_data.conical.cy != gradient.m_data.conical.cy
             || m_data.conical.angle != gradient.m_data.conical.angle)
+            return false;
+    } else { // m_type == PathGradient
+        auto pg1 = static_cast<const QPathGradient *>(&gradient);
+        auto pg2 = static_cast<const QPathGradient *>(this);
+        if (pg1->path() != pg2->path()
+            || pg1->center() != pg2->center())
             return false;
     }
 
@@ -2369,6 +2866,216 @@ qreal QConicalGradient::angle() const
 {
     Q_ASSERT(m_type == ConicalGradient);
     return m_data.conical.angle;
+}
+
+
+/*!
+    \class QPathGradient
+    \ingroup painting
+
+    \brief The QPathGradient class is used in combination with QBrush to
+    specify a path gradient brush.
+
+    Path gradients interpolate colors between the center point and the
+    points in the path.
+
+    The colors in a gradient is defined using stop points of the
+    QGradientStop type, i.e. a position and a color. Use the
+    QGradient::setColorAt() or the QGradient::setStops() function to
+    define the stop points. It is the gradient's complete set of stop
+    points that describes how the gradient area should be filled. If
+    no stop points have been specified, a gradient of black at 0 to
+    white at 1 is used.
+
+    There must be at least two points in the stops of a path gradient, and
+    the first point must be at 0 while the last one must be at 1. That means
+    (m_stops.size() >= 2
+    && m_stops.front().first == 0
+    && m_stops.back().first == 1);
+    should always be true.
+
+    Stop point 0 releates to the center point while stop point 1 releates to
+    the boundary of the path.
+    The center point doesn't have to be the centroid of the path, but it
+    should be inside the path, or the result is undefined.
+
+
+    In addition to the functions inherited from QGradient, the
+    QPathGradient class provides the path() and center() functions
+    returning the path and center of the gradient.
+
+    \sa QLinearGradient, QRadialGradient, QConicalGradient{demos/gradients}{The
+    Gradients Demo}
+*/
+
+/*!
+    Constructs a default path gradient.
+
+    The center point and the path should be set before a path gradient brush
+    is constructed.
+
+    \sa QGradient::setColorAt(), setStart(), setFinalStop(), setCenter()
+    setPath()
+*/
+
+QPathGradient::QPathGradient()
+{
+    init(0, 0);
+}
+/*!
+    Return the centroid of the \a path.
+*/
+static QPointF qt_get_path_center_point(const QPainterPath &path)
+{
+    Q_ASSERT(!path.isEmpty());
+
+    QPointF pt(0, 0);
+    int nCount = path.elementCount();
+    if ((QPointF)path.elementAt(0) == (QPointF)path.elementAt(nCount - 1))
+        nCount--;
+    for (int i = 0; i < nCount; i++)
+        pt += (QPointF)path.elementAt(i);
+
+    pt /= nCount;
+
+    return pt;
+}
+
+/*!
+    Constructs a path gradient with interpolation area \a path.
+    The center point will be set to the centroid of this \a path.
+
+    \note The expected parameter values are in pixels.
+
+    \sa QGradient::setColorAt(), setStart(), setFinalStop(), setCenter()
+    setPath()
+*/
+QPathGradient::QPathGradient(const QPainterPath &path)
+{
+    if (path.isEmpty())
+        qWarning("path is empty!");
+
+    QPointF center = qt_get_path_center_point(path);
+    init(center.x(), center.y(), path);
+}
+
+/*!
+    Constructs a path gradient with interpolation area \a path and set the
+    center point to \a center.
+
+    \note The expected parameter values are in pixels.
+    \note The center point doesn't have to be the centroid of the path, but
+    it should be inside the path, or the result is undefined.
+
+    \sa QGradient::setColorAt(), setStart(), setFinalStop(), setCenter()
+    setPath()
+*/
+QPathGradient::QPathGradient(const QPointF &center, const QPainterPath &path, qreal scaleX, qreal scaleY)
+{
+    if (path.isEmpty())
+        qWarning("path is empty!");
+
+    init(center.x(), center.y(), path, scaleX, scaleY);
+}
+
+/*!
+    Constructs a path gradient with interpolation area \a path and set the
+    center point to QPointF(cx, cy).
+
+    \note The expected parameter values are in pixels.
+    \note The center point doesn't have to be the centroid of the path, but
+    it should be inside the path, or the result is undefined.
+
+    \sa QGradient::setColorAt(), setStart(), setFinalStop(), setCenter()
+    setPath()
+*/
+QPathGradient::QPathGradient(qreal cx, qreal cy, const QPainterPath &path, qreal scaleX, qreal scaleY)
+{
+    if (path.isEmpty())
+        qWarning("path is empty!");
+
+    init(cx, cy, path, scaleX, scaleY);
+}
+
+/*!
+    Returns the center of the path gradient in logical
+    coordinates.
+
+    \sa setCenter()
+*/
+QPointF QPathGradient::center() const
+{
+    Q_ASSERT(PathGradient == m_type);
+
+    return QPointF(m_data.path.cx, m_data.path.cy);
+}
+
+/*!
+    Sets the center of this path gradient in logical coordinates to
+    \a center.
+
+    \sa center()
+*/
+void QPathGradient::setCenter(const QPointF &center)
+{
+    Q_ASSERT(PathGradient == m_type);
+
+    m_data.path.cx = center.x();
+    m_data.path.cy = center.y();
+}
+
+/*!
+    Returns the path of the path gradient in logical
+    coordinates.
+
+    \sa setPath()
+*/
+QPainterPath QPathGradient::path() const
+{
+    Q_ASSERT(PathGradient == m_type);
+
+    return m_path;
+}
+
+/*!
+    Sets the path of this path gradient in logical coordinates to
+    \a path.
+
+    \sa path()
+*/
+void QPathGradient::setPath(const QPainterPath &path)
+{
+    Q_ASSERT(PathGradient == m_type);
+    if (path.isEmpty())
+        qWarning("path is empty!");
+
+    m_path = path;
+}
+
+qreal QPathGradient::xscale() const
+{
+    return m_data.path.scaleX;
+}
+
+qreal QPathGradient::yscale() const
+{
+    return m_data.path.scaleY;
+}
+
+/*!
+    Initialize the path gradient.
+*/
+void QPathGradient::init(qreal cx, qreal cy, const QPainterPath &path, qreal scaleX, qreal scaleY)
+{
+    m_type = PathGradient;
+    m_spread = PadSpread;
+    m_data.path.cx = cx;
+    m_data.path.cy = cy;
+    m_path = path;
+    m_data.path.scaleX = scaleX;
+    m_data.path.scaleY = scaleY;
+    setColorAt(0, Qt::black);
+    setColorAt(1, Qt::white);
 }
 
 

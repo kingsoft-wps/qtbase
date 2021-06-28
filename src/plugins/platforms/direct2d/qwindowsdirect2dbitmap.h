@@ -46,6 +46,8 @@
 
 struct ID2D1DeviceContext;
 struct ID2D1Bitmap1;
+struct ID3D11Texture2D;
+struct IDXGISurface;
 
 QT_BEGIN_NAMESPACE
 
@@ -65,6 +67,8 @@ public:
     QWindowsDirect2DBitmap(ID2D1Bitmap1 *bitmap, ID2D1DeviceContext *dc);
     ~QWindowsDirect2DBitmap();
 
+    static QWindowsDirect2DBitmap * fromTexture(ID3D11Texture2D *textue, bool isTarget, int alphaMode);
+
     bool resize(int width, int height);
     bool fromImage(const QImage &image, Qt::ImageConversionFlags flags);
 
@@ -74,9 +78,13 @@ public:
     void fill(const QColor &color);
     QImage toImage(const QRect &rect = QRect());
 
+    bool hasSourceImage() const;
+
     QSize size() const;
 
 private:
+    bool fromDxgiSurface(IDXGISurface *surface, bool isTarget, int alphaMode);
+
     QScopedPointer<QWindowsDirect2DBitmapPrivate> d_ptr;
 };
 

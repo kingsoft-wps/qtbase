@@ -53,6 +53,7 @@
 #include "qnswindow.h"
 #include "qt_mac_p.h"
 
+#include "qcocoawindowtitleview.h"
 #if QT_CONFIG(vulkan)
 #include <MoltenVK/mvk_vulkan.h>
 #endif
@@ -110,6 +111,16 @@ public:
     void setWindowState(Qt::WindowStates state) override;
     void setWindowTitle(const QString &title) override;
     void setWindowFilePath(const QString &filePath) override;
+    // Customize window barTitle attributes on mac
+    void setTitlebarAppearsTransparent(bool) Q_DECL_OVERRIDE;
+    void setBackgroundColor(const QColor &clr) Q_DECL_OVERRIDE;
+    void setTitleTextColor(const QColor &clr) Q_DECL_OVERRIDE;
+    // Moving NSWindow without redrawing
+    void setNSWindowGeometryNoRedraw(const QRect &) Q_DECL_OVERRIDE;
+    // Whether to hide the top titlebar
+    void setTitlebarHide(bool) Q_DECL_OVERRIDE;
+    // Set whether to show all
+    void setContentViewFullSize(bool) Q_DECL_OVERRIDE;
     void setWindowIcon(const QIcon &icon) override;
     void setAlertState(bool enabled) override;
     bool isAlertState() const override;
@@ -136,6 +147,7 @@ public:
 
     WId winId() const override;
     void setParent(const QPlatformWindow *window) override;
+    WId windowId() const Q_DECL_OVERRIDE;
 
     NSView *view() const;
     NSWindow *nativeWindow() const;
@@ -208,7 +220,7 @@ public:
     };
     Q_DECLARE_FLAGS(RecreationReasons, RecreationReason)
     Q_FLAG(RecreationReasons)
-
+    void createWindowTitleView() override;
 protected:
     void recreateWindowIfNeeded();
     QCocoaNSWindow *createNSWindow(bool shouldBePanel);
@@ -239,6 +251,7 @@ public: // for QNSView
     void handleExposeEvent(const QRegion &region);
 
     NSView *m_view;
+    QCocoaWindowTitleView *m_nsWindowTitleView;
     QCocoaNSWindow *m_nsWindow;
 
     Qt::WindowStates m_lastReportedWindowState;
@@ -266,6 +279,10 @@ public: // for QNSView
     bool m_drawContentBorderGradient;
     int m_topContentBorderThickness;
     int m_bottomContentBorderThickness;
+    // Store the attribute value of the top bar
+    QColor m_backgroundClr;
+    QColor m_titleClr;
+    QString m_title;
 
     struct BorderRange {
         BorderRange(quintptr i, int u, int l) : identifier(i), upper(u), lower(l) { }

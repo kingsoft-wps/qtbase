@@ -6514,8 +6514,12 @@ int QString::localeAwareCompare_helper(const QChar *data1, int length1,
     const QString lhs = QString::fromRawData(data1, length1).normalized(QString::NormalizationForm_C);
     const QString rhs = QString::fromRawData(data2, length2).normalized(QString::NormalizationForm_C);
 #  if defined(Q_OS_WIN)
+#  if defined(Q_OS_WINRT)
     int res = CompareStringEx(LOCALE_NAME_USER_DEFAULT, 0, (LPWSTR)lhs.constData(), lhs.length(), (LPWSTR)rhs.constData(), rhs.length(), NULL, NULL, 0);
-
+#else
+    int res = CompareString(GetUserDefaultLCID(), 0, (LPWSTR)lhs.constData(), lhs.length(),
+                              (LPWSTR)rhs.constData(), rhs.length());
+#endif
     switch (res) {
     case CSTR_LESS_THAN:
         return -1;
@@ -7250,6 +7254,16 @@ qlonglong QString::toIntegral_helper(const QChar *data, int len, bool *ok, int b
         base = 10;
     }
 #endif
+    if (const QLocaleData *def = QLocalePrivate::get(QLocale())->m_data) {
+        bool my_ok = false;
+        qlonglong result = def->stringToLongLong(QStringView(data, len), base, &my_ok,
+                                                    QLocale::RejectGroupSeparator);
+        if (my_ok) {
+            if (ok != nullptr)
+                *ok = true;
+            return result;
+        }
+    }
 
     return QLocaleData::c()->stringToLongLong(QStringView(data, len), base, ok, QLocale::RejectGroupSeparator);
 }
@@ -7292,6 +7306,16 @@ qulonglong QString::toIntegral_helper(const QChar *data, uint len, bool *ok, int
         base = 10;
     }
 #endif
+    if (const QLocaleData *def = QLocalePrivate::get(QLocale())->m_data) {
+        bool my_ok = false;
+        qulonglong result = def->stringToUnsLongLong(QStringView(data, len), base, &my_ok,
+                                              QLocale::RejectGroupSeparator);
+        if (my_ok) {
+            if (ok != nullptr)
+                *ok = true;
+            return result;
+        }
+    }
 
     return QLocaleData::c()->stringToUnsLongLong(QStringView(data, len), base, ok,
                                                  QLocale::RejectGroupSeparator);
@@ -7513,6 +7537,15 @@ ushort QString::toUShort(bool *ok, int base) const
 
 double QString::toDouble(bool *ok) const
 {
+    if (const QLocaleData *def = QLocalePrivate::get(QLocale())->m_data) {
+        bool my_ok = false;
+        double result = def->stringToDouble(*this, &my_ok, QLocale::RejectGroupSeparator);
+        if (my_ok) {
+            if (ok != nullptr)
+                *ok = true;
+            return result;
+        }
+    }
     return QLocaleData::c()->stringToDouble(*this, ok, QLocale::RejectGroupSeparator);
 }
 
@@ -12144,6 +12177,16 @@ ushort QStringRef::toUShort(bool *ok, int base) const
 
 double QStringRef::toDouble(bool *ok) const
 {
+    if (const QLocaleData *def = QLocalePrivate::get(QLocale())->m_data) {
+        bool my_ok = false;
+        double result = def->stringToDouble(*this, &my_ok, QLocale::RejectGroupSeparator);
+        if (my_ok) {
+            if (ok != nullptr)
+                *ok = true;
+            return result;
+        }
+    }
+
     return QLocaleData::c()->stringToDouble(*this, ok, QLocale::RejectGroupSeparator);
 }
 

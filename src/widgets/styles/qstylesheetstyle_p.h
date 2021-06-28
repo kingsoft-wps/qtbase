@@ -138,6 +138,9 @@ public:
 protected:
     bool event(QEvent *e) override;
 
+private Q_SLOTS:
+    void baseDestroyed(QObject *obj);
+
 private:
     int refcount;
 

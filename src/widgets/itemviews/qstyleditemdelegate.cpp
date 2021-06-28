@@ -514,15 +514,6 @@ void QStyledItemDelegate::updateEditorGeometry(QWidget *editor,
 
     QStyle *style = widget ? widget->style() : QApplication::style();
     QRect geom = style->subElementRect(QStyle::SE_ItemViewItemText, &opt, widget);
-    const int delta = qSmartMinSize(editor).width() - geom.width();
-    if (delta > 0) {
-        //we need to widen the geometry
-        if (editor->layoutDirection() == Qt::RightToLeft)
-            geom.adjust(-delta, 0, 0, 0);
-        else
-            geom.adjust(0, 0, delta, 0);
-    }
-
     editor->setGeometry(geom);
 }
 
@@ -615,8 +606,7 @@ bool QStyledItemDelegate::editorEvent(QEvent *event,
 
     // make sure that we have the right event type
     if ((event->type() == QEvent::MouseButtonRelease)
-        || (event->type() == QEvent::MouseButtonDblClick)
-        || (event->type() == QEvent::MouseButtonPress)) {
+        || (event->type() == QEvent::MouseButtonDblClick)) {
         QStyleOptionViewItem viewOpt(option);
         initStyleOption(&viewOpt, index);
         QRect checkRect = style->subElementRect(QStyle::SE_ItemViewItemCheckIndicator, &viewOpt, widget);
@@ -624,8 +614,7 @@ bool QStyledItemDelegate::editorEvent(QEvent *event,
         if (me->button() != Qt::LeftButton || !checkRect.contains(me->pos()))
             return false;
 
-        if ((event->type() == QEvent::MouseButtonPress)
-            || (event->type() == QEvent::MouseButtonDblClick))
+        if (event->type() == QEvent::MouseButtonDblClick)
             return true;
 
     } else if (event->type() == QEvent::KeyPress) {

@@ -592,7 +592,7 @@ void QHttpNetworkConnectionPrivate::createAuthorization(QAbstractSocket *socket,
         if ((channels[i].authMethod != QAuthenticatorPrivate::Ntlm && request.headerField("Authorization").isEmpty()) || channels[i].lastStatus == 401) {
             QAuthenticatorPrivate *priv = QAuthenticatorPrivate::getPrivate(channels[i].authenticator);
             if (priv && priv->method != QAuthenticatorPrivate::None) {
-                QByteArray response = priv->calculateResponse(request.methodName(), request.uri(false));
+                QByteArray response = priv->calculateResponse(request.methodName(), request.uri(false), hostName);
                 request.setHeaderField("Authorization", response);
                 channels[i].authenticationCredentialsSent = true;
             }
@@ -604,7 +604,7 @@ void QHttpNetworkConnectionPrivate::createAuthorization(QAbstractSocket *socket,
         if (!(channels[i].proxyAuthMethod == QAuthenticatorPrivate::Ntlm && channels[i].lastStatus != 407)) {
             QAuthenticatorPrivate *priv = QAuthenticatorPrivate::getPrivate(channels[i].proxyAuthenticator);
             if (priv && priv->method != QAuthenticatorPrivate::None) {
-                QByteArray response = priv->calculateResponse(request.methodName(), request.uri(false));
+                QByteArray response = priv->calculateResponse(request.methodName(), request.uri(false), hostName);
                 request.setHeaderField("Proxy-Authorization", response);
                 channels[i].proxyCredentialsSent = true;
             }
@@ -908,7 +908,8 @@ QString QHttpNetworkConnectionPrivate::errorDetail(QNetworkReply::NetworkError e
         errorString = QCoreApplication::translate("QHttp", "Unknown protocol specified");
         break;
     case QNetworkReply::SslHandshakeFailedError:
-        errorString = QCoreApplication::translate("QHttp", "SSL handshake failed");
+        errorString = QString::fromLatin1(QT_TRANSLATE_NOOP("QHttp", "SSL handshake failed socketError:%1 extraDetail:%2"))
+                              .arg(socket->errorString()).arg(extraDetail);
         break;
     case QNetworkReply::TooManyRedirectsError:
         errorString = QCoreApplication::translate("QHttp", "Too many redirects");

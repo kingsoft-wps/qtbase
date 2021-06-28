@@ -75,6 +75,7 @@
 #include "qtextdocumentwriter.h"
 #include "qstylehints.h"
 #include "private/qtextcursor_p.h"
+#include "qthaiinputcorrector.h"
 
 #include <qtextformat.h>
 #include <qdatetime.h>
@@ -1340,7 +1341,7 @@ process:
                 && !cursor.atBlockEnd())
                 cursor.deleteChar();
 
-            cursor.insertText(e->text());
+            onWideChar(e->text());
             selectionChanged();
         } else {
             e->ignore();
@@ -1356,6 +1357,25 @@ process:
     q->ensureCursorVisible();
 
     updateCurrentCharFormat();
+}
+
+void QWidgetTextControlPrivate::onWideChar(const QString &s)
+{
+    if (s.size() > 1 || QThaiInputCorrector::getThaiCharType(s.at(0).unicode()) == QThaiCharTypeInvalid)
+    {
+        cursor.insertText(s);
+        return;
+    }
+    QThaiInputCorrector syl;
+    syl.parse(cursor.block().text().utf16(), cursor.positionInBlock(), s.at(0).unicode());
+    if (!syl.valid())
+        return;
+    QString vs = syl.value();
+    int removeLength = syl.getSrcLen();
+    QTextCharFormat format = cursor.charFormat();
+    for (int i = 0; i < removeLength; ++i)
+        cursor.deletePreviousChar();
+    cursor.insertText(vs, format);
 }
 
 QVariant QWidgetTextControl::loadResource(int type, const QUrl &name)
@@ -2185,6 +2205,7 @@ void QWidgetTextControlPrivate::focusEvent(QFocusEvent *e)
         }
 #endif
     } else {
+        cursorOn = false;
         setCursorVisible(false);
 
         if (cursorIsFocusIndicator

@@ -59,7 +59,12 @@ static const char *application_menu_strings[] =
     QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Hide %1"),
     QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Hide Others"),
     QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Show All"),
-    QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Quit %1")
+    QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Quit %1"),
+
+    QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Check For Updates..."),
+    QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","AppStore Evaluation"),
+    QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Login Proxy Setting")
+
 };
 
 QString qt_mac_applicationmenu_string(int type)
@@ -80,9 +85,14 @@ QPlatformMenuItem::MenuRole detectMenuRole(const QString &caption)
     const QString aboutString = QCoreApplication::translate("QCocoaMenuItem", "About");
     if (captionNoAmpersand.startsWith(aboutString, Qt::CaseInsensitive)
         || captionNoAmpersand.endsWith(aboutString, Qt::CaseInsensitive)) {
+#if defined(__arm64__)
+        if (captionNoAmpersand.endsWith("qt"))
+            return QPlatformMenuItem::AboutQtRole;
+#else
         static const QRegularExpression qtRegExp(QLatin1String("qt$"), QRegularExpression::CaseInsensitiveOption);
         if (captionNoAmpersand.contains(qtRegExp))
             return QPlatformMenuItem::AboutQtRole;
+#endif
         return QPlatformMenuItem::AboutRole;
     }
     if (captionNoAmpersand.startsWith(QCoreApplication::translate("QCocoaMenuItem", "Config"), Qt::CaseInsensitive)
@@ -104,6 +114,13 @@ QPlatformMenuItem::MenuRole detectMenuRole(const QString &caption)
         return QPlatformMenuItem::PasteRole;
     if (!captionNoAmpersand.compare(QCoreApplication::translate("QCocoaMenuItem", "Select All"), Qt::CaseInsensitive))
         return QPlatformMenuItem::SelectAllRole;
+
+    if (!captionNoAmpersand.compare(QCoreApplication::translate("QCocoaMenuItem", "Check For Updates..."), Qt::CaseInsensitive))
+        return QPlatformMenuItem::CheckForUpdatesRole;
+    if (!captionNoAmpersand.compare(QCoreApplication::translate("QCocoaMenuItem", "AppStore Evaluation"), Qt::CaseInsensitive))
+        return QPlatformMenuItem::AppStoreEvalRole;
+    if (!captionNoAmpersand.compare(QCoreApplication::translate("QCocoaMenuItem", "Login Proxy Setting"), Qt::CaseInsensitive))
+        return QPlatformMenuItem::ProxySettingRole;
     return QPlatformMenuItem::NoRole;
 }
 

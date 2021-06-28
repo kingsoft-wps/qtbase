@@ -235,6 +235,10 @@ public:
     QStringList watching;
     QFileSystemModel *model;
 
+#ifdef Q_OS_MAC
+    // extra data
+    QVariant extra;
+#endif
 #if QT_CONFIG(fscompleter)
     QFSCompleter *completer;
 #endif //QT_CONFIG(fscompleter)

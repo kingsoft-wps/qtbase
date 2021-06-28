@@ -76,31 +76,28 @@ QList<int> QKeyMapper::possibleKeys(QKeyEvent *e)
     QList<int> result;
 
     if (!e->nativeScanCode()) {
+        Qt::KeyboardModifiers keyMods = e->modifiers();
+
+        // same with Linux version, shortcut ignore KeyPad Modifier,
+        // so, we remove this.
+        if (keyMods & Qt::KeypadModifier)
+            keyMods = keyMods & ~Qt::KeypadModifier;
+
         if (e->key() && (e->key() != Qt::Key_unknown))
-            result << int(e->key() + e->modifiers());
+            result << int(e->key() + keyMods);
         else if (!e->text().isEmpty())
-            result << int(e->text().at(0).unicode() + e->modifiers());
+            result << int(e->text().at(0).unicode() + keyMods);
         return result;
     }
 
     return instance()->d_func()->possibleKeys(e);
 }
 
-extern bool qt_sendSpontaneousEvent(QObject *receiver, QEvent *event); // in qapplication_*.cpp
 void QKeyMapper::changeKeyboard()
 {
     instance()->d_func()->clearMappings();
 
-    // ## TODO: Support KeyboardLayoutChange on QPA
-#if 0
-    // inform all toplevel widgets of the change
-    QEvent e(QEvent::KeyboardLayoutChange);
-    QWidgetList list = QApplication::topLevelWidgets();
-    for (int i = 0; i < list.size(); ++i) {
-        QWidget *w = list.at(i);
-        qt_sendSpontaneousEvent(w, &e);
-    }
-#endif
+    QGuiApplicationPrivate::instance()->changeKeyboard();
 }
 
 Q_GLOBAL_STATIC(QKeyMapper, keymapper)

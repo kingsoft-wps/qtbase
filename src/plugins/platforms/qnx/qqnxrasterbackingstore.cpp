@@ -129,7 +129,7 @@ bool QQnxRasterBackingStore::scroll(const QRegion &area, int dx, int dy)
     return false;
 }
 
-void QQnxRasterBackingStore::beginPaint(const QRegion &region)
+bool QQnxRasterBackingStore::beginPaint(const QRegion &region)
 {
     Q_UNUSED(region);
 
@@ -157,6 +157,8 @@ void QQnxRasterBackingStore::beginPaint(const QRegion &region)
         Q_SCREEN_CHECKERROR(screen_flush_blits(platformScreen->nativeContext(),
                     SCREEN_WAIT_IDLE), "failed to flush blits");
     }
+
+    return true;
 }
 
 void QQnxRasterBackingStore::endPaint()

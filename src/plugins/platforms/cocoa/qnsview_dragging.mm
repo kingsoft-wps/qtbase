@@ -85,6 +85,9 @@ static QPoint mapWindowCoordinates(QWindow *source, QWindow *target, QPoint poin
     Q_UNUSED(context);
 
     QCocoaDrag* nativeDrag = QCocoaIntegration::instance()->drag();
+    if (!nativeDrag->currentDrag()) {
+        return NSDragOperationNone;
+    }
     return qt_mac_mapDropActions(nativeDrag->currentDrag()->supportedActions());
 }
 
@@ -129,6 +132,9 @@ static QPoint mapWindowCoordinates(QWindow *source, QWindow *target, QPoint poin
 
 - (void)updateCursorFromDragResponse:(QPlatformDragQtResponse)response drag:(QCocoaDrag *)drag
 {
+    if (!drag->currentDrag()) {
+        return;
+    }
     const QPixmap pixmapCursor = drag->currentDrag()->dragCursor(response.acceptedAction());
     NSCursor *nativeCursor = nil;
 

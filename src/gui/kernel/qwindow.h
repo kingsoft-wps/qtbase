@@ -123,7 +123,6 @@ class Q_GUI_EXPORT QWindow : public QObject, public QSurface
     Q_PROPERTY(Visibility visibility READ visibility WRITE setVisibility NOTIFY visibilityChanged REVISION 1)
     Q_PROPERTY(Qt::ScreenOrientation contentOrientation READ contentOrientation WRITE reportContentOrientationChange NOTIFY contentOrientationChanged)
     Q_PROPERTY(qreal opacity READ opacity WRITE setOpacity NOTIFY opacityChanged REVISION 1)
-
 public:
     enum Visibility {
         Hidden = 0,
@@ -156,6 +155,10 @@ public:
     void create();
 
     WId winId() const;
+
+#ifdef Q_OS_MAC
+    WId windowId() const;
+#endif // Q_OS_MAC
 
     QWindow *parent(AncestorMode mode) const;
     QWindow *parent() const; // ### Qt6: Merge with above
@@ -258,25 +261,62 @@ public:
 
     virtual QAccessibleInterface *accessibleRoot() const;
     virtual QObject *focusObject() const;
+    virtual bool handleMouseActivateWindowEvent(long* result);
+    virtual bool handleActivateWindowEvent(bool bGotFocus);
+    virtual int compareWindowZorder(const QWindow* w) const;
+    virtual QPoint mapToNativeWidget(const QPoint& pt) const;
+    virtual bool isAncestorOfWidget(const QWindow* w) const;
+    virtual bool underMouse(const QPoint& pt) const;
+    virtual bool tryActivateModalWindow();
+    virtual bool handleDeactivateApplicationEvent();
+    virtual bool handleActivateApplicationEvent();
+    virtual QWindow *systemMenu();
 
     QPoint mapToGlobal(const QPoint &pos) const;
     QPoint mapFromGlobal(const QPoint &pos) const;
+
+    bool acceptEnforceDrops();
+    void setAcceptEnforceDrops(bool);
+
+    void resetDeviceDependentResources();
 
 #ifndef QT_NO_CURSOR
     QCursor cursor() const;
     void setCursor(const QCursor &);
     void unsetCursor();
+    virtual bool isAncestorCursorOf(const QWindow* w) const;
+    virtual bool updateCursor(const QPoint& pt);
+#endif
+
+#ifdef Q_OS_MAC
+    // Customize window barTitle attributes on mac
+    void setTitlebarAppearsTransparent(bool);
+    void setBackgroundColor(const QColor &clr);
+    void setTitleTextColor(const QColor &clr);
+    // Moving NSWindow without redrawing
+    void setNSWindowGeometryNoRedraw(const QRect &);
+
+    // Whether to hide the top titlebar
+    void setTitlebarHide(bool);
+    // Set whether to show all
+    void setContentViewFullSize(bool);
+
+    // Create the title at the top of the window
+    void createWindowTitleView();
+    // Switch form full screen state
+    void toggleFullScreen();
 #endif
 
     static QWindow *fromWinId(WId id);
+    static QWindow *find(WId id);
 
 #if QT_CONFIG(vulkan) || defined(Q_CLANG_QDOC)
     void setVulkanInstance(QVulkanInstance *instance);
     QVulkanInstance *vulkanInstance() const;
 #endif
-
 public Q_SLOTS:
     Q_REVISION(1) void requestActivate();
+    void requestFocus();
 
     void setVisible(bool visible);
 
@@ -291,6 +331,7 @@ public Q_SLOTS:
     bool close();
     void raise();
     void lower();
+    void stackUnder(const QWindow* w);
 
     void setTitle(const QString &);
 
@@ -362,6 +403,8 @@ protected:
     virtual void tabletEvent(QTabletEvent *);
 #endif
     virtual bool nativeEvent(const QByteArray &eventType, void *message, long *result);
+
+    virtual void activateParent();
 
     QWindow(QWindowPrivate &dd, QWindow *parent);
 

@@ -40,6 +40,7 @@
 #include "qpixmap.h"
 
 #include <private/qfont_p.h>
+#include <private/qsimd_p.h>
 
 #include "qpixmap_raster_p.h"
 #include "qimage_p.h"
@@ -51,7 +52,6 @@
 #include <QImageReader>
 #include <QGuiApplication>
 #include <QScreen>
-#include <private/qsimd_p.h>
 #include <private/qdrawhelper_p.h>
 #include <qpa/qplatformscreen.h>
 

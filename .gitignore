@@ -52,10 +52,6 @@ qt*-config.pri
 /doc/qmake
 /doc/qt*/*
 
-/src/angle/src/QtANGLE/*.def
-/src/angle/src/QtANGLE/libANGLE/
-/src/angle/src/libGLESv2/libANGLE/
-
 /src/corelib/global/qfloat16tables.cpp
 
 /examples/*/*/*

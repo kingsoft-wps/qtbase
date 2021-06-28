@@ -85,9 +85,9 @@ static bool hasPlatformWindow(QWidget *widget)
  * Flushes the contents of the \a backingStore into the screen area of \a widget.
  * \a region is the region to be updated in \a widget coordinates.
  */
-void QWidgetBackingStore::qt_flush(QWidget *widget, const QRegion &region, QBackingStore *backingStore,
-                                   QWidget *tlw, QPlatformTextureList *widgetTextures,
-                                   QWidgetBackingStore *widgetBackingStore)
+void QWidgetBackingStore::qt_flush_part(QWidget *widget, const QRegion &region, QBackingStore *backingStore,
+                                        QWidget *tlw, QPlatformTextureList *widgetTextures,
+                                        QWidgetBackingStore *widgetBackingStore)
 {
 #ifdef QT_NO_OPENGL
     Q_UNUSED(widgetTextures);
@@ -162,6 +162,17 @@ void QWidgetBackingStore::qt_flush(QWidget *widget, const QRegion &region, QBack
     } else
 #endif
         backingStore->flush(effectiveRegion, widget->windowHandle(), offset);
+}
+
+void QWidgetBackingStore::qt_flush(QWidget *widget, const QRegion &region, QBackingStore *backingStore,
+                                   QWidget *tlw,
+                                   QPlatformTextureList *widgetTextures,
+                                   QWidgetBackingStore *widgetBackingStore)
+{
+    Q_ASSERT(backingStore != nullptr);
+    backingStore->handle()->beginFlush();
+    qt_flush_part(widget, region, backingStore, tlw, widgetTextures, widgetBackingStore);
+    backingStore->handle()->endFlush();
 }
 
 #ifndef QT_NO_PAINT_DEBUG
@@ -332,6 +343,9 @@ void QWidgetBackingStore::beginPaint(QRegion &toClean, QWidget *widget, QBacking
 {
     Q_UNUSED(widget);
     Q_UNUSED(toCleanIsInTopLevelCoordinates);
+
+    // Always flush repainted areas.
+    dirtyOnScreen += toClean;
 
 #ifdef QT_NO_PAINT_DEBUG
     backingStore->beginPaint(toClean);
@@ -1161,6 +1175,11 @@ void QWidgetBackingStore::sync(QWidget *exposedWidget, const QRegion &exposedReg
     if (!tlw->isVisible() || !tlwExtra || tlwExtra->inTopLevelResize)
         return;
 
+    if (tlwExtra->inSyncBackingStore) {
+        qWarning("QWidgetBackingStore::sync: Recursive sync detected");
+        return;
+    }
+
     if (!exposedWidget || !hasPlatformWindow(exposedWidget)
         || !exposedWidget->isVisible() || !exposedWidget->testAttribute(Qt::WA_Mapped)
         || !exposedWidget->updatesEnabled() || exposedRegion.isEmpty()) {
@@ -1179,8 +1198,11 @@ void QWidgetBackingStore::sync(QWidget *exposedWidget, const QRegion &exposedReg
     else
         markDirtyOnScreen(exposedRegion, exposedWidget, QPoint());
 
-    if (syncAllowed())
+    if (syncAllowed()) {
+        tlwExtra->inSyncBackingStore = true;
         doSync();
+        tlwExtra->inSyncBackingStore = false;
+    }
 }
 
 /*!
@@ -1190,6 +1212,11 @@ void QWidgetBackingStore::sync()
 {
     updateRequestSent = false;
     QTLWExtra *tlwExtra = tlw->d_func()->maybeTopData();
+    if (tlwExtra && tlwExtra->inSyncBackingStore) {
+        qWarning("QWidgetBackingStore::sync: Recursive sync detected");
+        return;
+    }
+
     if (discardSyncRequest(tlw, tlwExtra)) {
         // If the top-level is minimized, it's not visible on the screen so we can delay the
         // update until it's shown again. In order to do that we must keep the dirty states.
@@ -1205,8 +1232,11 @@ void QWidgetBackingStore::sync()
         return;
     }
 
-    if (syncAllowed())
+    if (syncAllowed()) {
+        tlwExtra->inSyncBackingStore = true;
         doSync();
+        tlwExtra->inSyncBackingStore = false;
+    }
 }
 
 void QWidgetBackingStore::doSync()
@@ -1439,12 +1469,20 @@ void QWidgetBackingStore::doSync()
 void QWidgetBackingStore::flush(QWidget *widget)
 {
     const bool hasDirtyOnScreenWidgets = dirtyOnScreenWidgets && !dirtyOnScreenWidgets->isEmpty();
+    const bool needFlush = hasDirtyOnScreenWidgets | !dirtyOnScreen.isEmpty()
+#ifndef QT_NO_OPENGL
+        | !tlw->d_func()->topData()->widgetTextures.isEmpty();
+#endif
+    if (!needFlush)
+        return;
+
+    store->handle()->beginFlush();
     bool flushed = false;
 
     // Flush the region in dirtyOnScreen.
     if (!dirtyOnScreen.isEmpty()) {
         QWidget *target = widget ? widget : tlw;
-        qt_flush(target, dirtyOnScreen, store, tlw, widgetTexturesFor(tlw, tlw), this);
+        qt_flush_part(target, dirtyOnScreen, store, tlw, widgetTexturesFor(tlw, tlw), this);
         dirtyOnScreen = QRegion();
         flushed = true;
     }
@@ -1456,24 +1494,24 @@ void QWidgetBackingStore::flush(QWidget *widget)
             QPlatformTextureList *tl = widgetTexturesFor(tlw, tlw);
             if (tl) {
                 QWidget *target = widget ? widget : tlw;
-                qt_flush(target, QRegion(), store, tlw, tl, this);
+                qt_flush_part(target, QRegion(), store, tlw, tl, this);
             }
         }
 #endif
     }
 
-    if (!hasDirtyOnScreenWidgets)
-        return;
-
-    for (int i = 0; i < dirtyOnScreenWidgets->size(); ++i) {
-        QWidget *w = dirtyOnScreenWidgets->at(i);
-        QWidgetPrivate *wd = w->d_func();
-        Q_ASSERT(wd->needsFlush);
-        QPlatformTextureList *widgetTexturesForNative = wd->textureChildSeen ? widgetTexturesFor(tlw, w) : 0;
-        qt_flush(w, *wd->needsFlush, store, tlw, widgetTexturesForNative, this);
-        *wd->needsFlush = QRegion();
+    if (hasDirtyOnScreenWidgets) {
+        for (int i = 0; i < dirtyOnScreenWidgets->size(); ++i) {
+            QWidget *w = dirtyOnScreenWidgets->at(i);
+            QWidgetPrivate *wd = w->d_func();
+            Q_ASSERT(wd->needsFlush);
+            QPlatformTextureList *widgetTexturesForNative = wd->textureChildSeen ? widgetTexturesFor(tlw, w) : 0;
+            qt_flush_part(w, *wd->needsFlush, store, tlw, widgetTexturesForNative, this);
+            *wd->needsFlush = QRegion();
+        }
+        dirtyOnScreenWidgets->clear();
     }
-    dirtyOnScreenWidgets->clear();
+    store->handle()->endFlush();
 }
 
 static inline bool discardInvalidateBufferRequest(QWidget *widget, QTLWExtra *tlwExtra)

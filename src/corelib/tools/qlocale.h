@@ -951,6 +951,9 @@ public:
     QString nativeLanguageName() const;
     QString nativeCountryName() const;
 
+#ifdef Q_OS_MAC
+    QString macSystemLanguage() const;
+#endif
 #if QT_STRINGVIEW_LEVEL < 2
     short toShort(const QString &s, bool *ok = nullptr) const;
     ushort toUShort(const QString &s, bool *ok = nullptr) const;

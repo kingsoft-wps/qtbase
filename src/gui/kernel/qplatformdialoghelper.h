@@ -312,6 +312,9 @@ public:
     enum DialogLabel { LookIn, FileName, FileType, Accept, Reject, DialogLabelCount };
     Q_ENUM(DialogLabel)
 
+#ifdef Q_OS_MAC
+    enum AccessoryButton { Encrypt, SaveToCloud, AccessoryButtonCount};
+#endif
     enum FileDialogOption
     {
         ShowDirsOnly                = 0x00000001,
@@ -371,6 +374,11 @@ public:
     QString labelText(DialogLabel label) const;
     bool isLabelExplicitlySet(DialogLabel label);
 
+#ifdef Q_OS_MAC
+    void setAccessoryButtonText(AccessoryButton button, const QString &text);
+    QString accessoryButtonText(AccessoryButton button) const;
+    bool isAccessoryButtonExplicitlySet(AccessoryButton label);
+#endif
     QUrl initialDirectory() const;
     void setInitialDirectory(const QUrl &);
 
@@ -406,6 +414,7 @@ public:
     virtual void selectNameFilter(const QString &filter) = 0;
     virtual QString selectedMimeTypeFilter() const;
     virtual QString selectedNameFilter() const = 0;
+    virtual QString userFileName() const { return QString(); };
 
     virtual bool isSupportedUrl(const QUrl &url) const;
 
@@ -421,6 +430,10 @@ Q_SIGNALS:
     void currentChanged(const QUrl &path);
     void directoryEntered(const QUrl &directory);
     void filterSelected(const QString &filter);
+#ifdef Q_OS_MAC
+    void encryptFile();
+    void saveToCloud();
+#endif
 
 private:
     QSharedPointer<QFileDialogOptions> m_options;

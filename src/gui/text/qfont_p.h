@@ -70,10 +70,20 @@ struct QFontDef
 {
     inline QFontDef()
         : pointSize(-1.0), pixelSize(-1),
+          escapementAngle(0.0),
+          manualBolden(false),
           styleStrategy(QFont::PreferDefault), styleHint(QFont::AnyStyle),
-          weight(50), fixedPitch(false), style(QFont::StyleNormal), stretch(QFont::AnyStretch),
+          weight(50), fixedPitch(false), style(QFont::StyleNormal), 
           hintingPreference(QFont::PreferDefaultHinting), ignorePitch(true),
-          fixedPitchComputed(0), reserved(0)
+          fixedPitchComputed(0),
+          verticalMetrics(false),
+          forceScalable(false),
+          reserved(0),
+#ifdef Q_OS_MAC
+          stretch(QFont::Unstretched) // We No expansion by default
+#else
+          stretch(QFont::AnyStretch)
+#endif // Q_OS_MAC
     {
     }
 
@@ -84,6 +94,9 @@ struct QFontDef
 
     qreal pointSize;
     qreal pixelSize;
+
+    qreal escapementAngle;
+    bool manualBolden;
 
     uint styleStrategy : 16;
     uint styleHint     : 8;
@@ -96,12 +109,16 @@ struct QFontDef
     uint hintingPreference : 2;
     uint ignorePitch : 1;
     uint fixedPitchComputed : 1; // for Mac OS X only
-    int reserved   : 14; // for future extensions
+
+    uint verticalMetrics : 1;
+    uint forceScalable : 1;
+    int reserved   : 12; // for future extensions
 
     bool exactMatch(const QFontDef &other) const;
     bool operator==(const QFontDef &other) const
     {
         return pixelSize == other.pixelSize
+                    && escapementAngle == other.escapementAngle
                     && weight == other.weight
                     && style == other.style
                     && stretch == other.stretch
@@ -111,11 +128,15 @@ struct QFontDef
                     && family == other.family
                     && styleName == other.styleName
                     && hintingPreference == other.hintingPreference
+                    && verticalMetrics ==  other.verticalMetrics
+                    && manualBolden ==  other.manualBolden
+                    && forceScalable == other.forceScalable;
                           ;
     }
     inline bool operator<(const QFontDef &other) const
     {
         if (pixelSize != other.pixelSize) return pixelSize < other.pixelSize;
+        if (escapementAngle != other.escapementAngle) return escapementAngle < other.escapementAngle;
         if (weight != other.weight) return weight < other.weight;
         if (style != other.style) return style < other.style;
         if (stretch != other.stretch) return stretch < other.stretch;
@@ -129,6 +150,9 @@ struct QFontDef
 
         if (ignorePitch != other.ignorePitch) return ignorePitch < other.ignorePitch;
         if (fixedPitch != other.fixedPitch) return fixedPitch < other.fixedPitch;
+        if (verticalMetrics != other.verticalMetrics) return verticalMetrics < other.verticalMetrics;
+        if (manualBolden != other.manualBolden) return manualBolden < other.manualBolden;
+        if (forceScalable != other.forceScalable) return forceScalable < other.forceScalable;
         return false;
     }
 };
@@ -136,6 +160,7 @@ struct QFontDef
 inline uint qHash(const QFontDef &fd, uint seed = 0) Q_DECL_NOTHROW
 {
     return qHash(qRound64(fd.pixelSize*10000)) // use only 4 fractional digits
+        ^  qHash(qRound64(fd.escapementAngle*10000)) 
         ^  qHash(fd.weight)
         ^  qHash(fd.style)
         ^  qHash(fd.stretch)
@@ -146,6 +171,8 @@ inline uint qHash(const QFontDef &fd, uint seed = 0) Q_DECL_NOTHROW
         ^  qHash(fd.family, seed)
         ^  qHash(fd.styleName)
         ^  qHash(fd.hintingPreference)
+        ^  qHash(fd.verticalMetrics)
+        ^  qHash(fd.forceScalable)
         ;
 }
 
@@ -181,6 +208,7 @@ public:
     mutable QFontEngineData *engineData;
     int dpi;
     int screen;
+    bool manualBolden;
 
     uint underline  :  1;
     uint overline   :  1;

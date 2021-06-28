@@ -12,7 +12,9 @@ HEADERS += \
 
 qtConfig(freetype) {
     SOURCES += $$PWD/qwindowsfontdatabase_ft.cpp
+    SOURCES += $$PWD/qwindowsfontengine_ft.cpp
     HEADERS += $$PWD/qwindowsfontdatabase_ft_p.h
+    HEADERS += $$PWD/qwindowsfontengine_ft_p.h
 }
 
 qtConfig(directwrite):qtConfig(direct2d) {

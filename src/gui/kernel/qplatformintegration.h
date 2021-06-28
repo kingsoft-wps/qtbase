@@ -114,6 +114,7 @@ public:
     virtual QPlatformPixmap *createPlatformPixmap(QPlatformPixmap::PixelType type) const;
     virtual QPlatformWindow *createPlatformWindow(QWindow *window) const = 0;
     virtual QPlatformWindow *createForeignWindow(QWindow *, WId) const { return 0; }
+    virtual QPlatformWindow *findPlatformWindow(WId) const { return nullptr; }
     virtual QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const = 0;
 #ifndef QT_NO_OPENGL
     virtual QPlatformOpenGLContext *createPlatformOpenGLContext(QOpenGLContext *context) const;
@@ -197,6 +198,10 @@ public:
 
     virtual void beep() const;
 
+#ifdef Q_OS_LINUX
+    static int glxColorSpace();
+#endif
+
 #if QT_CONFIG(vulkan) || defined(Q_CLANG_QDOC)
     virtual QPlatformVulkanInstance *createPlatformVulkanInstance(QVulkanInstance *instance) const;
 #endif
@@ -207,6 +212,11 @@ protected:
     QT_DEPRECATED_X("Use QWindowSystemInterface::handleScreenRemoved") void destroyScreen(QPlatformScreen *screen);
     QT_DEPRECATED_X("Use QWindowSystemInterface::handlePrimaryScreenChanged") void setPrimaryScreen(QPlatformScreen *newPrimary);
 #endif
+
+#ifdef Q_OS_LINUX
+    virtual int testColorSapce() const { return  -1;}
+#endif
+
 };
 
 QT_END_NAMESPACE

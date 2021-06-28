@@ -237,5 +237,11 @@ bool QXcbGlxIntegration::supportsSwitchableWidgetComposition() const
     return isSwitchableWidgetCompositionAvailable;
 }
 
+#ifdef Q_OS_LINUX
+int QXcbGlxIntegration::testColorSapce() const
+{
+    return QXcbGlxWindow::testColorSapce();
+}
+#endif
 
 QT_END_NAMESPACE

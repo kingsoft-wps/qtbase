@@ -242,7 +242,9 @@ enum {
     EndObject = 0x7d,
     NameSeparator = 0x3a,
     ValueSeparator = 0x2c,
-    Quote = 0x22
+    Quote = 0x22,
+    Star = 0x2a,
+    Slash = 0x2f
 };
 
 void Parser::eatBOM()
@@ -283,7 +285,10 @@ char Parser::nextToken()
     case ValueSeparator:
     case EndArray:
     case EndObject:
+        eatSpace();
     case Quote:
+    case Star:
+    case Slash:
         break;
     default:
         token = 0;
@@ -323,12 +328,32 @@ QJsonDocument Parser::parse(QJsonParseError *error)
     } else if (token == BeginObject) {
         if (!parseObject())
             goto error;
+    }
+    else if (token == Slash) {
+        if (!parseComment())
+            goto error;
+        token = nextToken();
+        if (token == BeginArray) {
+            if (!parseArray())
+                goto error;
+        }
+        else if (token == BeginObject) {
+            if (!parseObject())
+                goto error;
+        }
     } else {
         lastError = QJsonParseError::IllegalValue;
         goto error;
     }
 
     eatSpace();
+    if (*json == Slash)
+    {
+        json++;
+        if (!parseComment())
+            goto error;
+        eatSpace();
+    }
     if (json < end) {
         lastError = QJsonParseError::GarbageAtEnd;
         goto error;
@@ -398,6 +423,13 @@ bool Parser::parseObject()
     ParsedObject parsedObject(this, objectOffset);
 
     char token = nextToken();
+    if (token == Slash)
+    {
+        if (!parseComment())
+            return false;
+        eatSpace();
+        token = *json++;
+    }
     while (token == Quote) {
         int off = current - objectOffset;
         if (!parseMember(objectOffset))
@@ -410,6 +442,13 @@ bool Parser::parseObject()
         if (token == EndObject) {
             lastError = QJsonParseError::MissingObject;
             return false;
+        }
+        if (token == Slash)
+        {
+            if (!parseComment())
+                return false;
+            eatSpace();
+            token = *json++;
         }
     }
 
@@ -561,6 +600,13 @@ bool Parser::parseArray()
                 return false;
             }
             char token = nextToken();
+            if (token == Slash)
+            {
+                if (!parseComment())
+                    return false;
+                else
+                    token = nextToken();
+            }
             if (token == EndArray)
                 break;
             else if (token != ValueSeparator) {
@@ -598,6 +644,75 @@ bool Parser::parseArray()
 }
 
 /*
+compatible with jsoncpp
+*/
+
+bool QJsonPrivate::Parser::parseComment()
+{
+    if (*json != Star && *json != Slash)
+    {
+        lastError = QJsonParseError::IllegalComment;
+        return false;
+    }
+
+    do 
+    {
+        if (json >= end)
+        {
+            lastError = QJsonParseError::IllegalComment;
+            return false;
+        }
+        if (*json == Star)
+        {
+            json++;
+            if (json >= end)
+            {
+                lastError = QJsonParseError::IllegalComment;
+                return false;
+            }
+            while (!(*json == Star && *(json + 1) == Slash))
+            {
+                json++;
+                if (json >= end)
+                {
+                    lastError = QJsonParseError::IllegalComment;
+                    return false;
+                }
+            }
+            json += 2;
+        }
+        else if (*json == Slash)
+        {
+            json++;
+            if (json >= end)
+            {
+                lastError = QJsonParseError::IllegalComment;
+                return false;
+            }
+            while (*json != '\n')
+            {
+                json++;
+                if (json >= end)
+                {
+                    lastError = QJsonParseError::IllegalComment;
+                    return false;
+                }
+            }
+            json++;
+        }
+        eatSpace();
+        if (json > end)
+        {
+            lastError = QJsonParseError::IllegalComment;
+            return false;
+        }
+        
+    } while (*json == Slash && ++json);
+    
+    return true;
+}
+
+/*
 value = false / null / true / object / array / number / string
 
 */
@@ -607,6 +722,21 @@ bool Parser::parseValue(QJsonPrivate::Value *val, int baseOffset)
     BEGIN << "parse Value" << json;
     val->_dummy = 0;
 
+    if (*json == Slash)
+    {
+        if (end - json <= 1)
+        {
+            lastError = QJsonParseError::IllegalComment;
+            return false;
+        }
+        if ((*(json + 1) == Slash || *(json + 1) == Star))
+        {
+            json++;
+            if (!parseComment())
+                return false;
+            eatSpace();
+        }
+    }
     switch (*json++) {
     case 'n':
         if (end - json < 4) {
@@ -745,13 +875,13 @@ bool Parser::parseNumber(QJsonPrivate::Value *val, int baseOffset)
     if (json < end && *json == '-')
         ++json;
 
-    // int = zero / ( digit1-9 *DIGIT )
-    if (json < end && *json == '0') {
+//     int = zero / ( digit1-9 *DIGIT )
+//     if (json < end && *json == '0') {
+//         ++json;
+//     } else {
+    while (json < end && *json >= '0' && *json <= '9')
         ++json;
-    } else {
-        while (json < end && *json >= '0' && *json <= '9')
-            ++json;
-    }
+//    }
 
     // frac = decimal-point 1*DIGIT
     if (json < end && *json == '.') {

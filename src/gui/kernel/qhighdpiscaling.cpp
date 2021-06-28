@@ -52,9 +52,7 @@ QT_BEGIN_NAMESPACE
 Q_LOGGING_CATEGORY(lcScaling, "qt.scaling");
 
 #ifndef QT_NO_HIGHDPISCALING
-static const char legacyDevicePixelEnvVar[] = "QT_DEVICE_PIXEL_RATIO";
 static const char scaleFactorEnvVar[] = "QT_SCALE_FACTOR";
-static const char autoScreenEnvVar[] = "QT_AUTO_SCREEN_SCALE_FACTOR";
 static const char screenFactorsEnvVar[] = "QT_SCREEN_SCALE_FACTORS";
 
 static inline qreal initialGlobalScaleFactor()
@@ -67,18 +65,6 @@ static inline qreal initialGlobalScaleFactor()
         if (ok && f > 0) {
             qCDebug(lcScaling) << "Apply " << scaleFactorEnvVar << f;
             result = f;
-        }
-    } else {
-        if (qEnvironmentVariableIsSet(legacyDevicePixelEnvVar)) {
-            qWarning("Warning: %s is deprecated. Instead use:\n"
-                     "   %s to enable platform plugin controlled per-screen factors.\n"
-                     "   %s to set per-screen factors.\n"
-                     "   %s to set the application global scale factor.",
-                     legacyDevicePixelEnvVar, autoScreenEnvVar, screenFactorsEnvVar, scaleFactorEnvVar);
-
-            int dpr = qEnvironmentVariableIntValue(legacyDevicePixelEnvVar);
-            if (dpr > 0)
-                result = dpr;
         }
     }
     return result;
@@ -182,7 +168,6 @@ static inline qreal initialGlobalScaleFactor()
         include X11, Windows, and Android.
 
         There are two APIs for enabling or disabling this behavior:
-            - The QT_AUTO_SCREEN_SCALE_FACTOR environment variable.
             - The AA_EnableHighDpiScaling and AA_DisableHighDpiScaling
               application attributes
 
@@ -240,14 +225,8 @@ static inline bool usePixelDensity()
     // disablers. A single disable may veto all other enablers.
     if (QCoreApplication::testAttribute(Qt::AA_DisableHighDpiScaling))
         return false;
-    bool screenEnvValueOk;
-    const int screenEnvValue = qEnvironmentVariableIntValue(autoScreenEnvVar, &screenEnvValueOk);
-    if (screenEnvValueOk && screenEnvValue < 1)
-        return false;
-    return QCoreApplication::testAttribute(Qt::AA_EnableHighDpiScaling)
-        || (screenEnvValueOk && screenEnvValue > 0)
-        || (qEnvironmentVariableIsSet(legacyDevicePixelEnvVar) &&
-            qgetenv(legacyDevicePixelEnvVar).compare("auto", Qt::CaseInsensitive) == 0);
+
+    return QCoreApplication::testAttribute(Qt::AA_EnableHighDpiScaling);
 }
 
 void QHighDpiScaling::initHighDpiScaling()

@@ -123,7 +123,7 @@ QPrint::DeviceState QPrintDevice::state() const
     return isValid() ? d->state() : QPrint::Error;
 }
 
-bool QPrintDevice::isValidPageLayout(const QPageLayout &layout, int resolution) const
+bool QPrintDevice::isValidPageLayout(const QPageLayout &layout, const QSize& resolution) const
 {
     return isValid() && d->isValidPageLayout(layout, resolution);
 }
@@ -190,7 +190,7 @@ QSize QPrintDevice::maximumPhysicalPageSize() const
 
 QMarginsF QPrintDevice::printableMargins(const QPageSize &pageSize,
                                          QPageLayout::Orientation orientation,
-                                         int resolution) const
+                                         const QSize &resolution) const
 {
     return isValid() ? d->printableMargins(pageSize, orientation, resolution) : QMarginsF();
 }

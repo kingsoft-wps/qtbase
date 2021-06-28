@@ -119,6 +119,25 @@ QT_USE_NAMESPACE
     return self;
 }
 
+- (void)updateScreens:(NSNotification *)notification
+{
+    Q_UNUSED(notification);
+    if (QCocoaIntegration *ci = QCocoaIntegration::instance())
+        ci->updateScreens();
+}
+
+- (id)validRequestorForSendType:(NSString*)sendType returnType:(NSString*)returnType
+{
+    Q_UNUSED(sendType);
+    Q_UNUSED(returnType);
+    return self;
+}
+
+- (BOOL)readSelectionFromPasteboard:(NSPasteboard *)pboard
+{
+    Q_UNUSED(pboard);
+    return NO;
+}
 - (void)dealloc
 {
     [_dockMenu release];
@@ -168,16 +187,8 @@ QT_USE_NAMESPACE
     return NO;
 }
 
-// This function will only be called when NSApp is actually running.
-- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender
+- (void)applicationWillQuit
 {
-    // The reflection delegate gets precedence
-    if (reflectionDelegate) {
-        if ([reflectionDelegate respondsToSelector:@selector(applicationShouldTerminate:)])
-            return [reflectionDelegate applicationShouldTerminate:sender];
-        return NSTerminateNow;
-    }
-
     if ([self canQuit]) {
         if (!startedQuit) {
             startedQuit = true;
@@ -196,6 +207,18 @@ QT_USE_NAMESPACE
             startedQuit = false;
         }
     }
+}
+// This function will only be called when NSApp is actually running.
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender
+{
+    // The reflection delegate gets precedence
+    if (reflectionDelegate) {
+        if ([reflectionDelegate respondsToSelector:@selector(applicationShouldTerminate:)])
+            return [reflectionDelegate applicationShouldTerminate:sender];
+        return NSTerminateNow;
+    }
+
+    [self applicationWillQuit];
 
     if (QGuiApplicationPrivate::instance()->threadData->eventLoops.isEmpty()) {
         // INVARIANT: No event loop is executing. This probably

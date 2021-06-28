@@ -602,7 +602,7 @@ QString QWindowsShellItem::path() const
     if (isFileSystem())
         return QDir::cleanPath(QWindowsShellItem::displayName(m_item, SIGDN_FILESYSPATH));
     // Check for a "Library" item
-    if (isDir())
+    if (QOperatingSystemVersion::current() >= QOperatingSystemVersion::Windows7 && isDir())
         return QWindowsShellItem::libraryItemDefaultSaveFolder(m_item);
     return QString();
 }
@@ -672,6 +672,8 @@ bool QWindowsShellItem::copyData(QIODevice *out, QString *errorMessage)
     }
     IStream *istream = nullptr;
     HRESULT hr = m_item->BindToHandler(nullptr, BHID_Stream, IID_PPV_ARGS(&istream));
+    if (FAILED(hr))
+        hr = m_item->BindToHandler(nullptr, BHID_Storage, IID_PPV_ARGS(&istream));
     if (FAILED(hr)) {
         *errorMessage = QLatin1String("BindToHandler() failed: ")
                         + QLatin1String(QWindowsContext::comErrorString(hr));
@@ -904,10 +906,12 @@ void QWindowsNativeFileDialogBase::setWindowTitle(const QString &title)
 IShellItem *QWindowsNativeFileDialogBase::shellItem(const QUrl &url)
 {
     if (url.isLocalFile()) {
+        if (!QWindowsContext::shell32dll.sHCreateItemFromParsingName)
+            return nullptr;
         IShellItem *result = nullptr;
         const QString native = QDir::toNativeSeparators(url.toLocalFile());
         const HRESULT hr =
-                SHCreateItemFromParsingName(reinterpret_cast<const wchar_t *>(native.utf16()),
+                QWindowsContext::shell32dll.sHCreateItemFromParsingName(reinterpret_cast<const wchar_t *>(native.utf16()),
                                             nullptr, IID_IShellItem,
                                             reinterpret_cast<void **>(&result));
         if (FAILED(hr)) {
@@ -916,6 +920,8 @@ IShellItem *QWindowsNativeFileDialogBase::shellItem(const QUrl &url)
         }
         return result;
     } else if (url.scheme() == QLatin1String("clsid")) {
+        if (!QWindowsContext::shell32dll.sHGetKnownFolderIDList || !QWindowsContext::shell32dll.sHCreateItemFromIDList)
+            return nullptr;
         // Support for virtual folders via GUID
         // (see https://msdn.microsoft.com/en-us/library/windows/desktop/dd378457(v=vs.85).aspx)
         // specified as "clsid:<GUID>" (without '{', '}').
@@ -926,12 +932,12 @@ IShellItem *QWindowsNativeFileDialogBase::shellItem(const QUrl &url)
             return nullptr;
         }
         PIDLIST_ABSOLUTE idList;
-        HRESULT hr = SHGetKnownFolderIDList(uuid, 0, nullptr, &idList);
+        HRESULT hr = QWindowsContext::shell32dll.sHGetKnownFolderIDList(uuid, 0, nullptr, &idList);
         if (FAILED(hr)) {
             qErrnoWarning("%s: SHGetKnownFolderIDList(%s)) failed", __FUNCTION__, qPrintable(url.toString()));
             return nullptr;
         }
-        hr = SHCreateItemFromIDList(idList, IID_IShellItem, reinterpret_cast<void **>(&result));
+        hr = QWindowsContext::shell32dll.sHCreateItemFromIDList(idList, IID_IShellItem, reinterpret_cast<void **>(&result));
         CoTaskMemFree(idList);
         if (FAILED(hr)) {
             qErrnoWarning("%s: SHCreateItemFromIDList(%s)) failed", __FUNCTION__, qPrintable(url.toString()));
@@ -1456,7 +1462,7 @@ static QString createTemporaryItemCopy(QWindowsShellItem &qItem, QString *errorM
 static QUrl itemToDialogUrl(QWindowsShellItem &qItem, QString *errorMessage)
 {
     QUrl url = qItem.url();
-    if (url.isLocalFile() || url.scheme().startsWith(QLatin1String("http")))
+    if (url.isLocalFile())
         return url;
     const QString path = qItem.path();
     if (path.isEmpty() && !qItem.isDir() && qItem.canStream()) {
@@ -2147,7 +2153,8 @@ QPlatformDialogHelper *createHelper(QPlatformTheme::DialogType type)
         return nullptr;
     switch (type) {
     case QPlatformTheme::FileDialog:
-        if (QWindowsIntegration::instance()->options() & QWindowsIntegration::XpNativeDialogs)
+        if (QWindowsIntegration::instance()->options() & QWindowsIntegration::XpNativeDialogs ||
+            QOperatingSystemVersion::current() <= QOperatingSystemVersion::Windows2003)
             return new QWindowsXpFileDialogHelper();
         return new QWindowsFileDialogHelper;
     case QPlatformTheme::ColorDialog:

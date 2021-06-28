@@ -250,7 +250,7 @@ void QOpenGLCompositorBackingStore::notifyComposited()
     }
 }
 
-void QOpenGLCompositorBackingStore::beginPaint(const QRegion &region)
+bool QOpenGLCompositorBackingStore::beginPaint(const QRegion &region)
 {
     m_dirty |= region;
 
@@ -260,6 +260,8 @@ void QOpenGLCompositorBackingStore::beginPaint(const QRegion &region)
         for (const QRect &r : region)
             p.fillRect(r, Qt::transparent);
     }
+
+    return true;
 }
 
 void QOpenGLCompositorBackingStore::resize(const QSize &size, const QRegion &staticContents)

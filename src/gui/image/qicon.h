@@ -63,10 +63,13 @@ public:
 #ifdef Q_COMPILER_RVALUE_REFS
     QIcon(QIcon &&other) Q_DECL_NOEXCEPT
         : d(other.d)
-    { other.d = nullptr; }
+    {
+        other.d = nullptr;
+    }
 #endif
     explicit QIcon(const QString &fileName); // file or resource name
     explicit QIcon(QIconEngine *engine);
+    explicit QIcon(const QString &suffix, const bool& isMultiSize, const bool& isCacheBuf, const Qt::AspectRatioMode& ratioMode);
     ~QIcon();
     QIcon &operator=(const QIcon &other);
 #ifdef Q_COMPILER_RVALUE_REFS
@@ -87,6 +90,8 @@ public:
 
     QSize actualSize(const QSize &size, Mode mode = Normal, State state = Off) const;
     QSize actualSize(QWindow *window, const QSize &size, Mode mode = Normal, State state = Off) const;
+    bool isPixmapCache(const QSize& size, Mode mode = Normal, State state = Off) const;
+    void setPolicy(const bool& isMultiSize, const bool& isCacheBuf, const Qt::AspectRatioMode& mode);
 
     QString name() const;
 
@@ -106,10 +111,17 @@ public:
     void addPixmap(const QPixmap &pixmap, Mode mode = Normal, State state = Off);
     void addFile(const QString &fileName, const QSize &size = QSize(), Mode mode = Normal, State state = Off);
 
+    void recover();
+
     QList<QSize> availableSizes(Mode mode = Normal, State state = Off) const;
 
     void setIsMask(bool isMask);
     bool isMask() const;
+
+    QStringList styleClassList(Mode mode = Normal, State state = Off) const;
+    void setStyleClass(const QString &xmlClass, const QString &property, const QVariant &value,
+                       Mode mode = Normal, State state = Off);
+    void clearStyleClass(Mode mode = Normal, State state = Off);
 
     static QIcon fromTheme(const QString &name);
     static QIcon fromTheme(const QString &name, const QIcon &fallback);

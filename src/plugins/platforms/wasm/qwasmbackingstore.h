@@ -47,7 +47,7 @@ public:
 
     QPaintDevice *paintDevice() override;
 
-    void beginPaint(const QRegion &) override;
+    bool beginPaint(const QRegion &) override;
     void flush(QWindow *window, const QRegion &region, const QPoint &offset) override;
     void resize(const QSize &size, const QRegion &staticContents) override;
     QImage toImage() const override;

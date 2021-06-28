@@ -93,9 +93,9 @@ int QWindowsDirect2DPaintDevice::metric(QPaintDevice::PaintDeviceMetric metric) 
 
     switch (metric) {
     case QPaintDevice::PdmWidth:
-        return int(d->bitmap->bitmap()->GetPixelSize().width);
+        return int(d->bitmap->size().width());
     case QPaintDevice::PdmHeight:
-        return int(d->bitmap->bitmap()->GetPixelSize().height);
+        return int(d->bitmap->size().height());
     case QPaintDevice::PdmNumColors:
         return INT_MAX;
     case QPaintDevice::PdmDepth:
@@ -103,15 +103,13 @@ int QWindowsDirect2DPaintDevice::metric(QPaintDevice::PaintDeviceMetric metric) 
     case QPaintDevice::PdmDpiX:
     case QPaintDevice::PdmPhysicalDpiX:
     {
-        FLOAT x, y;
-        QWindowsDirect2DContext::instance()->d2dFactory()->GetDesktopDpi(&x, &y);
+        FLOAT x = QWindowsDirect2DContext::instance()->dpiForSystem();
         return qRound(x);
     }
     case QPaintDevice::PdmDpiY:
     case QPaintDevice::PdmPhysicalDpiY:
     {
-        FLOAT x, y;
-        QWindowsDirect2DContext::instance()->d2dFactory()->GetDesktopDpi(&x, &y);
+        FLOAT y = QWindowsDirect2DContext::instance()->dpiForSystem();
         return qRound(y);
     }
     case QPaintDevice::PdmDevicePixelRatio:

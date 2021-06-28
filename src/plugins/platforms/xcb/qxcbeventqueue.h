@@ -110,6 +110,8 @@ public:
     void waitForNewEvents(const QXcbEventNode *sinceFlushedTail,
                           unsigned long time = ULONG_MAX);
 
+    void put(xcb_window_t window, const xcb_generic_event_t *event);
+
 private:
     QXcbEventNode *qXcbEventNodeFactory(xcb_generic_event_t *event);
     void dequeueNode();

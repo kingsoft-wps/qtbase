@@ -106,7 +106,8 @@ public:
     public:
         enum {
             Synthetic = 0x1,
-            NullWindow = 0x2
+            NullWindow = 0x2,
+            SyntheticMouseMove = 0x4,
         };
 
         explicit WindowSystemEvent(EventType t)
@@ -115,6 +116,7 @@ public:
 
         bool synthetic() const  { return flags & Synthetic; }
         bool nullWindow() const { return flags & NullWindow; }
+        bool syntheticMouseMove() const { return flags & SyntheticMouseMove; }
 
         EventType type;
         int flags;
@@ -497,6 +499,15 @@ public:
             }
             return 0;
         }
+        WindowSystemEvent* takeAtFirstOfType(EventType t)
+        {
+            const QMutexLocker locker(&mutex);
+            for (int i = 0; i < impl.size(); ++i) {
+                if (impl.at(i)->type == t)
+                    return impl.takeAt(i);
+            }
+            return 0;
+        }
         void remove(const WindowSystemEvent *e)
         {
             const QMutexLocker locker(&mutex);
@@ -518,6 +529,7 @@ public:
     static WindowSystemEvent *getWindowSystemEvent();
     static WindowSystemEvent *getNonUserInputWindowSystemEvent();
     static WindowSystemEvent *peekWindowSystemEvent(EventType t);
+    static WindowSystemEvent *takeWindowSystemEvent(EventType t);
     static void removeWindowSystemEvent(WindowSystemEvent *event);
     template<typename Delivery = QWindowSystemInterface::DefaultDelivery>
     static bool handleWindowSystemEvent(WindowSystemEvent *ev);

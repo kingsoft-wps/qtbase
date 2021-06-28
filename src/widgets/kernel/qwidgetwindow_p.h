@@ -65,7 +65,7 @@ class QCloseEvent;
 class QMoveEvent;
 class QWidgetWindowPrivate;
 
-class QWidgetWindow : public QWindow
+class Q_WIDGETS_EXPORT QWidgetWindow : public QWindow
 {
     Q_OBJECT
     Q_DECLARE_PRIVATE(QWidgetWindow)
@@ -79,7 +79,24 @@ public:
 #endif
 
     QObject *focusObject() const override;
+    bool handleMouseActivateWindowEvent(long* result) override;
+    bool handleActivateWindowEvent(bool bGotFocus) override;
+    int compareWindowZorder(const QWindow* w) const override;
+    QPoint mapToNativeWidget(const QPoint& pt) const override;
+    bool isAncestorOfWidget(const QWindow* w) const override;
+    bool underMouse(const QPoint& pt) const override;
+    bool tryActivateModalWindow() override;
+    bool handleDeactivateApplicationEvent() override;
+    bool handleActivateApplicationEvent() override;
+#if QT_CONFIG(menu)
+    QWindow *systemMenu() override;
+#endif
+
     void setNativeWindowVisibility(bool visible);
+#ifndef QT_NO_CURSOR
+    bool updateCursor(const QPoint& pt) override;
+    bool isAncestorCursorOf(const QWindow* w) const override;
+#endif
 protected:
     bool event(QEvent *) override;
 
@@ -113,6 +130,8 @@ protected:
 #ifndef QT_NO_CONTEXTMENU
     void handleContextMenuEvent(QContextMenuEvent *);
 #endif
+
+    void activateParent() override;
 
 private slots:
     void updateObjectName();

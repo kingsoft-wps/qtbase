@@ -112,6 +112,7 @@ private:
     void setNameFilters(const QStringList &filters);
     void selectFileInternal(const QUrl &filename);
     void setFileChooserAction();
+    void currentFilterChanged();
 
     QUrl _dir;
     QList<QUrl> _selection;

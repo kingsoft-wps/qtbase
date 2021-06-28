@@ -65,8 +65,8 @@ QT_BEGIN_NAMESPACE
 static QByteArray qNtlmPhase1();
 static QByteArray qNtlmPhase3(QAuthenticatorPrivate *ctx, const QByteArray& phase2data);
 #if defined(Q_OS_WIN) && !defined(Q_OS_WINRT)
-static QByteArray qNtlmPhase1_SSPI(QAuthenticatorPrivate *ctx);
-static QByteArray qNtlmPhase3_SSPI(QAuthenticatorPrivate *ctx, const QByteArray& phase2data);
+static QByteArray qNtlmPhase1_SSPI(QAuthenticatorPrivate *ctx, const QString& hostName);
+static QByteArray qNtlmPhase3_SSPI(QAuthenticatorPrivate *ctx, const QByteArray& phase2data, const QString& hostName);
 #endif
 
 /*!
@@ -456,7 +456,7 @@ void QAuthenticatorPrivate::parseHttpResponse(const QList<QPair<QByteArray, QByt
     }
 }
 
-QByteArray QAuthenticatorPrivate::calculateResponse(const QByteArray &requestMethod, const QByteArray &path)
+QByteArray QAuthenticatorPrivate::calculateResponse(const QByteArray &requestMethod, const QByteArray &path, const QString &hostName /*= QString()*/)
 {
     QByteArray response;
     const char *methodString = 0;
@@ -497,7 +497,7 @@ QByteArray QAuthenticatorPrivate::calculateResponse(const QByteArray &requestMet
 #if defined(Q_OS_WIN) && !defined(Q_OS_WINRT)
             QByteArray phase1Token;
             if (user.isEmpty()) // Only pull from system if no user was specified in authenticator
-                phase1Token = qNtlmPhase1_SSPI(this);
+                phase1Token = qNtlmPhase1_SSPI(this, hostName);
             if (!phase1Token.isEmpty()) {
                 response = phase1Token.toBase64();
                 phase = Phase2;
@@ -514,7 +514,7 @@ QByteArray QAuthenticatorPrivate::calculateResponse(const QByteArray &requestMet
 #if defined(Q_OS_WIN) && !defined(Q_OS_WINRT)
             QByteArray phase3Token;
             if (ntlmWindowsHandles)
-                phase3Token = qNtlmPhase3_SSPI(this, QByteArray::fromBase64(challenge));
+                phase3Token = qNtlmPhase3_SSPI(this, QByteArray::fromBase64(challenge), hostName);
             if (!phase3Token.isEmpty()) {
                 response = phase3Token.toBase64();
                 phase = Done;
@@ -1467,8 +1467,14 @@ static bool q_NTLM_SSPI_library_load()
     return true;
 }
 
+template<typename Required, typename Actual>
+Required const_reinterpret_cast(Actual *p)
+{
+    return Required(p);
+}
+
 // Phase 1:
-static QByteArray qNtlmPhase1_SSPI(QAuthenticatorPrivate *ctx)
+static QByteArray qNtlmPhase1_SSPI(QAuthenticatorPrivate *ctx, const QString& hostName)
 {
     QByteArray result;
 
@@ -1504,7 +1510,7 @@ static QByteArray qNtlmPhase1_SSPI(QAuthenticatorPrivate *ctx)
     ULONG attrs;
 
     secStatus = pSecurityFunctionTable->InitializeSecurityContext(&ctx->ntlmWindowsHandles->credHandle, NULL,
-        const_cast<SEC_WCHAR*>(L"") /* host */,
+        const_reinterpret_cast<SEC_WCHAR*>(hostName.utf16()) /* host */,
         ISC_REQ_ALLOCATE_MEMORY,
         0, SECURITY_NETWORK_DREP,
         NULL, 0,
@@ -1534,7 +1540,7 @@ static QByteArray qNtlmPhase1_SSPI(QAuthenticatorPrivate *ctx)
 // (the Type 2 message), which is sent to the client.
 
 // Phase 3:
-static QByteArray qNtlmPhase3_SSPI(QAuthenticatorPrivate *ctx, const QByteArray& phase2data)
+static QByteArray qNtlmPhase3_SSPI(QAuthenticatorPrivate *ctx, const QByteArray& phase2data, const QString& hostName)
 {
     // 4. The client receives the response token from the server and calls
     // InitializeSecurityContext again, passing the server's token as input.
@@ -1566,7 +1572,7 @@ static QByteArray qNtlmPhase3_SSPI(QAuthenticatorPrivate *ctx, const QByteArray&
 
     SECURITY_STATUS secStatus = pSecurityFunctionTable->InitializeSecurityContext(&ctx->ntlmWindowsHandles->credHandle,
         &ctx->ntlmWindowsHandles->ctxHandle,
-        const_cast<SEC_WCHAR*>(L"") /* host */,
+        const_reinterpret_cast<SEC_WCHAR*>(hostName.utf16()) /* host */,
         ISC_REQ_ALLOCATE_MEMORY,
         0, SECURITY_NETWORK_DREP, &type_2_desc,
         0, &ctx->ntlmWindowsHandles->ctxHandle, &type_3_desc,

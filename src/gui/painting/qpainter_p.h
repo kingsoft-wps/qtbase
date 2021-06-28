@@ -94,6 +94,11 @@ inline bool qbrush_fast_equals(const QBrush &a, const QBrush &b) { return data_p
 inline Qt::BrushStyle qbrush_style(const QBrush &b) { return data_ptr(b)->style; }
 inline const QColor &qbrush_color(const QBrush &b) { return data_ptr(b)->color; }
 inline bool qbrush_has_transform(const QBrush &b) { return data_ptr(b)->transform.type() > QTransform::TxNone; }
+inline bool qbrush_is_gradient(const QBrush &b)
+{
+    return (Qt::LinearGradientPattern <= data_ptr(b)->style && data_ptr(b)->style <= Qt::PathGradientPattern);
+}
+
 
 class QPainterClipInfo
 {
@@ -190,9 +195,13 @@ class QPainterPrivate
     Q_DECLARE_PUBLIC(QPainter)
 public:
     QPainterPrivate(QPainter *painter)
-    : q_ptr(painter), d_ptrs(0), state(0), dummyState(0), txinv(0), inDestructor(false), d_ptrs_size(0),
+    : q_ptr(painter), d_ptrs(0), state(0), dummyState(0), txinv(0), inDestructor(false), windowsNeedEmulation(false), d_ptrs_size(0),
         refcount(1), device(0), original_device(0), helper_device(0), engine(0), emulationEngine(0),
         extended(0)
+#ifdef Q_OS_MAC
+        ,manualBoldenSuccess(true)
+#endif
+
     {
     }
 
@@ -209,6 +218,7 @@ public:
     QTransform invMatrix;
     uint txinv:1;
     uint inDestructor : 1;
+    uint windowsNeedEmulation : 1; // need emulation drawing When painting on Windows.
     uint d_ptrs_size;
     uint refcount;
 
@@ -254,6 +264,8 @@ public:
     static bool attachPainterPrivate(QPainter *q, QPaintDevice *pdev);
     void detachPainterPrivate(QPainter *q);
 
+    bool needEmulation(uint emulation = 0xffffffff);
+
     QPaintDevice *device;
     QPaintDevice *original_device;
     QPaintDevice *helper_device;
@@ -261,6 +273,10 @@ public:
     QEmulationPaintEngine *emulationEngine;
     QPaintEngineEx *extended;
     QBrush colorBrush;          // for fill with solid color
+#ifdef Q_OS_MAC
+    bool manualBoldenSuccess;
+#endif
+
 };
 
 Q_GUI_EXPORT void qt_draw_helper(QPainterPrivate *p, const QPainterPath &path, QPainterPrivate::DrawOperation operation);

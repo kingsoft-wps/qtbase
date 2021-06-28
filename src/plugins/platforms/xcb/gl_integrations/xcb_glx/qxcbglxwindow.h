@@ -51,6 +51,10 @@ public:
     QXcbGlxWindow(QWindow *window);
     ~QXcbGlxWindow();
 
+#ifdef Q_OS_LINUX
+    static int testColorSapce();
+#endif
+
 protected:
     const xcb_visualtype_t *createVisual() override;
 };

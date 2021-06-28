@@ -134,6 +134,7 @@ public:
 
     static QCoreTextFontEngine *create(const QByteArray &fontData, qreal pixelSize, QFont::HintingPreference hintingPreference);
 
+    virtual QString fontPath() override;
 protected:
     QCoreTextFontEngine(const QFontDef &def);
     void init();

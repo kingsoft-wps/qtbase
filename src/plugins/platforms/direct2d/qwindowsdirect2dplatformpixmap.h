@@ -56,7 +56,7 @@ public:
     QWindowsDirect2DPlatformPixmap(PixelType pixelType);
 
     // We do NOT take ownership of the bitmap through this constructor!
-    QWindowsDirect2DPlatformPixmap(PixelType pixelType, QWindowsDirect2DPaintEngine::Flags flags, QWindowsDirect2DBitmap *bitmap);
+    QWindowsDirect2DPlatformPixmap(PixelType pixelType, QWindowsDirect2DPaintEngine::Flags flags, QWindowsDirect2DBitmap *bitmap, bool takeBitmap = false);
     ~QWindowsDirect2DPlatformPixmap();
 
     void resize(int width, int height) override;
@@ -74,6 +74,8 @@ public:
 
     qreal devicePixelRatio() const override;
     void setDevicePixelRatio(qreal scaleFactor) override;
+
+    void copy(const QPlatformPixmap *data, const QRect &rect) override;
 
     QWindowsDirect2DBitmap *bitmap() const;
 

@@ -409,7 +409,12 @@ bool QSslSocketBackendPrivate::initSslContext()
         configuration.protocol != QSsl::UnknownProtocol &&
         mode == QSslSocket::SslClientMode && QSslSocket::sslLibraryVersionNumber() >= 0x00090806fL) {
         // Set server hostname on TLS extension. RFC4366 section 3.1 requires it in ACE format.
-        QString tlsHostName = verificationPeerName.isEmpty() ? q->peerName() : verificationPeerName;
+        QString tlsHostName;
+        if (configuration.verificationPeerName.isEmpty())
+            tlsHostName = verificationPeerName.isEmpty() ? q->peerName() : verificationPeerName;
+        else
+            tlsHostName = configuration.verificationPeerName;
+
         if (tlsHostName.isEmpty())
             tlsHostName = hostName;
         QByteArray ace = QUrl::toAce(tlsHostName);
@@ -1075,7 +1080,11 @@ bool QSslSocketBackendPrivate::startHandshake()
         // but only if we're a client connecting to a server
         // if we're the server, don't check CN
         if (mode == QSslSocket::SslClientMode) {
-            QString peerName = (verificationPeerName.isEmpty () ? q->peerName() : verificationPeerName);
+            QString peerName;
+            if (configuration.verificationPeerName.isEmpty())
+                peerName = (verificationPeerName.isEmpty() ? q->peerName() : verificationPeerName);
+            else
+                peerName = configuration.verificationPeerName;
 
             if (!isMatchingHostname(configuration.peerCertificate, peerName)) {
                 // No matches in common names or alternate names.

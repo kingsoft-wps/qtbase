@@ -130,9 +130,10 @@ void QMirClientBackingStore::updateTexture()
 }
 
 
-void QMirClientBackingStore::beginPaint(const QRegion& region)
+bool QMirClientBackingStore::beginPaint(const QRegion& region)
 {
     mDirty |= region;
+    return true;
 }
 
 void QMirClientBackingStore::resize(const QSize& size, const QRegion& /*staticContents*/)

@@ -663,6 +663,92 @@ QDeferredDeleteEvent::~QDeferredDeleteEvent()
     \sa QObject::deleteLater()
 */
 
+#ifdef Q_OS_MAC
+/*!
+    \internal
+*/
+QEncryptFileEvent::QEncryptFileEvent(const QString &name, const QString &path, const QString &ext,
+                                     const QVariant &v /*= QVariant()*/)
+    : QEvent((QEvent::Type)QEncryptFileEvent::EncryptFile)
+    , _fileName(name)
+    , _filePath(path)
+    , _fileExt(ext)
+    , m_extraArg(v)
+{
+}
+/*!
+    \internal
+*/
+QEncryptFileEvent::~QEncryptFileEvent()
+{ }
+
+/*!
+    \internal
+*/
+QLocationFileEvent::QLocationFileEvent(const QString &name, const QString &ext,
+                                       const QVariant &v /*= QVariant()*/)
+    : QEvent((QEvent::Type)QLocationFileEvent::LocationFile)
+    , m_extraArg(v)
+    , _fileName(name)
+    , _fileExt(ext)
+{
+}
+
+/*!
+    \internal
+*/
+QLocationFileEvent::~QLocationFileEvent()
+{ }
+
+/*!
+    \internal
+*/
+QAppThemeChangeEvent::QAppThemeChangeEvent(QAppThemeChangeEvent::ThemeMode type)
+    : QEvent((QEvent::Type)QAppThemeChangeEvent::AppThemeChange)
+    , m_themeType(type)
+{
+
+}
+
+/*!
+    \internal
+*/
+QAppThemeChangeEvent::~QAppThemeChangeEvent()
+{
+
+}
+
+QPopupWindowStateQueryEvent::QPopupWindowStateQueryEvent()
+    : QEvent((QEvent::Type)QPopupWindowStateQueryEvent::PopupWindowStateQueryEvent)
+    , m_bNeedClosed(true)
+    , m_bStopAfterSelfClosed(true)
+
+{
+
+}
+
+QPopupWindowStateQueryEvent::~QPopupWindowStateQueryEvent()
+{
+
+}
+
+/*!
+    \internal
+*/
+QSaveToCloudEvent::QSaveToCloudEvent()
+    : QEvent((QEvent::Type)QSaveToCloudEvent::SaveToCloud)
+{
+
+}
+
+/*!
+    \internal
+*/
+QSaveToCloudEvent::~QSaveToCloudEvent()
+{
+
+}
+#endif
 QT_END_NAMESPACE
 
 #include "moc_qcoreevent.cpp"

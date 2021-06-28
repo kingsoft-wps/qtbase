@@ -152,6 +152,9 @@ protected:
     void mouseMoveEvent(QMouseEvent *e) override;
     void resizeEvent(QResizeEvent *e) override;
 
+#ifdef Q_OS_MAC
+    void keyPressEvent(QKeyEvent *e) Q_DECL_OVERRIDE;
+#endif
 #ifndef QT_NO_STYLE_STYLESHEET
 public slots:
     /** \internal
@@ -284,6 +287,18 @@ void QTipLabel::mouseMoveEvent(QMouseEvent *e)
     QLabel::mouseMoveEvent(e);
 }
 
+#ifdef Q_OS_MAC
+void QTipLabel::keyPressEvent(QKeyEvent *e)
+{
+    int key = e->key();
+    Qt::KeyboardModifiers mody = e->modifiers();
+    if (!(mody & Qt::KeyboardModifierMask)
+            && key != Qt::Key_Shift && key != Qt::Key_Control
+            && key != Qt::Key_Alt && key != Qt::Key_Meta)
+        hideTipImmediately();
+    QLabel::keyPressEvent(e);
+}
+#endif
 QTipLabel::~QTipLabel()
 {
     instance = 0;
@@ -337,7 +352,7 @@ void QTipLabel::timerEvent(QTimerEvent *e)
 bool QTipLabel::eventFilter(QObject *o, QEvent *e)
 {
     switch (e->type()) {
-#ifdef Q_OS_MACOS
+#if 0 /* Used to be included in Qt4 for Q_OS_MAC */
     case QEvent::KeyPress:
     case QEvent::KeyRelease: {
         const int key = static_cast<QKeyEvent *>(e)->key();
@@ -502,8 +517,11 @@ void QToolTip::showText(const QPoint &pos, const QString &text, QWidget *w, cons
    This is similar to QToolTip::showText(\a pos, \a text, \a w, \a rect) but with an extra parameter \a msecDisplayTime
    that specifies how long the tool tip will be displayed, in milliseconds.
 */
-
+#ifdef Q_OS_MAC
+void QToolTip::showText(const QPoint &pos, const QString &text, QWidget *w, const QRect &rect, int msecDisplayTime, Qt::WindowFlags flags)
+#else
 void QToolTip::showText(const QPoint &pos, const QString &text, QWidget *w, const QRect &rect, int msecDisplayTime)
+#endif // Q_OS_MAC
 {
     if (QTipLabel::instance && QTipLabel::instance->isVisible()){ // a tip does already exist
         if (text.isEmpty()){ // empty text means hide current tip
@@ -536,10 +554,13 @@ QT_WARNING_POP
 #else
         new QTipLabel(text, pos, w, msecDisplayTime); // sets QTipLabel::instance to itself
 #endif
+        QTipLabel::instance->setFont(font());
         QTipLabel::instance->setTipRect(w, rect);
         QTipLabel::instance->placeTip(pos, w);
         QTipLabel::instance->setObjectName(QLatin1String("qtooltip_label"));
-
+#ifdef Q_OS_MAC
+        QTipLabel::instance->setWindowFlags(QTipLabel::instance->windowFlags() | flags);
+#endif // Q_OS_MAC
 
 #if QT_CONFIG(effects) && !0 /* Used to be included in Qt4 for Q_WS_MAC */
         if (QApplication::isEffectEnabled(Qt::UI_FadeTooltip))

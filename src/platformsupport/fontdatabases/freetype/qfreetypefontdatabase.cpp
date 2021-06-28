@@ -98,8 +98,10 @@ QFontEngine *QFreeTypeFontDatabase::fontEngine(const QByteArray &fontData, qreal
     return QFontEngineFT::create(fontData, pixelSize, hintingPreference);
 }
 
-QStringList QFreeTypeFontDatabase::addApplicationFont(const QByteArray &fontData, const QString &fileName)
+QStringList QFreeTypeFontDatabase::addApplicationFont(const QByteArray &fontData, const QString &fileName, void **handle)
 {
+    Q_UNUSED(handle);
+
     return QFreeTypeFontDatabase::addTTFile(fontData, fileName.toLocal8Bit());
 }
 

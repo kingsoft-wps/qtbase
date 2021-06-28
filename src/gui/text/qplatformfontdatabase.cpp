@@ -379,13 +379,25 @@ QFontEngine *QPlatformFontDatabase::fontEngine(const QByteArray &fontData, qreal
     font. Subclasses should reimplement this function to perform the necessary
     loading and registration of fonts.
 */
-QStringList QPlatformFontDatabase::addApplicationFont(const QByteArray &fontData, const QString &fileName)
+QStringList QPlatformFontDatabase::addApplicationFont(const QByteArray &fontData, const QString &fileName, void **handle)
 {
     Q_UNUSED(fontData);
     Q_UNUSED(fileName);
+    Q_UNUSED(handle)
 
     qWarning("This plugin does not support application fonts");
     return QStringList();
+}
+
+/*!
+    Remove the application font by \a fileName or \a handle
+*/
+bool QPlatformFontDatabase::removeApplicationFont(const QString &fileName, void *handle)
+{
+    Q_UNUSED(fileName);
+    Q_UNUSED(handle);
+
+    return false;
 }
 
 /*!
@@ -471,6 +483,14 @@ bool QPlatformFontDatabase::fontsAlwaysScalable() const
     ret.reserve(num_standards);
     std::copy(standard, standard + num_standards, std::back_inserter(ret));
     return ret;
+}
+
+Qt::HANDLE QPlatformFontDatabase::getFontHandle(QFontEngine* fontEngine)
+{
+    if (nullptr == fontEngine)
+        return nullptr;
+
+    return fontEngine->handle();
 }
 
 // ### copied to tools/makeqpf/qpf2.cpp

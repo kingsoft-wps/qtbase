@@ -192,7 +192,7 @@ struct QGlyphAttributes {
 Q_STATIC_ASSERT(sizeof(QGlyphAttributes) == 1);
 Q_DECLARE_TYPEINFO(QGlyphAttributes, Q_PRIMITIVE_TYPE);
 
-struct QGlyphLayout
+struct Q_GUI_EXPORT QGlyphLayout
 {
     enum {
         SpaceNeeded = sizeof(glyph_t) + sizeof(QFixed) + sizeof(QFixedPoint)
@@ -264,7 +264,7 @@ struct QGlyphLayout
     void grow(char *address, int totalGlyphs);
 };
 
-class QVarLengthGlyphLayoutArray : private QVarLengthArray<void *>, public QGlyphLayout
+class Q_GUI_EXPORT QVarLengthGlyphLayoutArray : private QVarLengthArray<void *>, public QGlyphLayout
 {
 private:
     typedef QVarLengthArray<void *> Array;
@@ -300,7 +300,7 @@ private:
 
 struct QScriptItem;
 /// Internal QTextItem
-class QTextItemInt : public QTextItem
+class Q_GUI_EXPORT QTextItemInt : public QTextItem
 {
 public:
     inline QTextItemInt()
@@ -321,6 +321,7 @@ public:
     QFixed width;
 
     RenderFlags flags;
+    CustomRenderOperateFlags oprFlags;
     bool justified;
     QTextCharFormat::UnderlineStyle underlineStyle;
     const QTextCharFormat charFormat;
@@ -348,7 +349,12 @@ struct QScriptItem
     QFixed leading;
     QFixed width;
     int glyph_data_offset;
+#ifdef Q_OS_MAC
+    // QT Synchronization adds 1 to the height calculation place
+    Q_DECL_CONSTEXPR QFixed height() const Q_DECL_NOTHROW { return ascent + descent + 1; }
+#else
     Q_DECL_CONSTEXPR QFixed height() const Q_DECL_NOTHROW { return ascent + descent; }
+#endif // Q_OS_MAC
 private:
     friend class QVector<QScriptItem>;
     QScriptItem() {}; // for QVector, don't use

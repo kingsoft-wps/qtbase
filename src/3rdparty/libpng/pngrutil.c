@@ -3181,7 +3181,8 @@ png_check_chunk_length(png_const_structrp png_ptr, png_uint_32 length)
       limit = limit < idat_limit? idat_limit : limit;
    }
 
-   if (length > limit)
+   if (length > limit && png_ptr->chunk_name != png_iTXt && png_ptr->chunk_name != png_tEXt
+       && png_ptr->chunk_name != png_zTXt)
    {
       png_debug2(0," length = %lu, limit = %lu",
          (unsigned long)length,(unsigned long)limit);

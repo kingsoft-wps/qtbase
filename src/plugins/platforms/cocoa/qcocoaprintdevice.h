@@ -76,7 +76,7 @@ public:
     QPageSize defaultPageSize() const override;
 
     QMarginsF printableMargins(const QPageSize &pageSize, QPageLayout::Orientation orientation,
-                               int resolution) const override;
+                               const QSize &resolution) const override;
 
     int defaultResolution() const override;
 

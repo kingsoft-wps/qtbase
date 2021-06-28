@@ -105,6 +105,8 @@ public:
     // Verification
     QSslSocket::PeerVerifyMode peerVerifyMode() const;
     void setPeerVerifyMode(QSslSocket::PeerVerifyMode mode);
+    QString verificationPeerName() const;
+    void setVerificationPeerName(const QString& hostName);
 
     int peerVerifyDepth() const;
     void setPeerVerifyDepth(int depth);

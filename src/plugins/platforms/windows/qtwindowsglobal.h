@@ -48,6 +48,10 @@
 #    define WM_DWMCOMPOSITIONCHANGED 0x31E
 #endif
 
+#ifndef WM_DWMNCRENDERINGCHANGED
+#    define WM_DWMNCRENDERINGCHANGED 0x031F
+#endif
+
 #ifndef WM_TOUCH
 #  define WM_TOUCH 0x0240
 #endif
@@ -75,6 +79,10 @@
 #  define WM_POINTERWHEEL    0x024E
 #  define WM_POINTERHWHEEL   0x024F
 #endif // WM_POINTERUPDATE
+
+#ifndef WM_CLIPBOARDUPDATE
+#define WM_CLIPBOARDUPDATE              0x031D
+#endif // WM_CLIPBOARDUPDATE
 
 QT_BEGIN_NAMESPACE
 
@@ -238,6 +246,7 @@ inline QtWindows::WindowsEventType windowsEventType(UINT message, WPARAM wParamI
         return QtWindows::TouchEvent;
     case WM_CHANGECBCHAIN:
     case WM_DRAWCLIPBOARD:
+    case WM_CLIPBOARDUPDATE:
     case WM_RENDERFORMAT:
     case WM_RENDERALLFORMATS:
     case WM_DESTROYCLIPBOARD:

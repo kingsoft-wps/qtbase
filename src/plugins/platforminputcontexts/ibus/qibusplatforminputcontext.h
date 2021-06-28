@@ -92,7 +92,7 @@ public:
     void setFocusObject(QObject *object) override;
 
     void invokeAction(QInputMethod::Action a, int x) override;
-    void reset() override;
+    void reset(bool bCancel) override;
     void commit() override;
     void update(Qt::InputMethodQueries) override;
     bool filterEvent(const QEvent *event) override;

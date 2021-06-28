@@ -792,10 +792,10 @@ QPaintDevice *QXcbBackingStore::paintDevice()
     return m_rgbImage.isNull() ? m_image->image() : &m_rgbImage;
 }
 
-void QXcbBackingStore::beginPaint(const QRegion &region)
+bool QXcbBackingStore::beginPaint(const QRegion &region)
 {
     if (!m_image)
-        return;
+        return false;
 
     m_paintRegions.push(region);
     m_image->preparePaint(region);
@@ -807,6 +807,7 @@ void QXcbBackingStore::beginPaint(const QRegion &region)
         for (const QRect &rect : region)
             p.fillRect(rect, blank);
     }
+    return true;
 }
 
 void QXcbBackingStore::endPaint()
@@ -984,7 +985,7 @@ QXcbSystemTrayBackingStore::~QXcbSystemTrayBackingStore()
     }
 }
 
-void QXcbSystemTrayBackingStore::beginPaint(const QRegion &region)
+bool QXcbSystemTrayBackingStore::beginPaint(const QRegion &region)
 {
     QXcbBackingStore::beginPaint(region);
 
@@ -994,6 +995,8 @@ void QXcbSystemTrayBackingStore::beginPaint(const QRegion &region)
         for (const QRect &rect: region)
             p.drawPixmap(rect, m_grabbedBackground, rect);
     }
+
+    return true;
 }
 
 void QXcbSystemTrayBackingStore::render(xcb_window_t window, const QRegion &region, const QPoint &offset)

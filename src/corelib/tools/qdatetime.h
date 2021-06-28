@@ -94,9 +94,11 @@ public:
 #if QT_CONFIG(datestring)
     QString toString(Qt::DateFormat f = Qt::TextDate) const;
 #if QT_STRINGVIEW_LEVEL < 2
-    QString toString(const QString &format) const;
+    Q_DECL_DEPRECATED QString toString(const QString &format) const;
+	QString toStringEx(const QString &format) const;
 #endif
-    QString toString(QStringView format) const;
+    Q_DECL_DEPRECATED QString toString(QStringView format) const;
+	QString toStringEx(QStringView format) const;
 #endif
 #if QT_DEPRECATED_SINCE(5,0)
 QT_DEPRECATED inline bool setYMD(int y, int m, int d)
@@ -170,9 +172,11 @@ public:
 #if QT_CONFIG(datestring)
     QString toString(Qt::DateFormat f = Qt::TextDate) const;
 #if QT_STRINGVIEW_LEVEL < 2
-    QString toString(const QString &format) const;
+    Q_DECL_DEPRECATED QString toString(const QString &format) const;
+	QString toStringEx(const QString &format) const;
 #endif
-    QString toString(QStringView format) const;
+    Q_DECL_DEPRECATED QString toString(QStringView format) const;
+	QString toStringEx(QStringView format) const;
 #endif
     bool setHMS(int h, int m, int s, int ms = 0);
 
@@ -306,9 +310,11 @@ public:
 #if QT_CONFIG(datestring)
     QString toString(Qt::DateFormat f = Qt::TextDate) const;
 #if QT_STRINGVIEW_LEVEL < 2
-    QString toString(const QString &format) const;
+    Q_DECL_DEPRECATED QString toString(const QString &format) const;
+	QString toStringEx(const QString &format) const;
 #endif
-    QString toString(QStringView format) const;
+    Q_DECL_DEPRECATED QString toString(QStringView format) const;
+	QString toStringEx(QStringView format) const;
 #endif
     Q_REQUIRED_RESULT QDateTime addDays(qint64 days) const;
     Q_REQUIRED_RESULT QDateTime addMonths(int months) const;

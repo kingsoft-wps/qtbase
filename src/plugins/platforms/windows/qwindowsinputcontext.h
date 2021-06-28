@@ -59,6 +59,7 @@ class QWindowsInputContext : public QPlatformInputContext
     struct CompositionContext
     {
         HWND hwnd = 0;
+        HWND hwndCandidate = 0;
         QString composition;
         int position = 0;
         bool isComposing = false;
@@ -73,7 +74,7 @@ public:
     bool hasCapability(Capability capability) const override;
     QLocale locale() const override { return m_locale; }
 
-    void reset() override;
+    void reset(bool bCancel) override;
     void update(Qt::InputMethodQueries) override;
     void invokeAction(QInputMethod::Action, int cursorPosition) override;
     void setFocusObject(QObject *object) override;
@@ -82,6 +83,9 @@ public:
     bool isInputPanelVisible() const override;
     void showInputPanel() override;
     void hideInputPanel() override;
+    void updateEnable(QWindow *pWindow) override;
+    void updateFocusEnable() override;
+    void closeCandidateWindow() override;
 
     bool startComposition(HWND hwnd);
     bool composition(HWND hwnd, LPARAM lParam);
@@ -93,6 +97,8 @@ public:
     bool handleIME_Request(WPARAM wparam, LPARAM lparam, LRESULT *result);
     void handleInputLanguageChanged(WPARAM wparam, LPARAM lparam);
 
+    void setCandidateWindow(HWND hwnd);
+
 private slots:
     void cursorRectChanged();
 
@@ -103,12 +109,21 @@ private:
     void endContextComposition();
     void updateEnabled();
     HWND getVirtualKeyboardWindowHandle() const;
+    void ensureCaret(HWND hwnd);
+
+    bool startCompositionPopup(QObject* o, HWND h);
+    bool compositionPopup(QObject* o, LPARAM lParam);
+    bool endCompositionPopup(QObject* o);
+    void donePopupContext();
 
     const DWORD m_WM_MSIME_MOUSE;
-    bool m_caretCreated = false;
     HBITMAP m_transparentBitmap;
     CompositionContext m_compositionContext;
+    CompositionContext m_compositionPopupContext;
+    bool m_caretCreated = false;
+    bool m_caretPopupCreated = false;
     bool m_endCompositionRecursionGuard = false;
+    bool m_completeRecursionGuard = false;
     LCID m_languageId;
     QLocale m_locale;
 };

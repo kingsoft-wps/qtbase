@@ -485,6 +485,7 @@ public:
         QString fileName;
         QByteArray data;
         QStringList families;
+        void *handle;
     };
     QVector<ApplicationFont> applicationFonts;
     int addAppFont(const QByteArray &fontData, const QString &fileName);
@@ -595,7 +596,9 @@ Q_STATIC_ASSERT(sizeof(scriptForWritingSystem) / sizeof(scriptForWritingSystem[0
 
 Q_GUI_EXPORT int qt_script_for_writing_system(QFontDatabase::WritingSystem writingSystem)
 {
-    return scriptForWritingSystem[writingSystem];
+    // AppStore crash it may be that the scriptforwritingsystem is used before it is generated, resulting in a crash and no local recurrence
+    return scriptForWritingSystem ? scriptForWritingSystem[writingSystem]
+                                    : QChar::Script_Common;
 }
 
 
@@ -662,7 +665,8 @@ static void initFontDef(const QtFontDesc &desc, const QFontDef &request, QFontDe
 
     if (desc.style->smoothScalable
         || QGuiApplicationPrivate::platformIntegration()->fontDatabase()->fontsAlwaysScalable()
-        || (desc.style->bitmapScalable && (request.styleStrategy & QFont::PreferMatch))) {
+        || (desc.style->bitmapScalable && (request.styleStrategy & QFont::PreferMatch))
+        || request.forceScalable) {
         fontDef->pixelSize = request.pixelSize;
     } else {
         fontDef->pixelSize = desc.size->pixelSize;
@@ -901,11 +905,16 @@ static void initializeDb()
     }
 }
 
-static inline void load(const QString & = QString(), int = -1)
+static inline void load(const QString &familyName = QString(), int = -1)
 {
     // Only initialize the database if it has been cleared or not initialized yet
     if (!privateDb()->count)
         initializeDb();
+
+    // Load the private embeded font
+    if (!familyName.isEmpty()) {
+        QGuiApplicationPrivate::platformIntegration()->fontDatabase()->populateFamily(familyName);
+    }
 }
 
 static
@@ -918,9 +927,9 @@ QFontEngine *loadSingleEngine(int script,
 
     Q_ASSERT(size);
     QPlatformFontDatabase *pfdb = QGuiApplicationPrivate::platformIntegration()->fontDatabase();
-    int pixelSize = size->pixelSize;
-    if (!pixelSize || (style->smoothScalable && pixelSize == SMOOTH_SCALABLE)
-        || pfdb->fontsAlwaysScalable()) {
+    qreal pixelSize = size->pixelSize;
+    if (!size->pixelSize || (style->smoothScalable && size->pixelSize == SMOOTH_SCALABLE)
+        || pfdb->fontsAlwaysScalable() || request.forceScalable) {
         pixelSize = request.pixelSize;
     }
 
@@ -986,6 +995,9 @@ QFontEngine *loadSingleEngine(int script,
             }
         }
     }
+#ifdef Q_OS_MAC
+    engine->fontStyleName = style->styleName;
+#endif // Q_OS_MAC
     return engine;
 }
 
@@ -1027,7 +1039,7 @@ static void registerFont(QFontDatabasePrivate::ApplicationFont *fnt)
 {
     QFontDatabasePrivate *db = privateDb();
 
-    fnt->families = QGuiApplicationPrivate::platformIntegration()->fontDatabase()->addApplicationFont(fnt->data,fnt->fileName);
+    fnt->families = QGuiApplicationPrivate::platformIntegration()->fontDatabase()->addApplicationFont(fnt->data, fnt->fileName, &fnt->handle);
 
     db->reregisterAppFonts = true;
 }
@@ -1061,7 +1073,9 @@ static QtFontStyle *bestStyle(QtFontFoundry *foundry, const QtFontStyle::Key &st
                 d += 0x1000;
         }
 
-        if ( d < dist ) {
+        if ( d < dist ||
+            (d == dist && styleName.isEmpty() && 0 == style->styleName.compare(QLatin1String("Regular"))))
+        {
             best = i;
             dist = d;
         }
@@ -1209,8 +1223,14 @@ unsigned int bestFoundry(int script, unsigned int score, int styleStrategy,
 
 static bool matchFamilyName(const QString &familyName, QtFontFamily *f)
 {
+#ifdef Q_OS_MAC
+    if (familyName.isEmpty() && !f->name.isEmpty() &&
+        (f->name[0] == QChar::fromLatin1('.') || f->name[0] >= QChar::fromLatin1('0')))
+        return true;
+#else
     if (familyName.isEmpty())
         return true;
+#endif
     return f->matchesFamilyName(familyName);
 }
 
@@ -2428,6 +2448,7 @@ int QFontDatabasePrivate::addAppFont(const QByteArray &fontData, const QString &
     QFontDatabasePrivate::ApplicationFont font;
     font.data = fontData;
     font.fileName = fileName;
+    font.handle = nullptr;
 
     Q_TRACE(QFontDatabasePrivate_addAppFont, fileName);
 
@@ -2588,7 +2609,10 @@ bool QFontDatabase::removeApplicationFont(int handle)
     if (handle < 0 || handle >= db->applicationFonts.count())
         return false;
 
+    const QFontDatabasePrivate::ApplicationFont font = db->applicationFonts[handle];
     db->applicationFonts[handle] = QFontDatabasePrivate::ApplicationFont();
+
+    QGuiApplicationPrivate::platformIntegration()->fontDatabase()->removeApplicationFont(font.fileName, font.handle);
 
     db->reregisterAppFonts = true;
     db->invalidate();
@@ -2717,6 +2741,7 @@ QFontEngine *QFontDatabase::findFont(const QFontDef &request, int script)
                 styleHint = QFont::TypeWriter;
 
             QStringList fallbacks = request.fallBackFamilies
+                                  + QStringList(QGuiApplication::font().family())
                                   + fallbacksForFamily(request.family,
                                                        QFont::Style(request.style),
                                                        styleHint,
@@ -2762,8 +2787,7 @@ void QFontDatabase::load(const QFontPrivate *d, int script)
     QFontDef req = d->request;
 
     if (req.pixelSize == -1) {
-        req.pixelSize = std::floor(((req.pointSize * d->dpi) / 72) * 100 + 0.5) / 100;
-        req.pixelSize = qRound(req.pixelSize);
+        req.pixelSize = (req.pointSize * d->dpi) / 72;
     }
     if (req.pointSize < 0)
         req.pointSize = req.pixelSize*72.0/d->dpi;
@@ -2805,13 +2829,12 @@ void QFontDatabase::load(const QFontPrivate *d, int script)
     if (!req.family.isEmpty()) {
         // Add primary selection
         family_list << req.family;
-
-        // add the default family
-        QString defaultFamily = QGuiApplication::font().family();
-        if (! family_list.contains(defaultFamily))
-            family_list << defaultFamily;
-
     }
+
+    // add the default family
+    QString defaultFamily = QGuiApplication::font().family();
+    if (!family_list.contains(defaultFamily))
+        family_list << defaultFamily;
 
     // null family means find the first font matching the specified script
     family_list << QString();

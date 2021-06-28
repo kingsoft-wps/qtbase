@@ -62,7 +62,6 @@
 #include "private/qpainter_p.h"
 #include "private/qtextureglyphcache_p.h"
 #include "private/qoutlinemapper_p.h"
-
 #include <stdlib.h>
 
 QT_BEGIN_NAMESPACE
@@ -88,6 +87,7 @@ public:
     QBrush lastBrush;
     QSpanData brushData;
     uint fillFlags;
+    QRectF lastRect; // for texture brush
 
     uint pixmapFlags;
     int intOpacity;
@@ -102,13 +102,13 @@ public:
 //     QPainter::CompositionMode compositionMode;
 
     uint dirty;
+    QSpanData::InterpolationMode interpolate;
 
     struct Flags {
         uint has_clip_ownership : 1;        // should delete the clip member..
         uint fast_pen : 1;                  // cosmetic 1-width pens, using midpoint drawlines
         uint non_complex_pen : 1;           // can use rasterizer, rather than stroker
         uint antialiased : 1;
-        uint bilinear : 1;
         uint legacy_rounding : 1;
         uint fast_text : 1;
         uint int_xform : 1;
@@ -156,7 +156,7 @@ public:
         return static_cast<const QRasterPaintEngineState *>(QPaintEngineEx::state());
     }
 
-    void updateBrush(const QBrush &brush);
+    void updateBrush(const QBrush &brush, const QRectF &rc = QRectF());
     void updatePen(const QPen &pen);
 
     void updateMatrix(const QTransform &matrix);
@@ -180,6 +180,8 @@ public:
     void drawImage(const QPointF &p, const QImage &img) override;
     void drawImage(const QRectF &r, const QImage &pm, const QRectF &sr,
                    Qt::ImageConversionFlags flags = Qt::AutoColor) override;
+    void drawImage(const QRectF &r, const QImage &pm, const QRectF &sr, const QImageEffects *effects,
+                   Qt::ImageConversionFlags flags = Qt::AutoColor) override; 
     void drawTiledPixmap(const QRectF &r, const QPixmap &pm, const QPointF &sr) override;
     void drawTextItem(const QPointF &p, const QTextItem &textItem) override;
 
@@ -200,6 +202,8 @@ public:
     void drawStaticTextItem(QStaticTextItem *textItem) override;
     virtual bool drawCachedGlyphs(int numGlyphs, const glyph_t *glyphs, const QFixedPoint *positions,
                                   QFontEngine *fontEngine);
+    bool drawCachedGlyphsColorFont(int numGlyphs, const glyph_t *glyphs,
+                                   const QFixedPoint *positions, const QTextItemInt &ti);
 
     enum ClipType {
         RectClip,
@@ -249,11 +253,21 @@ private:
 
     QRect toNormalizedFillRect(const QRectF &rect);
 
-    inline void ensureBrush(const QBrush &brush) {
-        if (!qbrush_fast_equals(state()->lastBrush, brush) || state()->fillFlags)
-            updateBrush(brush);
+    bool drawCachedGlyphBatch(int numGlyphs, const glyph_t *glyphs, const QFixedPoint *positions,
+                              QFontEngine *fontEngine, QFontEngine::GlyphFormat glyphFormat);
+
+#if !defined(QT_NO_FREETYPE)
+    void drawGlyphsFreetypeColor(const QPointF &p, const QTextItemInt &ti);
+#endif
+
+    inline void ensureBrush(const QBrush &brush, const QRectF &rc = QRectF()) {
+        if (!qbrush_fast_equals(state()->lastBrush, brush) 
+            || (brush.style() != Qt::NoBrush && state()->fillFlags)
+            || rc != state()->lastRect)
+            updateBrush(brush, rc);
     }
-    inline void ensureBrush() { ensureBrush(state()->brush); }
+
+    inline void ensureBrush(const QRectF &rc = QRectF()) { ensureBrush(state()->brush, rc); }
 
     inline void ensurePen(const QPen &pen) {
         if (!qpen_fast_equals(state()->lastPen, pen) || (pen.style() != Qt::NoPen && state()->strokeFlags))
@@ -285,7 +299,8 @@ public:
                               int *dashIndex, qreal *dashOffset, bool *inDash);
     void rasterize(QT_FT_Outline *outline, ProcessSpans callback, QSpanData *spanData, QRasterBuffer *rasterBuffer);
     void rasterize(QT_FT_Outline *outline, ProcessSpans callback, void *userData, QRasterBuffer *rasterBuffer);
-    void updateMatrixData(QSpanData *spanData, const QBrush &brush, const QTransform &brushMatrix);
+    void updateMatrixData(QSpanData *spanData, const QBrush &brush, const QTransform &brushMatrix, const QTransform& trans = QTransform());
+ 
 
     void systemStateChanged() override;
 

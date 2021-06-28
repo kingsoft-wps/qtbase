@@ -108,9 +108,17 @@ public:
 
     virtual void notifyLayoutDirectionChange() override;
     virtual void notifyActiveWindowChange(QWindow *) override;
+    virtual void updateWidgetFocus(QWindow *previous) override;
 
     virtual bool shouldQuit() override;
     bool tryCloseAllWindows() override;
+
+    WId widgetEffectiveWinId(const QObject *o) const override;
+    QPair<QObject*, WId> popupFocusEditableWidget() const override;
+    QVariant objectImQuery(Qt::InputMethodQuery im, const QObject* o, WId nativeWid) const override;
+    void changeKeyboard() const override;
+
+    bool isInactiveWithoutFocus() const override;
 
 #if 0 // Used to be included in Qt4 for Q_WS_X11
 #if QT_CONFIG(settings)
@@ -127,7 +135,7 @@ public:
 
     void notifyWindowIconChanged() override;
 
-    //modality
+    // modality
     bool isWindowBlocked(QWindow *window, QWindow **blockingWindow = 0) const override;
     static bool isBlockedByModal(QWidget *widget);
     static bool modalState();
@@ -137,13 +145,13 @@ public:
     bool canQuit();
 #endif
 
-    bool notify_helper(QObject *receiver, QEvent * e);
+    bool notify_helper(QObject *receiver, QEvent *e);
 
     void init(
 #if 0 // Used to be included in Qt4 for Q_WS_X11
                    Display *dpy = 0, Qt::HANDLE visual = 0, Qt::HANDLE cmap = 0
 #endif
-                   );
+    );
     void initialize();
     void process_cmdline();
 
@@ -153,12 +161,14 @@ public:
 
     static bool inPopupMode();
     bool popupActive() override { return inPopupMode(); }
+    void closeAllPopups() override;
     void closePopup(QWidget *popup);
     void openPopup(QWidget *popup);
-    static void setFocusWidget(QWidget *focus, Qt::FocusReason reason);
+    static void setFocusWidget(QWidget *focus, Qt::FocusReason reason, bool syncNative = true);
     static QWidget *focusNextPrevChild_helper(QWidget *toplevel, bool next,
                                               bool *wrappingOccurred = 0);
 
+    bool isButtonDown() const override;
 #if QT_CONFIG(graphicsview)
     // Maintain a list of all scenes to ensure font and palette propagation to
     // all scenes.
@@ -182,6 +192,7 @@ protected:
 
 #if QT_CONFIG(draganddrop)
     void notifyDragStarted(const QDrag *) override;
+    bool notifyDragCanceled(const QDrag *drag, const QPoint &pos) override;
 #endif // QT_CONFIG(draganddrop)
 
 public:
@@ -190,10 +201,15 @@ public:
     static QWidget *main_widget;
     static QWidget *focus_widget;
     static QWidget *hidden_focus_widget;
+    static bool hidden_focus_syncNative;
     static QWidget *active_window;
 #if QT_CONFIG(wheelevent)
-    static int  wheel_scroll_lines;
+    static int wheel_scroll_lines;
     static QPointer<QWidget> wheel_widget;
+#endif
+
+#if QT_CONFIG(draganddrop)
+    static QPointer<QWidget> saved_button_down;
 #endif
 
     static int enabledAnimations; // Combination of QPlatformTheme::UiEffect
@@ -249,6 +265,28 @@ public:
                 return static_cast<HWND> (QGuiApplication::platformNativeInterface()->
                                           nativeResourceForWindow(QByteArrayLiteral("handle"), window));
         return 0;
+    }
+
+    static bool isWindowsDropMimeData(const QMimeData *mime)
+    {
+        if (nullptr == mime)
+            return false;
+
+        if (QGuiApplication::platformNativeInterface())
+            return QGuiApplication::platformNativeInterface()->isWindowsDropMimeData(mime);
+
+        return nullptr;
+    }
+
+    static void *getDropDataObjectForMimeData(const QMimeData *mime) 
+    {
+        if (nullptr == mime)
+            return nullptr;
+        if (QGuiApplication::platformNativeInterface())
+            return QGuiApplication::platformNativeInterface()->nativeResourceForMimeData(
+                            QByteArrayLiteral("dropdataobject"), mime);
+
+        return nullptr;
     }
 #endif
 

@@ -332,6 +332,11 @@ void QLineEdit::setText(const QString& text)
     centered, the placeholder text is not displayed under
     the cursor when the line edit has focus.
 
+    Rollback to qt4: (#439344)
+	Setting this property makes the line edit display a grayed-out
+	placeholder text as long as the text() is empty and the widget doesn't
+	have focus.
+
     By default, this property contains an empty string.
 
     \sa text()
@@ -1805,6 +1810,10 @@ void QLineEdit::inputMethodEvent(QInputMethodEvent *e)
 #endif
 
     d->control->processInputMethodEvent(e);
+#ifdef Q_OS_MAC
+    // mac The cursor is set to be visible when pre-input, and invisible is being processed
+    d->setCursorVisible(true);
+#endif
 
 #if QT_CONFIG(completer)
     if (!e->commitString().isEmpty())

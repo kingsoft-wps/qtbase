@@ -111,7 +111,8 @@ public:
     virtual QFontEngineMulti *fontEngineMulti(QFontEngine *fontEngine, QChar::Script script);
     virtual QFontEngine *fontEngine(const QFontDef &fontDef, void *handle);
     virtual QStringList fallbacksForFamily(const QString &family, QFont::Style style, QFont::StyleHint styleHint, QChar::Script script) const;
-    virtual QStringList addApplicationFont(const QByteArray &fontData, const QString &fileName);
+    virtual QStringList addApplicationFont(const QByteArray &fontData, const QString &fileName, void **handle);
+    virtual bool removeApplicationFont(const QString &fileName, void *handle);
     virtual void releaseHandle(void *handle);
 
     virtual QFontEngine *fontEngine(const QByteArray &fontData, qreal pixelSize, QFont::HintingPreference hintingPreference);
@@ -125,6 +126,8 @@ public:
     virtual bool fontsAlwaysScalable() const;
     virtual QList<int> standardSizes() const;
 
+    virtual Qt::HANDLE getFontHandle(QFontEngine* fontEngine);
+    virtual bool clearTypeEnabled() const { return false; }
     // helper
     static QSupportedWritingSystems writingSystemsFromTrueTypeBits(quint32 unicodeRange[4], quint32 codePageRange[2]);
     static QFont::Weight weightFromInteger(int weight);

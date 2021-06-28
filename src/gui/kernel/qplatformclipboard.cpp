@@ -119,6 +119,11 @@ bool QPlatformClipboard::ownsMode(QClipboard::Mode mode) const
     return false;
 }
 
+void QPlatformClipboard::flushClipboard()
+{
+
+}
+
 void QPlatformClipboard::emitChanged(QClipboard::Mode mode)
 {
     if (!QGuiApplicationPrivate::is_app_closing) // QTBUG-39317, prevent emission when closing down.

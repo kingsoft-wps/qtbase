@@ -50,6 +50,7 @@
 #include <QtGui/qtransform.h>
 #include <QtGui/qimage.h>
 #include <QtGui/qpixmap.h>
+#include <QtGui/qimageeffects.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -97,11 +98,38 @@ public:
     inline QTransform transform() const;
     void setTransform(const QTransform &);
 
+    const QImageEffects &colorEffect() const;
+    void setColorEffect(const QImageEffects &imageEffect);
+
     QPixmap texture() const;
     void setTexture(const QPixmap &pixmap);
 
     QImage textureImage() const;
     void setTextureImage(const QImage &image);
+
+    //for TexturePattern brush
+    Qt::TextureWrapMode textureWrapMode() const;
+    void setTextureWrapMode(Qt::TextureWrapMode wrapMode);
+
+    Qt::TextureAlignment textureAlignment() const;
+    void setTextureAlignment(Qt::TextureAlignment alignment);
+
+    void getTextureOffset(qreal &offsetX, qreal &offsetY) const;
+    void setTextureOffset(qreal offsetX, qreal offsetY);
+
+    void getTexturePatternStyle(qint32 &patternStyle, QRgb &foreColor, QRgb &backColor) const;
+    void setTexturePatternStyle(qint32 patternStyle, QRgb foreColor, QRgb backColor);
+
+    void getTextureScale(qreal &scaleX, qreal &scaleY) const;
+    void setTextureScale(qreal scaleX, qreal scaleY);
+
+    void getTextureDestRect(QRectF& rct) const;
+    void setTextureDestRect(const QRectF& rct);
+
+    //for TexturePattern brush with TextureWrapMode == TextureWrapModeExpand
+    void setTextureStretching(qreal left = 0, qreal right = 0, qreal top = 0, qreal bottom = 0);
+    void getTextureStretchingOffset(qreal &left, qreal &right, qreal &top, qreal &bottom) const;
+    void setTextureStretchingOffset(qreal left = 0, qreal right = 0, qreal top = 0, qreal bottom = 0);
 
     inline const QColor &color() const;
     void setColor(const QColor &color);
@@ -155,6 +183,7 @@ struct QBrushData
     Qt::BrushStyle style;
     QColor color;
     QTransform transform;
+    QImageEffects colorEffect;
 };
 
 inline Qt::BrushStyle QBrush::style() const { return d->style; }
@@ -180,6 +209,7 @@ public:
         LinearGradient,
         RadialGradient,
         ConicalGradient,
+        PathGradient,
         NoGradient
     };
     Q_ENUM(Type)
@@ -403,11 +433,16 @@ private:
     friend class QLinearGradient;
     friend class QRadialGradient;
     friend class QConicalGradient;
+    friend class QPathGradient;
     friend class QBrush;
 
     Type m_type;
     Spread m_spread;
     QGradientStops m_stops;
+
+    //for path gradient only
+    QPainterPath m_path;
+
     union {
         struct {
             qreal x1, y1, x2, y2;
@@ -418,6 +453,11 @@ private:
         struct {
             qreal cx, cy, angle;
         } conical;
+        struct {
+            qreal cx, cy;
+            qreal scaleX, scaleY;
+            // QPainterPath *pPath;
+        } path;
     } m_data;
     void *dummy; // ### Qt 6: replace with actual content (CoordinateMode, InterpolationMode, ...)
 };
@@ -488,6 +528,30 @@ public:
     qreal angle() const;
     void setAngle(qreal angle);
 };
+
+
+class Q_GUI_EXPORT QPathGradient : public QGradient
+{
+public:
+    QPathGradient();
+    QPathGradient(const QPainterPath &path);
+    QPathGradient(const QPointF &center, const QPainterPath &path, qreal scaleX = 0, qreal scaleY = 0);
+    QPathGradient(qreal cx, qreal cy, const QPainterPath &path, qreal scaleX = 0, qreal scaleY = 0);
+
+    QPointF center() const;
+    void setCenter(const QPointF &center);
+    inline void setCenter(qreal x, qreal y) { setCenter(QPointF(x, y)); }
+
+    QPainterPath path() const;
+    void setPath(const QPainterPath &path);
+    qreal xscale() const;
+    qreal yscale() const;
+
+private:
+    void init(qreal cx, qreal cy, const QPainterPath &path = QPainterPath(), qreal xscale = 0, qreal yscale = 0);
+};
+ 
+Q_GUI_EXPORT QMatrix qt_getAdjustMatrix(const QBrush &brush, const QRectF &dest, const QRect &source = QRect());
 
 QT_END_NAMESPACE
 

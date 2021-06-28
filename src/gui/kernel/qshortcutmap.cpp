@@ -331,6 +331,22 @@ bool QShortcutMap::tryShortcut(QKeyEvent *e)
     if (e->key() == Qt::Key_unknown)
         return false;
 
+#ifdef Q_OS_WIN
+    //this is modified
+    //altgr in windows will generate ctrl + alt key message
+    //this is used to avoid the confilcts between altgr and "ctrl + alt" shotrcut
+    quint32 nModifiers = e->nativeModifiers();
+    if (nModifiers & 0x00000040) {
+        QString text = e->text();
+        if (text.length()) {
+            QChar qChar = text.at(0);
+            //if the txt and the navtive virtual key is different, this demonstrates the altgr key is working 
+            if (qChar != e->nativeVirtualKey())
+                return false;
+        }
+    }
+#endif
+
     QKeySequence::SequenceMatch previousState = state();
 
     switch (nextState(e)) {

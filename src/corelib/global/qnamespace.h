@@ -302,6 +302,10 @@ public:
         WindowDoesNotAcceptFocus = 0x00200000,
         MaximizeUsingFullscreenGeometryHint = 0x00400000,
 
+#ifdef Q_OS_MAC
+        WindowFullSizeContent = 0x01000000,
+#endif
+
         CustomizeWindowHint = 0x02000000,
         WindowStaysOnBottomHint = 0x04000000,
         WindowCloseButtonHint = 0x08000000,
@@ -488,6 +492,8 @@ public:
 
         WA_StyleSheetTarget = 131,
 
+        WA_ForceAllowFocusForPopup = 132, // add for special popup widget
+        WA_AcceptEnforceDrops = 133,
         // Add new attributes before this line
         WA_AttributeCount
     };
@@ -1113,19 +1119,41 @@ public:
 #endif
     };
 
-    enum PenCapStyle { // line endcap style
+    enum PenAlignment {
+        PenAlignmentCenter       = 0,
+        PenAlignmentInset        = 1,
+        PenAlignmentOutset       = 2
+    };
+
+    enum DashCap
+    {
+        DashCapFlat             = 0x00,
+        DashCapRound            = 0x20,
+        DashCapTriangle         = 0x40,
+    };
+
+    enum PenCapStyle { // line end cap style
         FlatCap = 0x00,
         SquareCap = 0x10,
         RoundCap = 0x20,
-        MPenCapStyle = 0x30
+        TriangleCap = 0x40,
+        MPenCapStyle = 0x70,
+    };
+
+    enum PenAnchorStyle {
+        SquareAnchor,
+        RoundAnchor,
+        DiamondAnchor,
+        ArrowAnchor,
+        CustomAnchor
     };
 
     enum PenJoinStyle { // line join style
         MiterJoin = 0x00,
-        BevelJoin = 0x40,
-        RoundJoin = 0x80,
-        SvgMiterJoin = 0x100,
-        MPenJoinStyle = 0x1c0
+        BevelJoin = 0x80,
+        RoundJoin = 0x100,
+        SvgMiterJoin = 0x200,
+        MPenJoinStyle = 0x380
     };
 
     enum BrushStyle { // brush style
@@ -1147,7 +1175,31 @@ public:
         LinearGradientPattern,
         RadialGradientPattern,
         ConicalGradientPattern,
+        PathGradientPattern,
         TexturePattern = 24
+    };
+
+    // for TexturePattern
+    enum TextureWrapMode {
+        TextureTiling,
+        TextureFlippingX,
+        TextureFlippingY,
+        TextureFlippingXY,
+        TextureNoTiling,
+        TextureStretching
+    };
+
+    enum TextureAlignment{
+        TextureAlignmentNone,
+        TextureAlignmentTopLeft,
+        TextureAlignmentTop,
+        TextureAlignmentTopRight,
+        TextureAlignmentLeft,
+        TextureAlignmentCenter,
+        TextureAlignmentRight,
+        TextureAlignmentBottomLeft,
+        TextureAlignmentBottom,
+        TextureAlignmentBottomRight,
     };
 
     enum SizeMode {
@@ -1393,6 +1445,8 @@ public:
         ImEnterKeyType = 0x2000,
         ImAnchorRectangle = 0x4000,
         ImInputItemClipRectangle = 0x8000,
+        ImNeedTransfer = 0x10000,// Whether the pre-input needs to be transferred
+        ImNeedTransferObject = 0x20000, // Pre-input the object to be transferred and used with ImNeedTransfer
 
         ImPlatformData = 0x80000000,
         ImQueryInput = ImCursorRectangle | ImCursorPosition | ImSurroundingText |
@@ -1717,6 +1771,7 @@ public:
 
     enum MouseEventFlag {
         MouseEventCreatedDoubleClick = 0x01,
+        MouseEventSyntheticMouseMove = 0x02,
         MouseEventFlagMask = 0xFF
     };
     Q_DECLARE_FLAGS(MouseEventFlags, MouseEventFlag)

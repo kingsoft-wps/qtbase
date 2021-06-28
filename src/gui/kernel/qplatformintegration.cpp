@@ -620,4 +620,15 @@ QPlatformVulkanInstance *QPlatformIntegration::createPlatformVulkanInstance(QVul
 
 #endif // QT_CONFIG(vulkan)
 
+#ifdef Q_OS_LINUX
+int QPlatformIntegration::glxColorSpace()
+{
+    QPlatformIntegration *platformIntegration = QGuiApplicationPrivate::platformIntegration();
+    if (platformIntegration)
+        return platformIntegration->testColorSapce();
+    else
+        return -1;
+}
+#endif  // Q_OS_LINUX
+
 QT_END_NAMESPACE

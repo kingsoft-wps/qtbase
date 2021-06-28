@@ -203,7 +203,7 @@ OSStatus QMacPasteboard::promiseKeeper(PasteboardRef paste, PasteboardItemID id,
     // Get the promise data. If this is a "lazy" promise call variantData()
     // to request the data from the application.
     QVariant promiseData;
-    if (promise.dataRequestType == LazyRequest) {
+    if (promise.dataRequestType == LazyRequest || promise.dataRequestType == LazyRequestAndKeep) {
         if (!qpaste->resolvingBeforeDestruction && !promise.mimeData.isNull())
             promiseData = promise.mimeData->variantData(promise.mime);
     } else {
@@ -334,6 +334,8 @@ QMacPasteboard::setMimeData(QMimeData *mime_src, DataRequestType dataRequestType
     mime = mime_src;
 
     QList<QMacInternalPasteboardMime*> availableConverters = QMacInternalPasteboardMime::all(mime_type);
+    if (mime == 0)
+        promises.clear();
     if (mime != 0) {
         clear_helper();
         QStringList formats = mime_src->formats();

@@ -82,13 +82,21 @@ QCocoaPrintDevice::QCocoaPrintDevice(const QString &id)
       m_ppd(nullptr)
 {
     if (!id.isEmpty()) {
-        m_printer = PMPrinterCreateFromPrinterID(id.toCFString());
+        CFStringRef cfId = id.toCFString();
+        m_printer = PMPrinterCreateFromPrinterID(cfId);
         if (m_printer) {
-            m_name = QString::fromCFString(PMPrinterGetName(m_printer));
+            CFStringRef printerName = PMPrinterGetName(m_printer);
+            m_name = QString::fromCFString(printerName);
+            CFRelease(printerName);
+
             m_location = QString::fromCFString(PMPrinterGetLocation(m_printer));
             CFStringRef cfMakeAndModel;
             if (PMPrinterGetMakeAndModelName(m_printer, &cfMakeAndModel) == noErr)
+            {
                 m_makeAndModel = QString::fromCFString(cfMakeAndModel);
+                CFRelease(cfMakeAndModel);
+            }
+
             Boolean isRemote;
             if (PMPrinterIsRemote(m_printer, &isRemote) == noErr)
                 m_isRemote = isRemote;
@@ -110,6 +118,7 @@ QCocoaPrintDevice::QCocoaPrintDevice(const QString &id)
                                             m_ppd->custom_margins[2], m_ppd->custom_margins[1]);
             }
         }
+        CFRelease(cfId);
     }
 }
 
@@ -212,7 +221,7 @@ QPageSize QCocoaPrintDevice::defaultPageSize() const
 
 QMarginsF QCocoaPrintDevice::printableMargins(const QPageSize &pageSize,
                                               QPageLayout::Orientation orientation,
-                                              int resolution) const
+                                              const QSize &resolution) const
 {
     Q_UNUSED(orientation)
     Q_UNUSED(resolution)

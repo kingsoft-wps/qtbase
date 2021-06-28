@@ -91,23 +91,38 @@ template<> inline char *toString(const QByteArray &ba)
 #if QT_CONFIG(datestring)
 template<> inline char *toString(const QTime &time)
 {
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_MSVC(4996)   // "'QTime/QDate/QDateTime::toString': was declared deprecated"
+QT_WARNING_DISABLE_CLANG("-Wdeprecated-declarations")
+QT_WARNING_DISABLE_GCC("-Wdeprecated-declarations")
     return time.isValid()
         ? qstrdup(qPrintable(time.toString(QStringViewLiteral("hh:mm:ss.zzz"))))
         : qstrdup("Invalid QTime");
+QT_WARNING_POP
 }
 
 template<> inline char *toString(const QDate &date)
 {
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_MSVC(4996)   // "'QTime/QDate/QDateTime::toString': was declared deprecated"
+QT_WARNING_DISABLE_CLANG("-Wdeprecated-declarations")
+QT_WARNING_DISABLE_GCC("-Wdeprecated-declarations")
     return date.isValid()
         ? qstrdup(qPrintable(date.toString(QStringViewLiteral("yyyy/MM/dd"))))
         : qstrdup("Invalid QDate");
+QT_WARNING_POP
 }
 
 template<> inline char *toString(const QDateTime &dateTime)
 {
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_MSVC(4996)   // "'QTime/QDate/QDateTime::toString': was declared deprecated"
+QT_WARNING_DISABLE_CLANG("-Wdeprecated-declarations")
+QT_WARNING_DISABLE_GCC("-Wdeprecated-declarations")
     return dateTime.isValid()
         ? qstrdup(qPrintable(dateTime.toString(QStringViewLiteral("yyyy/MM/dd hh:mm:ss.zzz[t]"))))
         : qstrdup("Invalid QDateTime");
+QT_WARNING_POP
 }
 #endif // datestring
 

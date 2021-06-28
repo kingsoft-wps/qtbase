@@ -96,7 +96,7 @@ bool QRasterBackingStore::scroll(const QRegion &region, int dx, int dy)
     return true;
 }
 
-void QRasterBackingStore::beginPaint(const QRegion &region)
+bool QRasterBackingStore::beginPaint(const QRegion &region)
 {
     qreal nativeWindowDevicePixelRatio = window()->handle()->devicePixelRatio();
     QSize effectiveBufferSize = m_requestedSize * nativeWindowDevicePixelRatio;
@@ -108,12 +108,14 @@ void QRasterBackingStore::beginPaint(const QRegion &region)
     }
 
     if (!m_image.hasAlphaChannel())
-        return;
+        return true;
 
     QPainter painter(&m_image);
     painter.setCompositionMode(QPainter::CompositionMode_Source);
     for (const QRect &rect : region)
         painter.fillRect(rect, Qt::transparent);
+
+    return true;
 }
 
 QT_END_NAMESPACE

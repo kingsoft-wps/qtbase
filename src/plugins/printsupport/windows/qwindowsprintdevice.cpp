@@ -261,9 +261,24 @@ QPageSize QWindowsPrintDevice::defaultPageSize() const
     return pageSize;
 }
 
+
+QPageSize QWindowsPrintDevice::supportedPageSize(QPageSize::PageSizeId pageSizeId) const
+{
+    if (!m_havePageSizes)
+        loadPageSizes();
+
+    if (pageSizeId > QPageSize::LastPageSize) {
+        for (const QPageSize &ps : m_pageSizes) {
+            if (ps.windowsId() == pageSizeId)
+                return ps;
+        }
+    }
+    return QPlatformPrintDevice::supportedPageSize(pageSizeId);
+}
+
 QMarginsF QWindowsPrintDevice::printableMargins(const QPageSize &pageSize,
                                                 QPageLayout::Orientation orientation,
-                                                int resolution) const
+                                                const QSize &resolution) const
 {
     // TODO This is slow, need to cache values or find better way!
     // Modify the DevMode to get the DC printable margins in device pixels
@@ -284,14 +299,20 @@ QMarginsF QWindowsPrintDevice::printableMargins(const QPageSize &pageSize,
         }
 
         HDC pDC = CreateDC(NULL, (LPWSTR)m_id.utf16(), NULL, devMode);
-        if (pageSize.id() == QPageSize::Custom || pageSize.windowsId() <= 0 || pageSize.windowsId() > DMPAPER_LAST) {
+        if (pageSize.windowsId() <= 0) {
             devMode->dmPaperSize =  0;
             devMode->dmPaperWidth = pageSize.size(QPageSize::Millimeter).width() * 10.0;
             devMode->dmPaperLength = pageSize.size(QPageSize::Millimeter).height() * 10.0;
         } else {
             devMode->dmPaperSize =  pageSize.windowsId();
         }
-        devMode->dmPrintQuality = resolution;
+        if (orientation == QPageLayout::Portrait) {
+            devMode->dmPrintQuality = resolution.width();
+            devMode->dmYResolution = resolution.height();
+        } else {
+            devMode->dmPrintQuality = resolution.height();
+            devMode->dmYResolution = resolution.width();
+        }
         devMode->dmOrientation = orientation == QPageLayout::Portrait ? DMORIENT_PORTRAIT : DMORIENT_LANDSCAPE;
         ResetDC(pDC, devMode);
         const int dpiWidth = GetDeviceCaps(pDC, LOGPIXELSX);
@@ -496,7 +517,7 @@ QStringList QWindowsPrintDevice::availablePrintDeviceIds()
 QString QWindowsPrintDevice::defaultPrintDeviceId()
 {
     DWORD size = 0;
-    if (GetDefaultPrinter(NULL, &size) == ERROR_FILE_NOT_FOUND)
+    if (GetDefaultPrinter(NULL, &size) == ERROR_FILE_NOT_FOUND || 0 == size)
        return QString();
 
     QScopedArrayPointer<wchar_t> name(new wchar_t[size]);

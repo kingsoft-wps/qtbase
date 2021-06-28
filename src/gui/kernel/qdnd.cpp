@@ -121,4 +121,9 @@ Qt::DropAction QDragManager::drag(QDrag *o)
     return result;
 }
 
+bool QDragManager::notifyCanceled(const QDrag* drag, const QPoint &pos)
+{
+    return QGuiApplicationPrivate::instance()->notifyDragCanceled(drag, pos);
+}
+
 QT_END_NAMESPACE

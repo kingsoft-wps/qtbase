@@ -50,11 +50,43 @@
 #include <QtGui/qtouchdevice.h>
 #include <QtGui/qwindow.h>
 #include <QtGui/qcursor.h>
+#include <QtGui/private/qguiapplication_p.h>
 
 #include <QtCore/qdebug.h>
 #include <QtCore/qscopedpointer.h>
 
 #include <windowsx.h>
+
+/* Touch is supported from Windows 7 onwards and data structures
+ * are present in the Windows SDK's, but not in older MSVC Express
+ * versions. */
+
+#if defined(Q_CC_MINGW) || !defined(TOUCHEVENTF_MOVE)
+
+typedef struct tagTOUCHINPUT {
+    LONG x;
+    LONG y;
+    HANDLE hSource;
+    DWORD dwID;
+    DWORD dwFlags;
+    DWORD dwMask;
+    DWORD dwTime;
+    ULONG_PTR dwExtraInfo;
+    DWORD cxContact;
+    DWORD cyContact;
+} TOUCHINPUT, *PTOUCHINPUT;
+typedef TOUCHINPUT const * PCTOUCHINPUT;
+
+#  define TOUCHEVENTF_MOVE 0x0001
+#  define TOUCHEVENTF_DOWN 0x0002
+#  define TOUCHEVENTF_UP 0x0004
+#  define TOUCHEVENTF_INRANGE 0x0008
+#  define TOUCHEVENTF_PRIMARY 0x0010
+#  define TOUCHEVENTF_NOCOALESCE 0x0020
+#  define TOUCHEVENTF_PALM 0x0080
+#  define TOUCHINPUTMASKF_CONTACTAREA 0x0004
+#  define TOUCHINPUTMASKF_EXTRAINFO 0x0002
+#endif // if defined(Q_CC_MINGW) || !defined(TOUCHEVENTF_MOVE)
 
 QT_BEGIN_NAMESPACE
 
@@ -119,6 +151,9 @@ static inline void compressMouseMove(MSG *msg)
 
 static inline QTouchDevice *createTouchDevice()
 {
+        if (QOperatingSystemVersion::current() < QOperatingSystemVersion::Windows7)
+            return 0;
+
     const int digitizers = GetSystemMetrics(SM_DIGITIZER);
     if (!(digitizers & (NID_INTEGRATED_TOUCH | NID_EXTERNAL_TOUCH)))
         return nullptr;
@@ -292,7 +327,7 @@ bool QWindowsMouseHandler::translateMouseEvent(QWindow *window, HWND hwnd,
     }
 
     Qt::MouseEventSource source = Qt::MouseEventNotSynthesized;
-
+    bool forcesynchronous = (msg.message == WM_XBUTTONUP || msg.message == WM_XBUTTONDOWN || msg.message == WM_XBUTTONDBLCLK);
     // Check for events synthesized from touch. Lower byte is touch index, 0 means pen.
     static const bool passSynthesizedMouseEvents =
             !(QWindowsIntegration::instance()->options() & QWindowsIntegration::DontPassOsMouseEventsSynthesizedFromTouch);
@@ -302,6 +337,7 @@ bool QWindowsMouseHandler::translateMouseEvent(QWindow *window, HWND hwnd,
     // See https://msdn.microsoft.com/en-us/library/windows/desktop/ms703320.aspx
     const quint64 extraInfo = quint64(GetMessageExtraInfo());
     if ((extraInfo & signatureMask) == miWpSignature) {
+        forcesynchronous |= QGuiApplicationPrivate::instance()->popupActive();
         if (extraInfo & 0x80) { // Bit 7 indicates touch event, else tablet pen.
             source = Qt::MouseEventSynthesizedBySystem;
             if (!passSynthesizedMouseEvents)
@@ -404,12 +440,19 @@ bool QWindowsMouseHandler::translateMouseEvent(QWindow *window, HWND hwnd,
     // using QWindow::fromWinId() (for example, Qt running in a browser plugin)
     // ChildWindowFromPointEx() may not find the Qt window (failing with ERROR_ACCESS_DENIED)
     if (!currentWindowUnderMouse) {
-        const QRect clientRect(QPoint(0, 0), window->size());
-        if (clientRect.contains(winEventPosition))
+        const QRect clientRect(window->mapToGlobal(QPoint(0, 0)), window->size());
+        if (clientRect.contains(globalPosition))
             currentWindowUnderMouse = window;
     }
 
     compressMouseMove(&msg);
+    if (QEvent::MouseMove == mouseEvent.type 
+        && !QGuiApplicationPrivate::instance()->isButtonDown()) {
+        if (QWindowsWindow* wumPlatformWindow = QWindowsWindow::windowsWindowOf(currentWindowUnderMouse)){
+            currentWindowUnderMouse->updateCursor(globalPosition);
+            wumPlatformWindow->applyCursor();
+        }
+    }
     // Qt expects the platform plugin to capture the mouse on
     // any button press until release.
     if (!platformWindow->hasMouseCapture()
@@ -452,7 +495,8 @@ bool QWindowsMouseHandler::translateMouseEvent(QWindow *window, HWND hwnd,
         // 2) There is capture and we move out of the capturing window.
         // 3) There is a new capture and we were over another window.
         if ((m_windowUnderMouse && m_windowUnderMouse != currentWindowUnderMouse
-                && (!hasCapture || window == m_windowUnderMouse))
+                && (!hasCapture || window == m_windowUnderMouse
+                    || QGuiApplicationPrivate::instance()->popupActive()))
             || (hasCapture && m_previousCaptureWindow != window && m_windowUnderMouse
                 && m_windowUnderMouse != window)) {
             qCDebug(lcQpaEvents) << "Synthetic leave for " << m_windowUnderMouse;
@@ -463,7 +507,9 @@ bool QWindowsMouseHandler::translateMouseEvent(QWindow *window, HWND hwnd,
                 m_trackedWindow = nullptr;
                 // We are not officially in any window, but we need to set some cursor to clear
                 // whatever cursor the left window had, so apply the cursor of the capture window.
-                platformWindow->applyCursor();
+                if (!QGuiApplicationPrivate::instance()->popupActive() ||
+                    (!QGuiApplicationPrivate::instance()->isButtonDown() && window->underMouse(globalPosition)))
+                    platformWindow->applyCursor();
             }
         }
         // Enter is needed if:
@@ -471,14 +517,17 @@ bool QWindowsMouseHandler::translateMouseEvent(QWindow *window, HWND hwnd,
         // 2) There is capture and we move into the capturing window.
         // 3) The capture just ended and we are over non-capturing window.
         if ((currentWindowUnderMouse && m_windowUnderMouse != currentWindowUnderMouse
-                && (!hasCapture || currentWindowUnderMouse == window))
+                && (!hasCapture || currentWindowUnderMouse == window
+                    || QGuiApplicationPrivate::instance()->popupActive()))
             || (m_previousCaptureWindow && window != m_previousCaptureWindow && currentWindowUnderMouse
                 && currentWindowUnderMouse != m_previousCaptureWindow)) {
             QPoint localPosition;
             qCDebug(lcQpaEvents) << "Entering " << currentWindowUnderMouse;
             if (QWindowsWindow *wumPlatformWindow = QWindowsWindow::windowsWindowOf(currentWindowUnderMouse)) {
                 localPosition = wumPlatformWindow->mapFromGlobal(globalPosition);
-                wumPlatformWindow->applyCursor();
+                if (!QGuiApplicationPrivate::instance()->popupActive() ||
+                    (!QGuiApplicationPrivate::instance()->isButtonDown() && currentWindowUnderMouse->underMouse(globalPosition)))
+                    wumPlatformWindow->applyCursor();
             }
             QWindowSystemInterface::handleEnterEvent(currentWindowUnderMouse, localPosition, globalPosition);
         }
@@ -496,7 +545,7 @@ bool QWindowsMouseHandler::translateMouseEvent(QWindow *window, HWND hwnd,
     m_previousCaptureWindow = hasCapture ? window : nullptr;
     // QTBUG-48117, force synchronous handling for the extra buttons so that WM_APPCOMMAND
     // is sent for unhandled WM_XBUTTONDOWN.
-    return (msg.message != WM_XBUTTONUP && msg.message != WM_XBUTTONDOWN && msg.message != WM_XBUTTONDBLCLK)
+    return (!forcesynchronous)
         || QWindowSystemInterface::flushWindowSystemEvents();
 }
 
@@ -626,8 +675,9 @@ bool QWindowsMouseHandler::translateTouchEvent(QWindow *window, HWND,
     touchPoints.reserve(winTouchPointCount);
     Qt::TouchPointStates allStates = nullptr;
 
-    GetTouchInputInfo(reinterpret_cast<HTOUCHINPUT>(msg.lParam),
-                      UINT(msg.wParam), winTouchInputs.data(), sizeof(TOUCHINPUT));
+    QWindowsContext::user32dll.getTouchInputInfo(reinterpret_cast<HANDLE>(msg.lParam),
+                                                 UINT(msg.wParam),
+                                                 winTouchInputs.data(), sizeof(TOUCHINPUT));
     for (int i = 0; i < winTouchPointCount; ++i) {
         const TOUCHINPUT &winTouchInput = winTouchInputs[i];
         int id = m_touchInputIDToTouchPointID.value(winTouchInput.dwID, -1);
@@ -668,7 +718,7 @@ bool QWindowsMouseHandler::translateTouchEvent(QWindow *window, HWND,
         touchPoints.append(touchPoint);
     }
 
-    CloseTouchInputHandle(reinterpret_cast<HTOUCHINPUT>(msg.lParam));
+    QWindowsContext::user32dll.closeTouchInputHandle(reinterpret_cast<HANDLE>(msg.lParam));
 
     // all touch points released, forget the ids we've seen, they may not be reused
     if (allStates == Qt::TouchPointReleased)

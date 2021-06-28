@@ -187,7 +187,7 @@ QPageSize QPpdPrintDevice::defaultPageSize() const
 
 QMarginsF QPpdPrintDevice::printableMargins(const QPageSize &pageSize,
                                             QPageLayout::Orientation orientation,
-                                            int resolution) const
+                                            const QSize &resolution) const
 {
     Q_UNUSED(orientation)
     Q_UNUSED(resolution)

@@ -42,7 +42,7 @@ public:
     QStringList fallbacksForFamily(const QString &family, QFont::Style style,
                                    QFont::StyleHint styleHint,
                                    QChar::Script script) const override;
-    QStringList addApplicationFont(const QByteArray &fontData, const QString &fileName) override;
+    QStringList addApplicationFont(const QByteArray &fontData, const QString &fileName, void **handle) override;
     void releaseHandle(void *handle) override;
 };
 QT_END_NAMESPACE

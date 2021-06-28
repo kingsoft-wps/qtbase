@@ -128,7 +128,7 @@ public:
         ownsDevMode(false),
         mode(QPrinter::ScreenResolution),
         state(QPrinter::Idle),
-        resolution(0),
+        resolution(0, 0),
         m_pageLayout(QPageLayout(QPageSize(QPageSize::A4), QPageLayout::Portrait, QMarginsF(0, 0, 0, 0))),
         stretch_x(1), stretch_y(1), origin_x(0), origin_y(0),
         dpi_x(96), dpi_y(96), dpi_display(96),
@@ -201,7 +201,7 @@ public:
     QString fileName;
 
     QPrinter::PrinterState state;
-    int resolution;
+    QSize resolution;
 
     // Page Layout
     QPageLayout m_pageLayout;

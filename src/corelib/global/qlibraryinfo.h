@@ -111,7 +111,7 @@ public:
 #endif
 
     static QStringList platformPluginArguments(const QString &platformName);
-
+    static QString supportDPIAware();
 private:
     QLibraryInfo();
 };

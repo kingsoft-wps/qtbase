@@ -185,6 +185,7 @@ Q_SIGNALS:
     void organizationDomainChanged();
     void applicationNameChanged();
     void applicationVersionChanged();
+    void closePrintDevice(QString& tempFile);
 
 protected:
     bool event(QEvent *) override;

@@ -145,6 +145,7 @@ public:
     inline void addRoundRect(qreal x, qreal y, qreal w, qreal h,
                              int roundness);
 
+    void connectPolygon(const QPolygonF &polygon);
     void connectPath(const QPainterPath &path);
 
     bool contains(const QPointF &pt) const;
@@ -169,9 +170,9 @@ public:
     QList<QPolygonF> toSubpathPolygons(const QMatrix &matrix = QMatrix()) const;
     QList<QPolygonF> toFillPolygons(const QMatrix &matrix = QMatrix()) const;
     QPolygonF toFillPolygon(const QMatrix &matrix = QMatrix()) const;
-    QList<QPolygonF> toSubpathPolygons(const QTransform &matrix) const;
-    QList<QPolygonF> toFillPolygons(const QTransform &matrix) const;
-    QPolygonF toFillPolygon(const QTransform &matrix) const;
+    QList<QPolygonF> toSubpathPolygons(const QTransform &matrix, qreal flatness = 0.5) const;
+    QList<QPolygonF> toFillPolygons(const QTransform &matrix, qreal flatness = 0.5) const;
+    QPolygonF toFillPolygon(const QTransform &matrix, qreal flatness = 0.5) const;
 
     int elementCount() const;
     QPainterPath::Element elementAt(int i) const;

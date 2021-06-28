@@ -168,6 +168,9 @@ public:
 
     bool verticalTitleBar;
 
+protected:
+    void _resetTitleArea(const QRect &rect);
+
 private:
     QVector<QLayoutItem*> item_list;
     QRect _titleArea;

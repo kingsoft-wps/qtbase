@@ -267,7 +267,7 @@ protected:
 
 private slots:
 #if QT_CONFIG(thread)
-    void waitForThreadPoolDone() { threadPool.waitForDone(); }
+    void waitForThreadPoolDone() { threadPool.waitForDone(100); }
 #endif
 };
 

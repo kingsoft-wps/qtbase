@@ -87,7 +87,7 @@ class QPanGesturePrivate : public QGesturePrivate
 
 public:
     QPanGesturePrivate()
-        : acceleration(0), xVelocity(0), yVelocity(0), pointCount(2)
+        : acceleration(0), xVelocity(0), yVelocity(0), pointCount(2), timeStamp(0)
     {
     }
 
@@ -103,6 +103,7 @@ public:
     qreal xVelocity;
     qreal yVelocity;
     int pointCount; // ### fixme Qt 5.5: Add accessor to QPanGesture.
+    uint timeStamp;
 };
 
 class QPinchGesturePrivate : public QGesturePrivate

@@ -345,7 +345,7 @@ void QMacPrintEnginePrivate::setPageSize(const QPageSize &pageSize)
         return;
     }
 
-    QMarginsF printable = m_printDevice->printableMargins(usePageSize, m_pageLayout.orientation(), resolution.hRes);
+    QMarginsF printable = m_printDevice->printableMargins(usePageSize, m_pageLayout.orientation(), QSize(resolution.hRes, resolution.vRes));
     m_pageLayout.setPageSize(usePageSize, qt_convertMargins(printable, QPageLayout::Point, m_pageLayout.units()));
 
     // You cannot set the page size on a PMPageFormat, you must create a new PMPageFormat
@@ -620,7 +620,7 @@ void QMacPrintEngine::setProperty(PrintEnginePropertyKey key, const QVariant &va
     }
     case PPK_QPageLayout: {
         QPageLayout pageLayout = value.value<QPageLayout>();
-        if (pageLayout.isValid() && d->m_printDevice->isValidPageLayout(pageLayout, d->resolution.hRes)) {
+        if (pageLayout.isValid() && d->m_printDevice->isValidPageLayout(pageLayout, QSize(d->resolution.hRes, d->resolution.vRes))) {
             setProperty(PPK_QPageSize, QVariant::fromValue(pageLayout.pageSize()));
             setProperty(PPK_FullPage, pageLayout.mode() == QPageLayout::FullPageMode);
             setProperty(PPK_Orientation, QVariant::fromValue(pageLayout.orientation()));

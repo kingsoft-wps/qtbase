@@ -95,8 +95,11 @@ public:
     int width(const QString &, int len = -1) const;
     int width(const QString &, int len, int flags) const;
     int width(QChar) const;
+    QT_DEPRECATED int width(const QString&, bool ignoreBidi, int len = -1) const;
+    QT_DEPRECATED int width(const QString&, bool ignoreBidi, int len, int flags) const;
 #endif
 
+    int horizontalAdvance(const QString &, bool ignoreBidi, int len = -1) const;
     int horizontalAdvance(const QString &, int len = -1) const;
     int horizontalAdvance(QChar) const;
 

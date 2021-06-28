@@ -550,49 +550,70 @@ void QVector<T>::reallocData(const int asize, const int aalloc, QArrayData::Allo
     Data *x = d;
 
     const bool isShared = d->ref.isShared();
-
+    bool useRealloc = false;
     if (aalloc != 0) {
         if (aalloc != int(d->alloc) || isShared) {
             QT_TRY {
-                // allocate memory
-                x = Data::allocate(aalloc, options);
-                Q_CHECK_PTR(x);
-                // aalloc is bigger then 0 so it is not [un]sharedEmpty
-#if !defined(QT_NO_UNSHARABLE_CONTAINERS)
-                Q_ASSERT(x->ref.isSharable() || options.testFlag(QArrayData::Unsharable));
-#endif
-                Q_ASSERT(!x->ref.isStatic());
-                x->size = asize;
-
-                T *srcBegin = d->begin();
-                T *srcEnd = asize > d->size ? d->end() : d->begin() + asize;
-                T *dst = x->begin();
-
-                if (!QTypeInfoQuery<T>::isRelocatable || (isShared && QTypeInfo<T>::isComplex)) {
+                if (!isShared && d->isMutable()
+                    && QTypeInfoQuery<T>::isRelocatable && !QTypeInfo<T>::isStatic
+                    && !options.testFlag(QArrayData::RawData)) {
                     QT_TRY {
-                        if (isShared || !std::is_nothrow_move_constructible<T>::value) {
-                            // we can not move the data, we need to copy construct it
-                            while (srcBegin != srcEnd)
-                                new (dst++) T(*srcBegin++);
-                        } else {
-                            while (srcBegin != srcEnd)
-                                new (dst++) T(std::move(*srcBegin++));
-                        }
-                    } QT_CATCH (...) {
-                        // destruct already copied objects
-                        destruct(x->begin(), dst);
-                        QT_RETHROW;
+                        useRealloc = true;
+                        Data * mem = Data::reallocate(d, aalloc, options);
+                        Q_CHECK_PTR(mem);
+                        x = d = mem;
+                        x->size = d->size;
+                    } QT_CATCH (const std::bad_alloc&) {
+                        if (aalloc > int(d->alloc))
+                            QT_RETHROW;
                     }
                 } else {
-                    ::memcpy(static_cast<void *>(dst), static_cast<void *>(srcBegin), (srcEnd - srcBegin) * sizeof(T));
-                    dst += srcEnd - srcBegin;
-
-                    // destruct unused / not moved data
-                    if (asize < d->size)
-                        destruct(d->begin() + asize, d->end());
+                    // allocate memory
+                    x = Data::allocate(aalloc, options);
+                    Q_CHECK_PTR(x);
+                    // aalloc is bigger then 0 so it is not [un]sharedEmpty
+#if !defined(QT_NO_UNSHARABLE_CONTAINERS)
+                    Q_ASSERT(x->ref.isSharable() || options.testFlag(QArrayData::Unsharable));
+#endif
+                    Q_ASSERT(!x->ref.isStatic());
+                    x->size = asize;
                 }
 
-                if (asize > d->size) {
+                T* dst = nullptr;
+                const int dsize = d->size;
+                if (!useRealloc) {
+                    T* srcBegin = d->begin();
+                    T* srcEnd = asize > d->size ? d->end() : d->begin() + asize;
+                    dst = x->begin();
+                    if (!QTypeInfoQuery<T>::isRelocatable || (isShared && QTypeInfo<T>::isComplex)) {
+                        QT_TRY {
+                            if (isShared || !std::is_nothrow_move_constructible<T>::value) {
+                                // we can not move the data, we need to copy construct it
+                                while (srcBegin != srcEnd)
+                                    new (dst++) T(*srcBegin++);
+                            } else {
+                                while (srcBegin != srcEnd)
+                                    new (dst++) T(std::move(*srcBegin++));
+                            }
+                        } QT_CATCH (...) {
+                            // destruct already copied objects
+                            destruct(x->begin(), dst);
+                            QT_RETHROW;
+                        }
+                    } else {
+                        ::memcpy(static_cast<void *>(dst), static_cast<void *>(srcBegin), (srcEnd - srcBegin) * sizeof(T));
+                        dst += srcEnd - srcBegin;
+
+                        // destruct unused / not moved data
+                        if (asize < d->size)
+                            destruct(d->begin() + asize, d->end());
+                    }
+                } else {
+                    dst = x->begin() + x->size;
+                    x->size = asize;
+                }
+
+                if (asize > dsize) {
                     // construct all new objects when growing
                     QT_TRY {
                         while (dst != x->end())

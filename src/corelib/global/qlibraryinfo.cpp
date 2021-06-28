@@ -171,6 +171,10 @@ void QLibrarySettings::load()
     }
 }
 
+#if defined(Q_OS_WIN)
+extern QString qModuleDirPath();
+#endif
+
 QSettings *QLibraryInfoPrivate::findConfiguration()
 {
 #ifdef QT_BUILD_QMAKE
@@ -197,7 +201,11 @@ QSettings *QLibraryInfoPrivate::findConfiguration()
     }
 #endif
     if (QCoreApplication::instance()) {
+#ifdef Q_OS_WIN
+        QDir pwd(qModuleDirPath());
+#else
         QDir pwd(QCoreApplication::applicationDirPath());
+#endif
         qtconfig = pwd.filePath(QLatin1String("qt.conf"));
         if (QFile::exists(qtconfig))
             return new QSettings(qtconfig, QSettings::IniFormat);
@@ -475,6 +483,7 @@ QLibraryInfo::rawLocation(LibraryLocation loc, PathGroup group)
 #endif // QT_BUILD_QMAKE, started inside location !
     QString ret;
     bool fromConf = false;
+    bool fromSpecial = false;
 #if QT_CONFIG(settings)
 #ifdef QT_BUILD_QMAKE
     // Logic for choosing the right data source: if EffectivePaths are requested
@@ -557,11 +566,35 @@ QLibraryInfo::rawLocation(LibraryLocation loc, PathGroup group)
 
             ret = QDir::fromNativeSeparators(ret);
         }
+#ifndef QT_BUILD_QMAKE
+    } else {
+        if (unsigned(loc) < sizeof(qtConfEntries) / sizeof(qtConfEntries[0])) {
+            fromSpecial = true;
+            if (Qml2ImportsPath == loc || PrefixPath == loc || TestsPath == loc
+                || LibraryExecutablesPath == loc || ArchDataPath == loc) {
+                ret = QDir::fromNativeSeparators(QLatin1String(qtConfEntries[loc].value));
+            } else if (ExamplesPath == loc) {
+                ret = QDir::fromNativeSeparators(QLatin1String("qt"));
+            } else {
+                Q_ASSERT(DocumentationPath == loc || HeadersPath == loc || LibrariesPath == loc
+                         || BinariesPath == loc || PluginsPath == loc || ImportsPath == loc
+                         || DataPath == loc || TranslationsPath == loc);
+                ret = QDir::fromNativeSeparators(
+                        QString::fromLatin1("qt/%1").arg(QLatin1String(qtConfEntries[loc].value)));
+            }
+        }
+#ifndef Q_OS_WIN
+        else if (SettingsPath == loc) {
+            fromSpecial = true;
+            ret = QLatin1String("qt");
+        }
+#endif
+#endif
     }
 #endif // settings
 
 #ifndef QT_BUILD_QMAKE_BOOTSTRAP
-    if (!fromConf) {
+    if (!fromConf && !fromSpecial) {
         const char * volatile path = 0;
         if (loc == PrefixPath) {
             path =
@@ -630,7 +663,11 @@ QLibraryInfo::rawLocation(LibraryLocation loc, PathGroup group)
                 }
 #endif // Q_OS_DARWIN
                 // We make the prefix path absolute to the executable's directory.
+#ifdef Q_OS_WIN
+                baseDir = qModuleDirPath();
+#else
                 baseDir = QCoreApplication::applicationDirPath();
+#endif // Q_OS_WIN
             } else {
                 baseDir = QDir::currentPath();
             }
@@ -672,6 +709,19 @@ QStringList QLibraryInfo::platformPluginArguments(const QString &platformName)
     Q_UNUSED(platformName);
 #endif // !QT_BUILD_QMAKE && settings
     return QStringList();
+}
+
+
+QString QLibraryInfo::supportDPIAware()
+{
+#if !defined(QT_BUILD_QMAKE) && QT_CONFIG(settings)
+    QScopedPointer<const QSettings> settings(QLibraryInfoPrivate::findConfiguration());
+    if (!settings.isNull()) {
+        const QString key = QLatin1String("Support/DPIAware");
+        return settings->value(key, QLatin1String("false")).toString();
+	}
+#endif // !QT_BUILD_QMAKE && settings
+    return QLatin1String("true");
 }
 
 /*!

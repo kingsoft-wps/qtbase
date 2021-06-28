@@ -324,6 +324,11 @@ qreal QPanGesture::acceleration() const
     return d_func()->acceleration;
 }
 
+uint QPanGesture::timeStamp() const
+{
+    return d_func()->timeStamp;
+}
+
 void QPanGesture::setLastOffset(const QPointF &value)
 {
     d_func()->lastOffset = value;
@@ -337,6 +342,11 @@ void QPanGesture::setOffset(const QPointF &value)
 void QPanGesture::setAcceleration(qreal value)
 {
     d_func()->acceleration = value;
+}
+
+void QPanGesture::setTimeStamp(uint value)
+{
+    d_func()->timeStamp = value;
 }
 
 /*!

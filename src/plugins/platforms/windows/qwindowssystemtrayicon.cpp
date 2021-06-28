@@ -62,6 +62,7 @@
 #include <QtCore/qrect.h>
 #include <QtCore/qvector.h>
 #include <QtCore/qsettings.h>
+#include <QtCore/qoperatingsystemversion.h>
 
 #include <qt_windows.h>
 #include <commctrl.h>
@@ -90,9 +91,16 @@ static inline void qStringToLimitedWCharArray(QString in, wchar_t *target, int m
 
 static inline void initNotifyIconData(NOTIFYICONDATA &tnd)
 {
-    memset(&tnd, 0, sizeof(NOTIFYICONDATA));
-    tnd.cbSize = sizeof(NOTIFYICONDATA);
-    tnd.uVersion = NOTIFYICON_VERSION_4;
+    if (QOperatingSystemVersion::current() >= QOperatingSystemVersion::WindowsVista) {
+        memset(&tnd, 0, sizeof(NOTIFYICONDATA));
+        tnd.cbSize = sizeof(NOTIFYICONDATA);
+        tnd.uVersion = NOTIFYICON_VERSION_4;
+    }
+    else{
+        memset(&tnd, 0, NOTIFYICONDATA_V2_SIZE);
+        tnd.cbSize = NOTIFYICONDATA_V2_SIZE;
+        tnd.uVersion = NOTIFYICON_VERSION;
+    }
 }
 
 static void setIconContents(NOTIFYICONDATA &tnd, const QString &tip, HICON hIcon)
@@ -231,13 +239,13 @@ void QWindowsSystemTrayIcon::updateToolTip(const QString &tooltip)
 
 QRect QWindowsSystemTrayIcon::geometry() const
 {
-    NOTIFYICONIDENTIFIER nid;
+    QWindowsShell32DLL::Q_NOTIFYICONIDENTIFIER nid;
     memset(&nid, 0, sizeof(nid));
     nid.cbSize = sizeof(nid);
     nid.hWnd = m_hwnd;
     nid.uID = q_uNOTIFYICONID;
     RECT rect;
-    const QRect result = SUCCEEDED(Shell_NotifyIconGetRect(&nid, &rect))
+    const QRect result = SUCCEEDED(QWindowsContext::shell32dll.shell_NotifyIconGetRect(&nid, &rect))
         ? QRect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top)
         : QRect();
     qCDebug(lcQpaTrayIcon) << __FUNCTION__ << this << "returns" << result;
@@ -265,13 +273,16 @@ void QWindowsSystemTrayIcon::showMessage(const QString &title, const QString &me
 
     tnd.uID = q_uNOTIFYICONID;
     tnd.dwInfoFlags = NIIF_USER;
-
+    HICON *phIcon = &tnd.hIcon;
     QSize size(GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON));
-    const QSize largeIcon(GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON));
-    const QSize more = icon.actualSize(largeIcon);
-    if (more.height() > (largeIcon.height() * 3/4) || more.width() > (largeIcon.width() * 3/4)) {
-        tnd.dwInfoFlags |= NIIF_LARGE_ICON;
-        size = largeIcon;
+    if (QOperatingSystemVersion::current() >= QOperatingSystemVersion::WindowsVista) {
+        const QSize largeIcon(GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON));
+        const QSize more = icon.actualSize(largeIcon);
+        if (more.height() > (largeIcon.height() * 3/4) || more.width() > (largeIcon.width() * 3/4)) {
+            tnd.dwInfoFlags |= NIIF_LARGE_ICON;
+            size = largeIcon;
+        }
+        phIcon = &tnd.hBalloonIcon;
     }
     QPixmap pm = icon.pixmap(size);
     if (pm.isNull()) {
@@ -282,7 +293,7 @@ void QWindowsSystemTrayIcon::showMessage(const QString &title, const QString &me
                       pm.size().width(), pm.size().height(), size.width(), size.height());
             pm = pm.scaled(size, Qt::IgnoreAspectRatio);
         }
-        tnd.hBalloonIcon = qt_pixmapToWinHICON(pm);
+        *phIcon = qt_pixmapToWinHICON(pm);
     }
     tnd.hWnd = m_hwnd;
     tnd.uTimeout = msecsIn <= 0 ?  UINT(10000) : UINT(msecsIn); // 10s default
@@ -319,7 +330,13 @@ bool QWindowsSystemTrayIcon::ensureInstalled()
     if (!MYWM_TASKBARCREATED)
         MYWM_TASKBARCREATED = RegisterWindowMessage(L"TaskbarCreated");
     // Allow the WM_TASKBARCREATED message through the UIPI filter
-    ChangeWindowMessageFilterEx(m_hwnd, MYWM_TASKBARCREATED, MSGFLT_ALLOW, nullptr);
+    if (QWindowsContext::user32dll.changeWindowMessageFilterEx) {
+        QWindowsContext::user32dll.changeWindowMessageFilterEx(m_hwnd, MYWM_TASKBARCREATED,
+                                                               MSGFLT_ALLOW, nullptr);
+    } else if (QWindowsContext::user32dll.changeWindowMessageFilter) {
+        QWindowsContext::user32dll.changeWindowMessageFilter(MYWM_TASKBARCREATED, MSGFLT_ALLOW);
+    }
+
     qCDebug(lcQpaTrayIcon) << __FUNCTION__ << this << "MYWM_TASKBARCREATED=" << MYWM_TASKBARCREATED;
 
     QWindowsHwndSystemTrayIconEntry entry{m_hwnd, this};
@@ -393,8 +410,16 @@ bool QWindowsSystemTrayIcon::winEvent(const MSG &message, long *result)
     *result = 0;
     switch (message.message) {
     case MYWM_NOTIFYICON: {
-        Q_ASSERT(q_uNOTIFYICONID == HIWORD(message.lParam));
-        const int trayMessage = LOWORD(message.lParam);
+        int trayMessage = 0;
+        if (QOperatingSystemVersion::current() >= QOperatingSystemVersion::WindowsVista) {
+            Q_ASSERT(q_uNOTIFYICONID == HIWORD(message.lParam));
+            trayMessage = LOWORD(message.lParam);
+        }
+        else {
+            Q_ASSERT(q_uNOTIFYICONID == message.wParam);
+            trayMessage = message.lParam;
+        }
+
         switch (trayMessage) {
         case NIN_SELECT:
         case NIN_KEYSELECT:
@@ -411,7 +436,11 @@ bool QWindowsSystemTrayIcon::winEvent(const MSG &message, long *result)
             // QTBUG-67966: Coordinates may be out of any screen in PROCESS_DPI_UNAWARE mode
             // since hi-res coordinates are delivered in this case (Windows issue).
             // Default to primary screen with check to prevent a crash.
-            const QPoint globalPos = QPoint(GET_X_LPARAM(message.wParam), GET_Y_LPARAM(message.wParam));
+            QPoint globalPos;
+            if (QOperatingSystemVersion::current() >= QOperatingSystemVersion::WindowsVista)
+                globalPos = QPoint(GET_X_LPARAM(message.wParam), GET_Y_LPARAM(message.wParam));
+            else
+                globalPos = QCursor::pos();
             const auto &screenManager = QWindowsContext::instance()->screenManager();
             const QPlatformScreen *screen = screenManager.screenAtDp(globalPos);
             if (!screen)

@@ -120,6 +120,8 @@ public:
     virtual QPaintDevice *paintDevice() = 0;
 
     virtual void flush(QWindow *window, const QRegion &region, const QPoint &offset) = 0;
+    virtual void beginFlush();
+    virtual void endFlush();
 #ifndef QT_NO_OPENGL
     virtual void composeAndFlush(QWindow *window, const QRegion &region, const QPoint &offset,
                                  QPlatformTextureList *textures,
@@ -142,7 +144,7 @@ public:
 
     virtual bool scroll(const QRegion &area, int dx, int dy);
 
-    virtual void beginPaint(const QRegion &);
+    virtual bool beginPaint(const QRegion &);
     virtual void endPaint();
 
 private:

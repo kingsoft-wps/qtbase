@@ -66,7 +66,37 @@
 #define IF_TYPE_IEEE80216_WMAN  237
 #define IF_TYPE_IEEE802154      259
 
+#ifndef NETIO_STATUS
+#define NETIO_STATUS DWORD
+#endif
 QT_BEGIN_NAMESPACE
+
+typedef NETIO_STATUS (WINAPI *PtrConvertInterfaceIndexToLuid)(NET_IFINDEX, PNET_LUID);
+typedef NETIO_STATUS (WINAPI *PtrConvertInterfaceLuidToName)(const NET_LUID *, PWSTR, SIZE_T);
+typedef NETIO_STATUS (WINAPI *PtrConvertInterfaceLuidToIndex)(const NET_LUID *, PNET_IFINDEX);
+typedef NETIO_STATUS (WINAPI *PtrConvertInterfaceNameToLuid)(const WCHAR *, PNET_LUID);
+static PtrConvertInterfaceIndexToLuid ptrConvertInterfaceIndexToLuid = 0;
+static PtrConvertInterfaceLuidToName ptrConvertInterfaceLuidToName = 0;
+static PtrConvertInterfaceLuidToIndex ptrConvertInterfaceLuidToIndex = 0;
+static PtrConvertInterfaceNameToLuid ptrConvertInterfaceNameToLuid = 0;
+
+static void resolveLibs()
+{
+    // try to find the functions we need from Iphlpapi.dll
+    static bool done = false;
+
+    if (!done) {
+        HINSTANCE iphlpapiHnd = GetModuleHandle(L"iphlpapi");
+        Q_ASSERT(iphlpapiHnd);
+
+        // since Windows Vista
+        ptrConvertInterfaceIndexToLuid = (PtrConvertInterfaceIndexToLuid)GetProcAddress(iphlpapiHnd, "ConvertInterfaceIndexToLuid");
+        ptrConvertInterfaceLuidToName = (PtrConvertInterfaceLuidToName)GetProcAddress(iphlpapiHnd, "ConvertInterfaceLuidToNameW");
+        ptrConvertInterfaceLuidToIndex = (PtrConvertInterfaceLuidToIndex)GetProcAddress(iphlpapiHnd, "ConvertInterfaceLuidToIndex");
+        ptrConvertInterfaceNameToLuid = (PtrConvertInterfaceNameToLuid)GetProcAddress(iphlpapiHnd, "ConvertInterfaceNameToLuidW");
+        done = true;
+    }
+}
 
 static QHostAddress addressFromSockaddr(sockaddr *sa)
 {
@@ -90,32 +120,83 @@ static QHostAddress addressFromSockaddr(sockaddr *sa)
 
 uint QNetworkInterfaceManager::interfaceIndexFromName(const QString &name)
 {
+    resolveLibs();
+    if (!ptrConvertInterfaceNameToLuid || !ptrConvertInterfaceLuidToIndex)
+        return 0;
+
     NET_IFINDEX id;
     NET_LUID luid;
-    if (ConvertInterfaceNameToLuidW(reinterpret_cast<const wchar_t *>(name.constData()), &luid) == NO_ERROR
-            && ConvertInterfaceLuidToIndex(&luid, &id) == NO_ERROR)
+    if (ptrConvertInterfaceNameToLuid(reinterpret_cast<const wchar_t *>(name.constData()), &luid) == NO_ERROR
+            && ptrConvertInterfaceLuidToIndex(&luid, &id) == NO_ERROR)
         return uint(id);
     return 0;
 }
 
 QString QNetworkInterfaceManager::interfaceNameFromIndex(uint index)
 {
+    resolveLibs();
+    if (ptrConvertInterfaceIndexToLuid && ptrConvertInterfaceLuidToName) {
     NET_LUID luid;
-    if (ConvertInterfaceIndexToLuid(index, &luid) == NO_ERROR) {
+        if (ptrConvertInterfaceIndexToLuid(index, &luid) == NO_ERROR) {
         WCHAR buf[IF_MAX_STRING_SIZE + 1];
-        if (ConvertInterfaceLuidToNameW(&luid, buf, sizeof(buf)/sizeof(buf[0])) == NO_ERROR)
+            if (ptrConvertInterfaceLuidToName(&luid, buf, sizeof(buf)/sizeof(buf[0])) == NO_ERROR)
             return QString::fromWCharArray(buf);
+        }
     }
+
     return QString::number(index);
 }
 
-static QList<QNetworkInterfacePrivate *> interfaceListing()
+static QHash<QHostAddress, QHostAddress> ipv4Netmasks()
+{
+    QHash<QHostAddress, QHostAddress> ipv4netmasks;
+    if (QOperatingSystemVersion::current() >= QOperatingSystemVersion::WindowsVista)
+        return ipv4netmasks;
+
+    //Retrieve all the IPV4 addresses & netmasks
+    IP_ADAPTER_INFO staticBuf[2]; // 2 is arbitrary
+    PIP_ADAPTER_INFO pAdapter = staticBuf;
+    ULONG bufSize = sizeof staticBuf;
+
+    DWORD retval = GetAdaptersInfo(pAdapter, &bufSize);
+    if (retval == ERROR_BUFFER_OVERFLOW) {
+        // need more memory
+        pAdapter = (IP_ADAPTER_INFO *)malloc(bufSize);
+        if (!pAdapter)
+            return ipv4netmasks;
+        // try again
+        if (GetAdaptersInfo(pAdapter, &bufSize) != ERROR_SUCCESS) {
+            free(pAdapter);
+            return ipv4netmasks;
+        }
+    } else if (retval != ERROR_SUCCESS) {
+        // error
+        return ipv4netmasks;
+    }
+
+    // iterate over the list and add the entries to our listing
+    for (PIP_ADAPTER_INFO ptr = pAdapter; ptr; ptr = ptr->Next) {
+        for (PIP_ADDR_STRING addr = &ptr->IpAddressList; addr; addr = addr->Next) {
+            QHostAddress address(QLatin1String(addr->IpAddress.String));
+            QHostAddress mask(QLatin1String(addr->IpMask.String));
+            ipv4netmasks[address] = mask;
+        }
+    }
+    if (pAdapter != staticBuf)
+        free(pAdapter);
+
+    return ipv4netmasks;
+
+}
+
+static QList<QNetworkInterfacePrivate *> interfaceListingWinXP()
 {
     QList<QNetworkInterfacePrivate *> interfaces;
     IP_ADAPTER_ADDRESSES staticBuf[2]; // 2 is arbitrary
     PIP_ADAPTER_ADDRESSES pAdapter = staticBuf;
     ULONG bufSize = sizeof staticBuf;
 
+    const QHash<QHostAddress, QHostAddress> &ipv4netmasks = ipv4Netmasks();
     ULONG flags = GAA_FLAG_INCLUDE_PREFIX |
                   GAA_FLAG_SKIP_DNS_SERVER |
                   GAA_FLAG_SKIP_MULTICAST;
@@ -140,14 +221,14 @@ static QList<QNetworkInterfacePrivate *> interfaceListing()
         // the structure grows over time, so let's make sure the fields
         // introduced in Windows Vista are present (Luid is the furthest
         // field we access from IP_ADAPTER_ADDRESSES_LH)
-        Q_ASSERT(ptr->Length >= offsetof(IP_ADAPTER_ADDRESSES, Luid));
+        // Q_ASSERT(ptr->Length >= offsetof(IP_ADAPTER_ADDRESSES, Luid));
         Q_ASSERT(ptr->Length >= offsetof(IP_ADAPTER_ADDRESSES, Ipv6IfIndex));
 
         QNetworkInterfacePrivate *iface = new QNetworkInterfacePrivate;
         interfaces << iface;
 
         iface->index = 0;
-        if (ptr->Ipv6IfIndex != 0)
+        if (ptr->Length >= offsetof(IP_ADAPTER_ADDRESSES, Ipv6IfIndex) && ptr->Ipv6IfIndex != 0)
             iface->index = ptr->Ipv6IfIndex;
         else if (ptr->IfIndex != 0)
             iface->index = ptr->IfIndex;
@@ -200,11 +281,13 @@ static QList<QNetworkInterfacePrivate *> interfaceListing()
             break;
         }
 
-        // use ConvertInterfaceLuidToNameW because that returns a friendlier name, though not
-        // as "friendly" as FriendlyName below
-        WCHAR buf[IF_MAX_STRING_SIZE + 1];
-        if (ConvertInterfaceLuidToNameW(&ptr->Luid, buf, sizeof(buf)/sizeof(buf[0])) == NO_ERROR)
+        if (ptrConvertInterfaceLuidToName && ptr->Length >= offsetof(IP_ADAPTER_ADDRESSES_LH, Luid)) {
+            // use ConvertInterfaceLuidToName because that returns a friendlier name, though not
+            // as friendly as FriendlyName below
+            WCHAR buf[IF_MAX_STRING_SIZE + 1];
+            if (ptrConvertInterfaceLuidToName(&(reinterpret_cast<PIP_ADAPTER_ADDRESSES_LH>(ptr)->Luid), buf, sizeof(buf)/sizeof(buf[0])) == NO_ERROR)
             iface->name = QString::fromWCharArray(buf);
+        }
         if (iface->name.isEmpty())
             iface->name = QString::fromLocal8Bit(ptr->AdapterName);
 
@@ -213,17 +296,37 @@ static QList<QNetworkInterfacePrivate *> interfaceListing()
             iface->hardwareAddress = iface->makeHwAddress(ptr->PhysicalAddressLength,
                                                           ptr->PhysicalAddress);
 
-        // parse the IP (unicast) addresses
+        // The GetAdaptersAddresses call has an interesting semantic:
+        // It can return a number N of addresses and a number M of prefixes.
+        // But if you have IPv6 addresses, generally N > M.
+        // I cannot find a way to relate the Address to the Prefix, aside from stopping
+        // the iteration at the last Prefix entry and assume that it applies to all addresses
+        // from that point on.
+        PIP_ADAPTER_PREFIX pprefix = 0;
+        if (ptrConvertInterfaceLuidToName && ptr->Length >= offsetof(IP_ADAPTER_ADDRESSES, FirstPrefix))
+            pprefix = ptr->FirstPrefix;
         for (PIP_ADAPTER_UNICAST_ADDRESS addr = ptr->FirstUnicastAddress; addr; addr = addr->Next) {
-            Q_ASSERT(addr->Length >= offsetof(IP_ADAPTER_UNICAST_ADDRESS, OnLinkPrefixLength));
-
             // skip addresses in invalid state
             if (addr->DadState == IpDadStateInvalid)
                 continue;
 
             QNetworkAddressEntry entry;
             entry.setIp(addressFromSockaddr(addr->Address.lpSockaddr));
-            entry.setPrefixLength(addr->OnLinkPrefixLength);
+            if (QOperatingSystemVersion::current() < QOperatingSystemVersion::WindowsVista){
+                if (pprefix) {
+                    if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol) {
+                        entry.setNetmask(ipv4netmasks[entry.ip()]);
+
+                        // broadcast address is set on postProcess()
+                    } else { // IPV6
+                        entry.setPrefixLength(pprefix->PrefixLength);
+                    }
+                    pprefix = pprefix->Next ? pprefix->Next : pprefix;
+                }
+            } else {
+                //Q_ASSERT(addr->Length >= offsetof(IP_ADAPTER_UNICAST_ADDRESSL_LH, OnLinkPrefixLength));
+                entry.setPrefixLength(reinterpret_cast<PIP_ADAPTER_UNICAST_ADDRESS_LH>(addr)->OnLinkPrefixLength);
+            }
 
             auto toDeadline = [](ULONG lifetime) -> QDeadlineTimer {
                 if (lifetime == 0xffffffffUL)
@@ -247,11 +350,14 @@ static QList<QNetworkInterfacePrivate *> interfaceListing()
 
 QList<QNetworkInterfacePrivate *> QNetworkInterfaceManager::scan()
 {
-    return interfaceListing();
+    resolveLibs();
+    return interfaceListingWinXP();
 }
 
 QString QHostInfo::localDomainName()
 {
+    resolveLibs();
+
     FIXED_INFO info, *pinfo;
     ULONG bufSize = sizeof info;
     pinfo = &info;

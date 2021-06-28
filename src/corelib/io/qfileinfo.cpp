@@ -446,7 +446,12 @@ bool QFileInfo::operator==(const QFileInfo &fileinfo) const
     }
 
    // Fallback to expensive canonical path computation
-   return canonicalFilePath().compare(fileinfo.canonicalFilePath(), sensitive) == 0;
+#if defined(Q_OS_WIN)
+    QString file1 = absoluteFilePath(), file2 = fileinfo.absoluteFilePath();
+#else
+    QString file1 = canonicalFilePath(), file2 = fileinfo.canonicalFilePath();
+#endif
+   return file1.compare(file2, sensitive) == 0;
 }
 
 /*!

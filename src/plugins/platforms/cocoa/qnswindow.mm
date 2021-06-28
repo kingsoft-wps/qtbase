@@ -318,4 +318,12 @@ static bool isMouseEvent(NSEvent *ev)
     [super dealloc];
 }
 
+- (NSSize)minFullScreenContentSize
+{
+    NSSize size = [super minFullScreenContentSize];
+    NSSize screen = [[NSScreen mainScreen] frame].size;
+    size.width = qMin(size.width, screen.width*0.5);
+    size.height = qMin(size.height, screen.height);
+    return size;
+}
 #endif

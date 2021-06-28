@@ -363,7 +363,14 @@ void QXcbWindow::create()
     m_depth = platformScreen->depthOfVisual(m_visualId);
     setImageFormatForVisual(visual);
 
-    quint32 mask = XCB_CW_BACK_PIXMAP
+    xcb_cw_t xcbBackMask = XCB_CW_BACK_PIXEL;
+    uint32_t backgroundPixel = platformScreen->screen()->white_pixel;
+    if (m_format.alphaBufferSize() == 8) {
+        xcbBackMask = XCB_CW_BACK_PIXMAP;
+        backgroundPixel = XCB_BACK_PIXMAP_NONE;
+    }
+
+    quint32 mask = xcbBackMask    // old: XCB_CW_BACK_PIXMAP
                  | XCB_CW_BORDER_PIXEL
                  | XCB_CW_BIT_GRAVITY
                  | XCB_CW_OVERRIDE_REDIRECT
@@ -387,7 +394,7 @@ void QXcbWindow::create()
     }
 
     quint32 values[] = {
-        XCB_BACK_PIXMAP_NONE,
+        backgroundPixel,      // old: XCB_BACK_PIXMAP_NONE,
         platformScreen->screen()->black_pixel,
         XCB_GRAVITY_NORTH_WEST,
         type == Qt::Popup || type == Qt::ToolTip || (window()->flags() & Qt::BypassWindowManagerHint),
@@ -419,7 +426,7 @@ void QXcbWindow::create()
     int propertyCount = 0;
     properties[propertyCount++] = atom(QXcbAtom::WM_DELETE_WINDOW);
     properties[propertyCount++] = atom(QXcbAtom::WM_TAKE_FOCUS);
-    properties[propertyCount++] = atom(QXcbAtom::_NET_WM_PING);
+    //properties[propertyCount++] = atom(QXcbAtom::_NET_WM_PING);
 
     if (connection()->hasXSync())
         properties[propertyCount++] = atom(QXcbAtom::_NET_WM_SYNC_REQUEST);
@@ -1864,9 +1871,6 @@ bool QXcbWindow::isEmbedded() const
 
 QPoint QXcbWindow::mapToGlobal(const QPoint &pos) const
 {
-    if (!m_embedded)
-        return QPlatformWindow::mapToGlobal(pos);
-
     QPoint ret;
     auto reply = Q_XCB_REPLY(xcb_translate_coordinates, xcb_connection(),
                              xcb_window(), xcbScreen()->root(),
@@ -1879,11 +1883,9 @@ QPoint QXcbWindow::mapToGlobal(const QPoint &pos) const
     return ret;
 }
 
+
 QPoint QXcbWindow::mapFromGlobal(const QPoint &pos) const
 {
-    if (!m_embedded)
-        return QPlatformWindow::mapFromGlobal(pos);
-
     QPoint ret;
     auto reply = Q_XCB_REPLY(xcb_translate_coordinates, xcb_connection(),
                              xcbScreen()->root(), xcb_window(),
@@ -2294,6 +2296,8 @@ void QXcbWindow::handleFocusInEvent(const xcb_focus_in_event_t *event)
     // our window, even if the input focus is in a different window.
     if (event->detail == XCB_NOTIFY_DETAIL_POINTER)
         return;
+    if (QGuiApplicationPrivate::instance()->popupActive())
+        return;
     doFocusIn();
 }
 
@@ -2303,6 +2307,8 @@ void QXcbWindow::handleFocusOutEvent(const xcb_focus_out_event_t *event)
     // Ignore focus events that are being sent only because the pointer is over
     // our window, even if the input focus is in a different window.
     if (event->detail == XCB_NOTIFY_DETAIL_POINTER)
+        return;
+    if (event->mode == NotifyGrab)
         return;
     doFocusOut();
 }
@@ -2335,12 +2341,12 @@ bool QXcbWindow::setKeyboardGrabEnabled(bool grab)
         return false;
 
     if (!grab) {
-        xcb_ungrab_keyboard(xcb_connection(), XCB_TIME_CURRENT_TIME);
+        xcb_ungrab_keyboard(xcb_connection(), connection()->time());
         return true;
     }
 
     auto reply = Q_XCB_REPLY(xcb_grab_keyboard, xcb_connection(), false,
-                             m_window, XCB_TIME_CURRENT_TIME,
+                             m_window, connection()->time(),
                              XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
     return reply && reply->status == XCB_GRAB_STATUS_SUCCESS;
 }

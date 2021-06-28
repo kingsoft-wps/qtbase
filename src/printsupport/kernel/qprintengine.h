@@ -72,6 +72,7 @@ public:
         PPK_PrinterName,
         PPK_PrinterProgram,
         PPK_Resolution,
+        PPK_ResolutionXY,
         PPK_SelectionOption,
         PPK_SupportedResolutions,
 
@@ -90,6 +91,10 @@ public:
         PPK_QPageMargins,
         PPK_QPageLayout,
         PPK_PaperSize = PPK_PageSize,
+
+        PPK_ImageQuality = 0xf000,
+        PPK_CupsMaxPantumBoldSize,
+        PPK_AdaptiveImageQuality,
 
         PPK_CustomBase = 0xff00
     };

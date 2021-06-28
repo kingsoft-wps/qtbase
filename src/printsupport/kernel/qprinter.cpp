@@ -128,10 +128,47 @@ QPrinterInfo QPrinterPrivate::findValidPrinter(const QPrinterInfo &printer)
     return printerToUse;
 }
 
+void QPrinterPrivate::initEngines(QPrinter::OutputFormat format, const QString &printer)
+{
+    // Default to PdfFormat
+#ifdef Q_OS_MAC
+    outputFormat = format;
+#else
+    outputFormat = QPrinter::PdfFormat;
+#endif // Q_OS_MAC
+    QPlatformPrinterSupport *ps = nullptr;
+    QString printerName = printer;
+
+    Q_ASSERT(QPrinterInfo::availablePrinterNames().contains(printer));
+
+    if (outputFormat == QPrinter::NativeFormat) {
+        printEngine = ps->createNativePrintEngine(printerMode, printerName);
+        paintEngine = ps->createPaintEngine(printEngine, printerMode);
+    } else {
+        static const QHash<QPrinter::PdfVersion, QPdfEngine::PdfVersion> engineMapping {
+            {QPrinter::PdfVersion_1_4, QPdfEngine::Version_1_4},
+            {QPrinter::PdfVersion_A1b, QPdfEngine::Version_A1b},
+            {QPrinter::PdfVersion_1_6, QPdfEngine::Version_1_6}
+        };
+        const auto pdfEngineVersion = engineMapping.value(pdfVersion, QPdfEngine::Version_1_4);
+        QPdfPrintEngine *pdfEngine = new QPdfPrintEngine(printerMode, pdfEngineVersion);
+        paintEngine = pdfEngine;
+        printEngine = pdfEngine;
+    }
+
+    use_default_engine = true;
+    had_default_engines = true;
+    validPrinter = true;
+}
+
 void QPrinterPrivate::initEngines(QPrinter::OutputFormat format, const QPrinterInfo &printer)
 {
     // Default to PdfFormat
+#ifdef Q_OS_MAC
+    outputFormat = format;
+#else
     outputFormat = QPrinter::PdfFormat;
+#endif // Q_OS_MAC
     QPlatformPrinterSupport *ps = nullptr;
     QString printerName;
 
@@ -257,6 +294,7 @@ public:
         QPrinterPrivate *pd = QPrinterPrivate::get(m_printer);
 
         if (pd->paintEngine->type() != QPaintEngine::Pdf
+            && pd->paintEngine->type() != QPaintEngine::Windows
             && pd->printEngine->printerState() == QPrinter::Active) {
             qWarning("QPrinter::setPageLayout: Cannot be changed while printer is active");
             return false;
@@ -571,6 +609,25 @@ QPrinter::QPrinter(const QPrinterInfo& printer, PrinterMode mode)
 }
 
 void QPrinterPrivate::init(const QPrinterInfo &printer, QPrinter::PrinterMode mode)
+{
+    if (Q_UNLIKELY(!QCoreApplication::instance())) {
+        qFatal("QPrinter: Must construct a QCoreApplication before a QPrinter");
+        return;
+    }
+
+    printerMode = mode;
+
+    initEngines(QPrinter::NativeFormat, printer);
+}
+
+QPrinter::QPrinter(const QString& printer, PrinterMode mode)
+    : QPagedPaintDevice(new QPrinterPagedPaintDevicePrivate(this)),
+      d_ptr(new QPrinterPrivate(this))
+{
+    d_ptr->init(printer, mode);
+}
+
+void QPrinterPrivate::init(const QString &printer, QPrinter::PrinterMode mode)
 {
     if (Q_UNLIKELY(!QCoreApplication::instance())) {
         qFatal("QPrinter: Must construct a QCoreApplication before a QPrinter");
@@ -1517,6 +1574,18 @@ int QPrinter::resolution() const
     return d->printEngine->property(QPrintEngine::PPK_Resolution).toInt();
 }
 
+QSize QPrinter::resolutionXY() const
+{
+    Q_D(const QPrinter);
+    QVariant value = d->printEngine->property(QPrintEngine::PPK_ResolutionXY);
+    if (value.type() == QVariant::Size)
+        return value.toSize();
+    else {
+        int res = resolution();
+        return QSize(res, res);
+    }
+}
+
 /*!
   Sets the paper source setting to \a source.
 
@@ -1654,7 +1723,7 @@ QPrinter::DuplexMode QPrinter::duplex() const
 QRectF QPrinter::pageRect(Unit unit) const
 {
     if (unit == QPrinter::DevicePixel)
-        return pageLayout().paintRectPixels(resolution());
+        return pageLayout().paintRectPixels(resolutionXY());
     else
         return pageLayout().paintRect(QPageLayout::Unit(unit));
 }
@@ -1671,7 +1740,7 @@ QRectF QPrinter::pageRect(Unit unit) const
 QRectF QPrinter::paperRect(Unit unit) const
 {
     if (unit == QPrinter::DevicePixel)
-        return pageLayout().fullRectPixels(resolution());
+        return pageLayout().fullRectPixels(resolutionXY());
     else
         return pageLayout().fullRect(QPageLayout::Unit(unit));
 }
@@ -1772,6 +1841,12 @@ void QPrinter::getPageMargins(qreal *left, qreal *top, qreal *right, qreal *bott
         *top = margins.top();
     if (bottom)
         *bottom = margins.bottom();
+}
+
+void QPrinter::setEngineProperty(int printEngineProperty, QVariant value)
+{
+    Q_D(const QPrinter);
+	d->printEngine->setProperty(QPrintEngine::PrintEnginePropertyKey(printEngineProperty), value);
 }
 
 /*!

@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
             qDebug() << "defaultPageSize    :" << printDevice.defaultPageSize();
             qDebug() << "supportedPageSizes :";
             foreach (const QPageSize &page, printDevice.supportedPageSizes())
-                qDebug() << "                    " << page << printDevice.printableMargins(page, QPageLayout::Portrait, 300);
+                qDebug() << "                    " << page << printDevice.printableMargins(page, QPageLayout::Portrait, QSize(300, 300));
             qDebug() << "";
             qDebug() << "supportsCustomPageSizes :" << printDevice.supportsCustomPageSizes();
             qDebug() << "";

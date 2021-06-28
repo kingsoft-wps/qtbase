@@ -550,6 +550,10 @@ void QFileDialogPrivate::initHelper(QPlatformDialogHelper *h)
     QObject::connect(h, SIGNAL(currentChanged(QUrl)), d, SLOT(_q_nativeCurrentChanged(QUrl)));
     QObject::connect(h, SIGNAL(directoryEntered(QUrl)), d, SLOT(_q_nativeEnterDirectory(QUrl)));
     QObject::connect(h, SIGNAL(filterSelected(QString)), d, SIGNAL(filterSelected(QString)));
+#ifdef Q_OS_MAC
+    QObject::connect(h, SIGNAL(encryptFile()), d, SLOT(onEncryptFileButtonClick()));
+	QObject::connect(h, SIGNAL(saveToCloud()), d, SLOT(onSaveToCloudButtonClick()));
+#endif
     static_cast<QPlatformFileDialogHelper *>(h)->setOptions(options);
     nativeDialogInUse = true;
 }
@@ -864,6 +868,12 @@ void QFileDialog::setVisible(bool visible)
             // Set WA_DontShowOnScreen so that QDialog::setVisible(visible) below
             // updates the state correctly, but skips showing the non-native version:
             setAttribute(Qt::WA_DontShowOnScreen);
+#ifdef Q_OS_WIN
+            setWindowFlags(windowFlags() | 
+                Qt::FramelessWindowHint |
+                Qt::WindowDoesNotAcceptFocus |
+                Qt::WindowTransparentForInput);
+#endif
 #if QT_CONFIG(fscompleter)
             // So the completer doesn't try to complete and therefore show a popup
             if (!d->nativeDialogInUse)
@@ -2115,6 +2125,65 @@ QString QFileDialog::labelText(DialogLabel label) const
     return QString();
 }
 
+#ifdef Q_OS_MAC
+void QFileDialog::setAccessoryButtonText(AccessoryButton button, const QString &text)
+{
+    Q_D(QFileDialog);
+    d->options->setAccessoryButtonText(static_cast<QFileDialogOptions::AccessoryButton>(button), text);
+}
+
+QString QFileDialog::accessoryButtonText(AccessoryButton) const
+{
+    return QString();
+}
+
+void QFileDialog::onEncryptFileButtonClick()
+{
+    // Send a notification to show the encrypted box, first hide the current box
+    QUrl url = this->selectedUrls().value(0);
+    QString fileName = url.fileName();
+    QString filePath = url.path();
+    filePath = filePath.left(filePath.length() - fileName.length() - 1);
+
+    QString fileExt;
+    if (fileName.indexOf(".") != -1)
+        fileExt = fileName.right(fileName.length() - fileName.indexOf(".") - 1);
+
+    // First use the text above the field
+    Q_D(QFileDialog);
+    QString name = d->platformFileDialogHelper()->userFileName();
+    if (name.isEmpty())
+    {
+        name = fileName;
+    }
+
+    // Show encryption box
+    QGuiApplication::postEvent(parent(), new QEncryptFileEvent(name, filePath, fileExt, d->extra));
+
+    // close
+    this->reject();
+}
+void QFileDialog::onSaveToCloudButtonClick()
+{
+    // emit cloudFileButtonClicked();
+    // Show cloud document save box
+    QGuiApplication::postEvent(parent(), new QSaveToCloudEvent());
+    // close
+    this->reject();
+}
+void QFileDialog::setExtraArgument(const QVariant &v)
+{
+    Q_D(QFileDialog);
+    d->extra = v;
+}
+
+QVariant QFileDialog::extraArgument() const
+{
+    Q_D(const QFileDialog);
+    return d->extra;
+}
+
+#endif
 /*!
     This is a convenience static function that returns an existing file
     selected by the user. If the user presses Cancel, it returns a null string.
@@ -2332,6 +2401,9 @@ QList<QUrl> QFileDialog::getOpenFileUrls(QWidget *parent,
     args.options = options;
 
     QFileDialog dialog(args);
+#ifdef Q_OS_MAC
+    dialog.setLabelText(QFileDialog::FileType, QObject::tr("File Type"));
+#endif
     dialog.setSupportedSchemes(supportedSchemes);
     if (selectedFilter && !selectedFilter->isEmpty())
         dialog.selectNameFilter(*selectedFilter);
@@ -2993,6 +3065,7 @@ void QFileDialogPrivate::createWidgets()
     qFileDialogUi->treeView->setFileDialogPrivate(this);
     qFileDialogUi->treeView->setModel(model);
     QHeaderView *treeHeader = qFileDialogUi->treeView->header();
+    treeHeader->setFirstSectionMovable(true);
     QFontMetrics fm(q->font());
     treeHeader->resizeSection(0, fm.horizontalAdvance(QLatin1String("wwwwwwwwwwwwwwwwwwwwwwwwww")));
     treeHeader->resizeSection(1, fm.horizontalAdvance(QLatin1String("128.88 GB")));
@@ -3582,20 +3655,34 @@ void QFileDialogPrivate::_q_updateOkButton()
             QString fileDir;
             QString fileName;
             if (info.isDir()) {
+#if defined(Q_OS_WIN)
+                fileDir = info.absoluteFilePath();
+#else
                 fileDir = info.canonicalFilePath();
+#endif
             } else {
                 fileDir = fn.mid(0, fn.lastIndexOf(QLatin1Char('/')));
                 fileName = fn.mid(fileDir.length() + 1);
             }
             if (lineEditText.contains(QLatin1String(".."))) {
+#if defined(Q_OS_WIN)
+                fileDir = info.absoluteFilePath();
+#else
                 fileDir = info.canonicalFilePath();
+#endif
                 fileName = info.fileName();
             }
-
+#if defined(Q_OS_WIN)
+            if (fileDir == q->directory().absolutePath() && fileName.isEmpty()) {
+                enableButton = false;
+                break;
+            }
+#else
             if (fileDir == q->directory().canonicalPath() && fileName.isEmpty()) {
                 enableButton = false;
                 break;
             }
+#endif
             if (idx.isValid() && model->isDir(idx)) {
                 isOpenDirectory = true;
                 enableButton = true;

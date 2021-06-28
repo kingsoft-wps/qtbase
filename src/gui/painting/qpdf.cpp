@@ -337,6 +337,54 @@ namespace QPdf {
     }
 }
 
+QByteArray QPdf::encodeNameObjStr(const QByteArray& name)
+{
+    // 127: Maximum length of a name, in bytes.
+    QByteArray result;
+    result.reserve(name.size());
+    for (QByteArray::const_iterator iter = name.begin(); iter != name.end(); ++iter)
+    {
+        const char ch = *iter;
+        bool bNeedEncode = false;
+        // it is recommended but not required for characters whose codes are outside the range 33 (!) to 126 (~).
+        // signed char, utf8 byte < 0
+        if (((ch > 0 && ch < '!') || ch > '~') ||
+            '(' == ch || ')' == ch ||
+            '<' == ch || '>' == ch ||
+            '[' == ch || ']' == ch ||
+            '{' == ch || '}' == ch ||
+            '/' == ch || '%' == ch)
+        {
+            bNeedEncode = true;
+        }
+        else if ('#' == ch && name.end() - iter > 2)
+        {
+            char first = *(iter + 1);
+            char second = *(iter + 2);
+            if (first >= '0' && first <= '9' && second >= '0' && second <= '9')
+                bNeedEncode = true;
+        }
+        /*
+            Beginning with PDF 1.2, any character except null (character code 0) may be
+            included in a name by writing its 2-digit hexadecimal code, preceded by the
+            number sign character (#)
+        */
+        if (bNeedEncode)
+        {
+            result.push_back('#');
+            QByteArray hexCode = QByteArray::number(ch, 16);
+            if (hexCode.size() < 2)
+                result.push_back('0');
+            result.push_back(hexCode);
+        }
+        else
+        {
+            result.push_back(ch);
+        }
+    }
+    return result;
+}
+
 #define QT_PATH_ELEMENT(elm)
 
 QByteArray QPdf::generatePath(const QPainterPath &path, const QTransform &matrix, PathFlags flags)
@@ -948,6 +996,11 @@ void QPdfEngine::drawPixmap (const QRectF &rectangle, const QPixmap &pixmap, con
     QRect sourceRect = sr.toRect();
     QPixmap pm = sourceRect != pixmap.rect() ? pixmap.copy(sourceRect) : pixmap;
     QImage image = pm.toImage();
+    if (d->imageQuality && tryScaleImage(image, d->imageQuality))
+    {
+        sourceRect.setWidth(image.width());
+        sourceRect.setHeight(image.height());
+    }
     bool bitmap = true;
     const int object = d->addImage(image, &bitmap, pm.cacheKey());
     if (object < 0)
@@ -966,7 +1019,7 @@ void QPdfEngine::drawPixmap (const QRectF &rectangle, const QPixmap &pixmap, con
     }
 
     *d->currentPage
-        << QPdf::generateMatrix(QTransform(rectangle.width() / sr.width(), 0, 0, rectangle.height() / sr.height(),
+        << QPdf::generateMatrix(QTransform(rectangle.width() / sourceRect.width(), 0, 0, rectangle.height() / sourceRect.height(),
                                            rectangle.x(), rectangle.y()) * (d->simplePen ? QTransform() : d->stroker.matrix));
     if (bitmap) {
         // set current pen as d->brush
@@ -987,6 +1040,11 @@ void QPdfEngine::drawImage(const QRectF &rectangle, const QImage &image, const Q
 
     QRect sourceRect = sr.toRect();
     QImage im = sourceRect != image.rect() ? image.copy(sourceRect) : image;
+    if (d->imageQuality && tryScaleImage(im, d->imageQuality))
+    {
+        sourceRect.setWidth(im.width());
+        sourceRect.setHeight(im.height());
+    }
     bool bitmap = true;
     const int object = d->addImage(im, &bitmap, im.cacheKey());
     if (object < 0)
@@ -1005,7 +1063,7 @@ void QPdfEngine::drawImage(const QRectF &rectangle, const QImage &image, const Q
     }
 
     *d->currentPage
-        << QPdf::generateMatrix(QTransform(rectangle.width() / sr.width(), 0, 0, rectangle.height() / sr.height(),
+        << QPdf::generateMatrix(QTransform(rectangle.width() / sourceRect.width(), 0, 0, rectangle.height() / sourceRect.height(),
                                            rectangle.x(), rectangle.y()) * (d->simplePen ? QTransform() : d->stroker.matrix));
     setBrush();
     d->currentPage->streamImage(im.width(), im.height(), object);
@@ -1049,7 +1107,16 @@ void QPdfEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     if (!d->hasPen || (d->clipEnabled && d->allClipped))
         return;
 
-    if (d->stroker.matrix.type() >= QTransform::TxProject) {
+#ifdef Q_OS_MAC
+    // Solve the problem of incorrect printing of vertical text box angle
+    QPaintEngine::drawTextItem(p, textItem);
+    return ;
+#endif
+    if ((d->stroker.matrix.type() >= QTransform::TxProject)
+#ifdef Q_OS_LINUX
+    || textItem.font().verticalMetrics()
+#endif
+    ) {
         QPaintEngine::drawTextItem(p, textItem);
         return;
     }
@@ -1059,10 +1126,23 @@ void QPdfEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         *d->currentPage << QPdf::generateMatrix(d->stroker.matrix);
 
     bool hp = d->hasPen;
+    bool useCmykColor = d->useCmykColor;
+    if (d->pen.color().spec() == QColor::Cmyk)
+        d->useCmykColor = true;
+    else
+        d->useCmykColor = false;
     d->hasPen = false;
     QBrush b = d->brush;
     d->brush = d->pen.brush();
     setBrush();
+
+    bool bNeedSetPen = d->useCmykColor;
+#ifdef Q_OS_LINUX
+    if (hp)
+        bNeedSetPen = true;
+#endif
+    if (bNeedSetPen)
+        setPen();
 
     const QTextItemInt &ti = static_cast<const QTextItemInt &>(textItem);
     Q_ASSERT(ti.fontEngine->type() != QFontEngine::Multi);
@@ -1265,16 +1345,30 @@ void QPdfEngine::setPen()
     QBrush b = d->pen.brush();
     Q_ASSERT(b.style() == Qt::SolidPattern && b.isOpaque());
 
+    bool bUseCmykColor = false;
     QColor rgba = b.color();
     if (d->grayscale) {
         qreal gray = qGray(rgba.rgba())/255.;
         *d->currentPage << gray << gray << gray;
-    } else {
+    } else if (d->useCmykColor && rgba.spec() == QColor::Cmyk) {
+		bUseCmykColor = true;
+		qreal c = 0;
+		qreal m = 0;
+		qreal y = 0;
+		qreal k = 0;
+		rgba.getCmykF(&c, &m, &y, &k);
+		*d->currentPage << c << m << y << k;
+	} 
+    else {
         *d->currentPage << rgba.redF()
                         << rgba.greenF()
                         << rgba.blueF();
     }
-    *d->currentPage << "SCN\n";
+
+    if (bUseCmykColor)
+        *d->currentPage << "K\n";
+    else
+        *d->currentPage << "SCN\n";
 
     *d->currentPage << d->pen.widthF() << "w ";
 
@@ -1292,7 +1386,11 @@ void QPdfEngine::setPen()
     default:
         break;
     }
+#ifndef Q_OS_LINUX
     *d->currentPage << pdfCapStyle << "J ";
+#else
+    *d->currentPage << pdfCapStyle << "J\r";
+#endif
 
     int pdfJoinStyle = 0;
     switch(d->pen.joinStyle()) {
@@ -1310,7 +1408,11 @@ void QPdfEngine::setPen()
     default:
         break;
     }
+#ifndef Q_OS_LINUX
     *d->currentPage << pdfJoinStyle << "j ";
+#else
+    *d->currentPage << pdfCapStyle << "j\r";
+#endif
 
     *d->currentPage << QPdf::generateDashes(d->pen);
 }
@@ -1329,12 +1431,34 @@ void QPdfEngine::setBrush()
     if (!patternObject && !specifyColor)
         return;
 
+    bool bUseCmykColor = false;
+    bool bWriteColor = true;
     *d->currentPage << (patternObject ? "/PCSp cs " : "/CSp cs ");
     if (specifyColor) {
         QColor rgba = d->brush.color();
+#ifdef Q_OS_MAC
+		Qt::BrushStyle style = d->brush.style();
+		if (style == Qt::LinearGradientPattern || style == Qt::RadialGradientPattern) {// && style <= Qt::ConicalGradientPattern) {
+			QGradientStops stops = d->brush.gradient()->stops();
+			rgba = stops.at(0).second;
+		}
+#endif
         if (d->grayscale) {
             qreal gray = qGray(rgba.rgba())/255.;
             *d->currentPage << gray << gray << gray;
+        } else if (d->useCmykColor && rgba.spec() == QColor::Cmyk) {
+			bUseCmykColor = true;
+			qreal c = 0;
+			qreal m = 0;
+			qreal y = 0;
+			qreal k = 0;
+			rgba.getCmykF(&c, &m, &y, &k);
+			// 0 0 0 1 k does not write in FZ software
+			if (c != 0 || m != 0 || y != 0 || k != 1) {
+				*d->currentPage << c << m << y << k;
+			} else {
+				bWriteColor = false;
+			}
         } else {
             *d->currentPage << rgba.redF()
                             << rgba.greenF()
@@ -1343,7 +1467,16 @@ void QPdfEngine::setBrush()
     }
     if (patternObject)
         *d->currentPage << "/Pat" << patternObject;
-    *d->currentPage << "scn\n";
+
+    if (bUseCmykColor)
+	{
+		if (bWriteColor)
+			*d->currentPage << "k\n";
+		else
+			*d->currentPage << "\n";
+	} else {
+		*d->currentPage << "scn\n";
+	}
 
     if (gStateObject)
         *d->currentPage << "/GState" << gStateObject << "gs\n";
@@ -1465,6 +1598,33 @@ int QPdfEngine::metric(QPaintDevice::PaintDeviceMetric metricType) const
     return val;
 }
 
+bool QPdfEngine::tryScaleImage(QImage& image, int quality)
+{
+    const int minEdge = qMin(image.width(), image.height());
+    if (minEdge > quality)
+    {
+        qreal factor = quality * 1.0 / minEdge;
+        if (factor < 0.9)
+        {
+            Q_D(QPdfEngine);
+            if (d->bAdaptiveImageQuality && factor < 0.5)
+                factor = 0.5;
+            int width = image.width() * factor + 0.5;
+            int height = image.height() * factor + 0.5;
+            if (width < 1)
+                width = 1;
+            if (height < 1)
+                height = 1;
+
+            if (d->bAdaptiveImageQuality)
+                image = image.scaled(width, height, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            else
+                image = image.scaled(width, height);
+            return true;
+        }
+    }
+}
+
 QPdfEnginePrivate::QPdfEnginePrivate()
     : clipEnabled(false), allClipped(false), hasPen(true), hasBrush(false), simplePen(false),
       pdfVersion(QPdfEngine::Version_1_4),
@@ -1482,6 +1642,11 @@ QPdfEnginePrivate::QPdfEnginePrivate()
     streampos = 0;
 
     stream = new QDataStream;
+
+    maxPantumBoldSize = 0;
+    imageQuality = 0;
+    bAdaptiveImageQuality = false;
+    useCmykColor = false;
 }
 
 bool QPdfEngine::begin(QPaintDevice *pdev)
@@ -1795,6 +1960,7 @@ void QPdfEnginePrivate::embedFont(QFontSubset *font)
 
     QFontEngine::Properties properties = font->fontEngine->properties();
     QByteArray postscriptName = properties.postscriptName.replace(' ', '_');
+    postscriptName = QPdf::encodeNameObjStr(postscriptName);
 
     {
         qreal scale = 1000/properties.emSquare.toReal();
@@ -1906,6 +2072,39 @@ void QPdfEnginePrivate::embedFont(QFontSubset *font)
         write(cidSetStream);
         xprintf("\nendstream\n");
         xprintf("endobj\n");
+    }
+    if (font->pantumBoldId)
+    {
+        int cidfontBold = requestObject();
+        {
+            addXrefEntry(cidfontBold);
+            QByteArray cid;
+            QPdf::ByteStream s(&cid);
+            s << "<< /Type /Font\n"
+                "/Subtype /CIDFontType2\n"
+                "/BaseFont /" << postscriptName << "+PCLBold\n"
+                "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >>\n"
+                "/FontDescriptor " << fontDescriptor << "0 R\n"
+                "/CIDToGIDMap /Identity\n"
+                << font->widthArray() <<
+                ">>\n"
+                "endobj\n";
+            write(cid);
+        }
+        {
+            addXrefEntry(font->pantumBoldId);
+            QByteArray font;
+            QPdf::ByteStream s(&font);
+            s << "<< /Type /Font\n"
+                "/Subtype /Type0\n"
+                "/BaseFont /" << postscriptName << "\n"
+                "/Encoding /Identity-H\n"
+                "/DescendantFonts [" << cidfontBold << "0 R]\n"
+                "/ToUnicode " << toUnicode << "0 R"
+                ">>\n"
+                "endobj\n";
+            write(font);
+        }
     }
 }
 
@@ -2646,10 +2845,19 @@ int QPdfEnginePrivate::addBrushPattern(const QTransform &m, bool *specifyColor, 
     //qDebug() << brushOrigin << matrix;
 
     Qt::BrushStyle style = brush.style();
+#ifdef Q_OS_MAC
+    // temporarily blocked
+    if (style == Qt::LinearGradientPattern || style == Qt::RadialGradientPattern
+            || style == (Qt::TexturePattern + 2)) {// && style <= Qt::ConicalGradientPattern) {
+        *specifyColor = true;
+        return false;
+    }
+#else
     if (style == Qt::LinearGradientPattern || style == Qt::RadialGradientPattern) {// && style <= Qt::ConicalGradientPattern) {
         *specifyColor = false;
         return gradientBrush(brush, matrix, gStateObject);
     }
+#endif // Q_OS_MAC
 
     if ((!brush.isOpaque() && brush.style() < Qt::LinearGradientPattern) || opacity != 1.0)
         *gStateObject = addConstantAlphaObject(qRound(brush.color().alpha() * opacity),
@@ -2664,8 +2872,21 @@ int QPdfEnginePrivate::addBrushPattern(const QTransform &m, bool *specifyColor, 
         bool bitmap = true;
         imageObject = addImage(image, &bitmap, image.cacheKey());
         if (imageObject != -1) {
-            QImage::Format f = image.format();
-            if (f != QImage::Format_MonoLSB && f != QImage::Format_Mono) {
+            auto _isColoredTiling = [&]() {
+                QImage::Format f = image.format();
+                if (f != QImage::Format_MonoLSB && f != QImage::Format_Mono)
+                    return true;
+                Qt::TextureWrapMode wrapMode = brush.textureWrapMode();
+                if (wrapMode == Qt::TextureStretching)
+                    return false;
+                qint32 patternStyle = -1;
+                QRgb fgColor;
+                QRgb bkColor;
+                brush.getTexturePatternStyle(patternStyle, fgColor, bkColor);
+                return patternStyle != -1;
+            };
+
+            if (_isColoredTiling()) {
                 paintType = 1; // Colored tiling
                 *specifyColor = false;
             }
@@ -2785,7 +3006,13 @@ int QPdfEnginePrivate::addImage(const QImage &img, bool *bitmap, qint64 serial_n
         bool hasAlpha = false;
         bool hasMask = false;
 
+#ifdef Q_OS_MAC
+        if (QImageWriter::supportedImageFormats().contains("jpeg") && !grayscale 
+            && format != QImage::Format_ARGB32_Premultiplied
+	        && format != QImage::Format_ARGB32) {
+#else
         if (QImageWriter::supportedImageFormats().contains("jpeg") && !grayscale) {
+#endif // Q_OS_MAC
             QBuffer buffer(&imageData);
             QImageWriter writer(&buffer, "jpeg");
             writer.setQuality(94);
@@ -2935,6 +3162,15 @@ void QPdfEnginePrivate::drawTextItem(const QPointF &p, const QTextItemInt &ti)
         noEmbed = true;
     }
 
+    bool bUsePantumBold = false;
+#ifdef Q_OS_LINUX
+    bool bCustomTextBold = (pen.isDrawCustomTextBold() && pen.widthF() > 0);
+    bUsePantumBold = !noEmbed &&
+    	!bCustomTextBold &&
+        fe->fontDef.pixelSize > 0 &&
+        fe->fontDef.pixelSize <= maxPantumBoldSize;
+#endif
+
     QFontSubset *font = fonts.value(face_id, 0);
     if (!font) {
         font = new QFontSubset(fe, requestObject());
@@ -2942,19 +3178,31 @@ void QPdfEnginePrivate::drawTextItem(const QPointF &p, const QTextItemInt &ti)
     }
     fonts.insert(face_id, font);
 
-    if (!currentPage->fonts.contains(font->object_id))
-        currentPage->fonts.append(font->object_id);
+    int synthesized = ti.fontEngine->synthesized();
+    bool bSynthesizedBold = (synthesized & QFontEngine::SynthesizedBold);
+    int curFontObj = font->object_id;
+#ifdef Q_OS_LINUX
+    if (bUsePantumBold && bSynthesizedBold)
+    {
+        if (0 == font->pantumBoldId)
+            font->pantumBoldId = requestObject();
+        curFontObj = font->pantumBoldId;
+    }
+#endif
+
+    if (!currentPage->fonts.contains(curFontObj))
+        currentPage->fonts.append(curFontObj);
 
     qreal size = ti.fontEngine->fontDef.pixelSize;
 
     QVarLengthArray<glyph_t> glyphs;
     QVarLengthArray<QFixedPoint> positions;
-    QTransform m = QTransform::fromTranslate(p.x(), p.y());
+    QTransform m = ti.fontEngine->applyTextRotation(QTransform::fromTranslate(p.x(), p.y()));
     ti.fontEngine->getGlyphPositions(ti.glyphs, m, ti.flags,
                                      glyphs, positions);
     if (glyphs.size() == 0)
         return;
-    int synthesized = ti.fontEngine->synthesized();
+ 
     qreal stretch = synthesized & QFontEngine::SynthesizedStretch ? ti.fontEngine->fontDef.stretch/100. : 1.;
     Q_ASSERT(stretch > qreal(0));
 
@@ -2988,6 +3236,16 @@ void QPdfEnginePrivate::drawTextItem(const QPointF &p, const QTextItemInt &ti)
         pos = end;
     } while (pos < ti.num_chars);
 #else
+#ifdef Q_OS_LINUX
+    if (bCustomTextBold)
+    {
+        *currentPage << "2 Tr\r" << pen.widthF() << " w\r";
+    }
+    else if (!bUsePantumBold && (synthesized & QFontEngine::SynthesizedBold))
+    {
+        *currentPage << "2 Tr\r" << size*0.0286f*stretch << " w\r";
+    }
+#endif
     qreal last_x = 0.;
     qreal last_y = 0.;
     for (int i = 0; i < glyphs.size(); ++i) {
@@ -3003,6 +3261,7 @@ void QPdfEnginePrivate::drawTextItem(const QPointF &p, const QTextItemInt &ti)
         last_x = x;
         last_y = y;
     }
+#ifndef Q_OS_LINUX
     if (synthesized & QFontEngine::SynthesizedBold) {
         *currentPage << stretch << (synthesized & QFontEngine::SynthesizedItalic
                             ? "0 .3 -1 0 0 Tm\n"
@@ -3025,6 +3284,7 @@ void QPdfEnginePrivate::drawTextItem(const QPointF &p, const QTextItemInt &ti)
         }
         *currentPage << "EMC\n";
     }
+#endif
 #endif
 
     *currentPage << "ET\n";

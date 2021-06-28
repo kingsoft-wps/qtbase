@@ -63,6 +63,7 @@
 #include <QtCore/QMetaType>
 #include <QtCore/qt_windows.h>
 #include <QtGui/qpagelayout.h>
+#include <QtGui/qcomplexstroker.h>
 
 Q_DECLARE_METATYPE(HFONT)
 Q_DECLARE_METATYPE(LOGFONT)
@@ -129,7 +130,8 @@ bool QWin32PrintEngine::begin(QPaintDevice *pdev)
     if (!d->hdc)
         return false;
 
-    d->devMode->dmCopies = d->num_copies;
+    if (d->devMode)
+        d->devMode->dmCopies = d->num_copies;
 
     DOCINFO di;
     memset(&di, 0, sizeof(DOCINFO));
@@ -147,7 +149,7 @@ bool QWin32PrintEngine::begin(QPaintDevice *pdev)
         ok = false;
     }
 
-    if (StartPage(d->hdc) <= 0) {
+    if (ok && StartPage(d->hdc) <= 0) {
         qErrnoWarning(msgBeginFailed("StartPage", di));
         ok = false;
     }
@@ -274,8 +276,12 @@ bool QWin32PrintEngine::newPage()
 
 bool QWin32PrintEngine::abort()
 {
-    // do nothing loop.
-    return false;
+    Q_D(QWin32PrintEngine);
+    if (d->state != QPrinter::Active)
+        return false;
+    d->state = QPrinter::Aborted;
+    bool ret = end();
+    return ret;
 }
 
 void QWin32PrintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
@@ -291,6 +297,8 @@ void QWin32PrintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem
     bool fallBack = state->pen().brush().style() != Qt::SolidPattern
                     || qAlpha(brushColor) != 0xff
                     || d->txop >= QTransform::TxProject
+                    || d->matrix.m11() < 0
+                    || d->matrix.m22() < 0
                     || ti.fontEngine->type() != QFontEngine::Win
                     || !d->embed_fonts;
 
@@ -336,7 +344,8 @@ int QWin32PrintEngine::metric(QPaintDevice::PaintDeviceMetric m) const
         return 0;
 
     int val;
-    int res = d->resolution;
+    int res_x = d->resolution.width();
+    int res_y = d->resolution.height();
 
     switch (m) {
     case QPaintDevice::PdmWidth:
@@ -354,10 +363,10 @@ int QWin32PrintEngine::metric(QPaintDevice::PaintDeviceMetric m) const
 #endif // QT_DEBUG_METRICS
         break;
     case QPaintDevice::PdmDpiX:
-        val = res;
+        val = res_x;
         break;
     case QPaintDevice::PdmDpiY:
-        val = res;
+        val = res_y;
         break;
     case QPaintDevice::PdmPhysicalDpiX:
         val = GetDeviceCaps(d->hdc, LOGPIXELSX);
@@ -398,6 +407,29 @@ int QWin32PrintEngine::metric(QPaintDevice::PaintDeviceMetric m) const
         break;
     case QPaintDevice::PdmDevicePixelRatioScaled:
         val = 1 * QPaintDevice::devicePixelRatioFScale();
+        break;
+    case QPaintDevice::PdmPhysicalWidth:
+        {
+            int nLogPixelsX = GetDeviceCaps(d->hdc, LOGPIXELSX);
+            if (0 == nLogPixelsX)
+            {
+                qWarning("QWin32PrintEngine::metric: GetDeviceCaps() failed, "
+                         "might be a driver problem");
+                nLogPixelsX = 600; // Reasonable default
+            }
+            val = res_x * GetDeviceCaps(d->hdc, PHYSICALWIDTH) / nLogPixelsX;
+        }
+        break;
+    case QPaintDevice::PdmPhysicalHeight:
+        {
+            int nLogPixelsY = GetDeviceCaps(d->hdc, LOGPIXELSY);
+            if (0 == nLogPixelsY) {
+                qWarning("QWin32PrintEngine::metric: GetDeviceCaps() failed, "
+                         "might be a driver problem");
+                nLogPixelsY = 600; // Reasonable default
+            }
+            val = res_y * GetDeviceCaps(d->hdc, PHYSICALHEIGHT) / nLogPixelsY;
+        }
         break;
     default:
         qWarning("QPrinter::metric: Invalid metric command");
@@ -494,7 +526,7 @@ void QWin32PrintEngine::updateMatrix(const QTransform &m)
     d->painterMatrix = m;
     d->matrix = d->painterMatrix * stretch;
     d->txop = d->matrix.type();
-    d->complex_xform = (d->txop > QTransform::TxScale);
+    d->complex_xform = (d->txop > QTransform::TxScale || d->matrix.m11() < 0 || d->matrix.m22() < 0);
 }
 
 enum HBitmapFormat
@@ -514,7 +546,7 @@ void QWin32PrintEngine::drawPixmap(const QRectF &targetRect,
     if (!continueCall())
         return;
 
-    const int tileSize = 2048;
+    const int tileSize = 1024;
 
     QRectF r = targetRect;
     QRectF sr = sourceRect;
@@ -722,14 +754,21 @@ void QWin32PrintEnginePrivate::fillPath_dev(const QPainterPath &path, const QCol
     DeleteObject(SelectObject(hdc, old_brush));
 }
 
-void QWin32PrintEnginePrivate::strokePath_dev(const QPainterPath &path, const QColor &color, qreal penWidth)
+HPEN createGdiPen(const QPen &pen, const QColor &color, qreal penWidth)
 {
-    composeGdiPath(path);
+    Q_ASSERT(pen.style() != Qt::NoPen);
+
     LOGBRUSH brush;
     brush.lbStyle = BS_SOLID;
     brush.lbColor = RGB(color.red(), color.green(), color.blue());
+    DWORD nPenWidth = qMax(1, qRound(penWidth));
     DWORD capStyle = PS_ENDCAP_SQUARE;
     DWORD joinStyle = PS_JOIN_BEVEL;
+    DWORD dashStyle = PS_SOLID;
+    DWORD cStyle = 0;
+    DWORD *pStyles = NULL;
+    DWORD penStyle = (nPenWidth == 1 ? PS_COSMETIC : PS_GEOMETRIC);
+
     if (pen.capStyle() == Qt::FlatCap)
         capStyle = PS_ENDCAP_FLAT;
     else if (pen.capStyle() == Qt::RoundCap)
@@ -740,9 +779,49 @@ void QWin32PrintEnginePrivate::strokePath_dev(const QPainterPath &path, const QC
     else if (pen.joinStyle() == Qt::RoundJoin)
         joinStyle = PS_JOIN_ROUND;
 
-    HPEN pen = ExtCreatePen(PS_GEOMETRIC | PS_SOLID | capStyle | joinStyle,
-                            (penWidth == 0) ? 1 : penWidth, &brush, 0, 0);
+    switch (pen.style())
+    {
+    case Qt::SolidLine:
+        dashStyle = PS_SOLID;
+        break;
+    case Qt::DashLine:
+        dashStyle = PS_DASH;
+        break;
+    case Qt::DotLine:
+        dashStyle = PS_DOT;
+        break;
+    case Qt::DashDotLine:
+        dashStyle = PS_DASHDOT;
+        break;
+    case Qt::DashDotDotLine:
+        dashStyle = PS_DASHDOTDOT;
+        break;
+    case Qt::CustomDashLine:
+        {
+            dashStyle = PS_USERSTYLE;
+            const QVector<qreal> dashs = pen.dashPattern();
+            cStyle = dashs.count();
+            pStyles = new DWORD[cStyle];
+            for (DWORD i = 0; i < cStyle; i++)
+                pStyles[i] = qMax(1, qRound(dashs.at(i) * nPenWidth));
+        }
+        break;
+    default:
+        break;
+    }
 
+    HPEN hpen = ExtCreatePen(penStyle | capStyle | joinStyle | dashStyle ,
+                            nPenWidth, &brush, cStyle, pStyles);
+    if (pStyles)
+        delete pStyles;
+
+    return hpen;
+}
+
+void QWin32PrintEnginePrivate::strokePath_dev(const QPainterPath &path, const QColor &color, qreal penWidth)
+{
+    composeGdiPath(path);
+    HPEN pen = createGdiPen(this->pen, color, penWidth);
     HGDIOBJ old_pen = SelectObject(hdc, pen);
     StrokePath(hdc);
     DeleteObject(SelectObject(hdc, old_pen));
@@ -756,39 +835,19 @@ void QWin32PrintEnginePrivate::fillPath(const QPainterPath &path, const QColor &
 
 void QWin32PrintEnginePrivate::strokePath(const QPainterPath &path, const QColor &color)
 {
-    Q_Q(QWin32PrintEngine);
-
-    QPainterPathStroker stroker;
-    if (pen.style() == Qt::CustomDashLine) {
-        stroker.setDashPattern(pen.dashPattern());
-        stroker.setDashOffset(pen.dashOffset());
-    } else {
-        stroker.setDashPattern(pen.style());
+    if (qpen_is_complex(pen)) {
+        auto stroker = QComplexStroker::fromPen(pen);
+        QPainterPath path2fill = stroker.createStroke(path);
+        return fillPath(path2fill, color);
     }
-    stroker.setCapStyle(pen.capStyle());
-    stroker.setJoinStyle(pen.joinStyle());
-    stroker.setMiterLimit(pen.miterLimit());
 
-    QPainterPath stroke;
     qreal width = pen.widthF();
-    bool cosmetic = qt_pen_is_cosmetic(pen, q->state->renderHints());
-    if (pen.style() == Qt::SolidLine && (cosmetic || matrix.type() < QTransform::TxScale)) {
-        strokePath_dev(path * matrix, color, width);
-    } else {
-        stroker.setWidth(width);
-        if (cosmetic) {
-            stroke = stroker.createStroke(path * matrix);
-        } else {
-            stroke = stroker.createStroke(path) * painterMatrix;
-            QTransform stretch(stretch_x, 0, 0, stretch_y, origin_x, origin_y);
-            stroke = stroke * stretch;
-        }
-
-        if (stroke.isEmpty())
-            return;
-
-        fillPath_dev(stroke, color);
+    if (!pen.isCosmetic() && matrix.type() >= QTransform::TxScale) {
+        QLineF line(0, 0, width, 0);
+        width = matrix.map(line).length();
     }
+
+    strokePath_dev(path * matrix, color, width);
 }
 
 
@@ -951,13 +1010,14 @@ void QWin32PrintEnginePrivate::initHDC()
 
     switch(mode) {
     case QPrinter::ScreenResolution:
-        resolution = dpi_display;
+        resolution.rwidth() = resolution.rheight() = dpi_display;
         stretch_x = dpi_x / double(dpi_display);
         stretch_y = dpi_y / double(dpi_display);
         break;
     case QPrinter::PrinterResolution:
     case QPrinter::HighResolution:
-        resolution = dpi_y;
+        resolution.rwidth() = dpi_x;
+        resolution.rheight() = dpi_y;
         stretch_x = 1;
         stretch_y = 1;
         break;
@@ -1150,10 +1210,15 @@ void QWin32PrintEngine::setProperty(PrintEnginePropertyKey key, const QVariant &
         if (!d->devMode)
             break;
         QPageLayout::Orientation orientation = QPageLayout::Orientation(value.toInt());
+        QPageLayout::Orientation old_orientation = d->devMode->dmOrientation == DMORIENT_LANDSCAPE
+            ? QPageLayout::Landscape : QPageLayout::Portrait;
         d->devMode->dmOrientation = orientation == QPageLayout::Landscape ? DMORIENT_LANDSCAPE : DMORIENT_PORTRAIT;
         d->m_pageLayout.setOrientation(orientation);
+        if (old_orientation != orientation)
+            d->resolution = QSize(d->resolution.height(), d->resolution.width());
         d->updateMetrics();
         d->doReinit();
+        d->updatePageLayout();
 #ifdef QT_DEBUG_METRICS
         qDebug() << "QWin32PrintEngine::setProperty(PPK_Orientation," << orientation << ')';
         d->debugMetrics();
@@ -1240,9 +1305,10 @@ void QWin32PrintEngine::setProperty(PrintEnginePropertyKey key, const QVariant &
     }
 
     case PPK_Resolution: {
-        d->resolution = value.toInt();
-        d->stretch_x = d->dpi_x / double(d->resolution);
-        d->stretch_y = d->dpi_y / double(d->resolution);
+        int res = value.toInt();
+        d->resolution = QSize(res, res);
+        d->stretch_x = d->dpi_x / double(res);
+        d->stretch_y = d->dpi_y / double(res);
         d->updateMetrics();
 #ifdef QT_DEBUG_METRICS
         qDebug() << "QWin32PrintEngine::setProperty(PPK_Resolution," << value.toInt() << ')';
@@ -1422,7 +1488,16 @@ QVariant QWin32PrintEngine::property(PrintEnginePropertyKey key) const
         break;
 
     case PPK_SupportsMultipleCopies:
-        value = true;
+        {
+            if (false == d->m_printDevice.supportsCollateCopies())
+            {
+                value = false;
+                break;
+            }
+
+            int nCopies = ::DeviceCapabilities((const wchar_t *)d->m_printDevice.name().utf16(), NULL, DC_COPIES, NULL, d->devMode);
+            value = (nCopies >= d->num_copies);
+        }
         break;
 
     case PPK_NumberOfCopies:
@@ -1474,7 +1549,12 @@ QVariant QWin32PrintEngine::property(PrintEnginePropertyKey key) const
         break;
 
     case PPK_Resolution:
-        if (d->resolution || d->m_printDevice.isValid())
+        if (d->resolution.height() || d->m_printDevice.isValid())
+            value = d->resolution.height();
+        break;
+
+    case PPK_ResolutionXY:
+        if (!d->resolution.isNull() || d->m_printDevice.isValid())
             value = d->resolution;
         break;
 
@@ -1631,18 +1711,21 @@ void QWin32PrintEnginePrivate::setPageSize(const QPageSize &pageSize)
     const QMarginsF printable = m_printDevice.printableMargins(usePageSize, m_pageLayout.orientation(), resolution);
     m_pageLayout.setPageSize(usePageSize, qt_convertMargins(printable, QPageLayout::Point, m_pageLayout.units()));
 
+    // Size in tenths of a millimeter
+    const QSizeF sizeMM = m_pageLayout.pageSize().size(QPageSize::Millimeter);
+
     // Setup if Windows custom size, i.e. not a known Windows ID
     if (printerPageSize.isValid()) {
         has_custom_paper_size = false;
         devMode->dmPaperSize = m_pageLayout.pageSize().windowsId();
-        devMode->dmFields &= ~(DM_PAPERLENGTH | DM_PAPERWIDTH);
-        devMode->dmPaperWidth = 0;
-        devMode->dmPaperLength = 0;
+
+        if (devMode->dmFields & DM_PAPERWIDTH)
+            devMode->dmPaperWidth = qRound(sizeMM.width() * 10.0);
+        if (devMode->dmFields & DM_PAPERLENGTH)
+            devMode->dmPaperLength = qRound(sizeMM.height() * 10.0);
     } else {
         devMode->dmPaperSize = DMPAPER_USER;
         devMode->dmFields |= DM_PAPERLENGTH | DM_PAPERWIDTH;
-        // Size in tenths of a millimeter
-        const QSizeF sizeMM = m_pageLayout.pageSize().size(QPageSize::Millimeter);
         devMode->dmPaperWidth = qRound(sizeMM.width() * 10.0);
         devMode->dmPaperLength = qRound(sizeMM.height() * 10.0);
     }
@@ -1681,8 +1764,10 @@ void QWin32PrintEnginePrivate::updatePageLayout()
             }
         }
         if (!hasCustom) {
-            QPageSize pageSize = QPageSize(QSizeF(devMode->dmPaperWidth / 10.0f, devMode->dmPaperLength / 10.0f),
-                                           QPageSize::Millimeter);
+            QPageSize pageSize = m_printDevice.supportedPageSize((QPageSize::PageSizeId)devMode->dmPaperSize);
+            if (!pageSize.isValid())
+                pageSize = QPageSize(QSizeF(devMode->dmPaperWidth / 10.0f, devMode->dmPaperLength / 10.0f),
+                                     QPageSize::Millimeter);
             setPageSize(pageSize);
         }
     } else {

@@ -179,11 +179,12 @@ QImage QWinRTBackingStore::toImage() const
     return d->paintDevice;
 }
 
-void QWinRTBackingStore::beginPaint(const QRegion &region)
+bool QWinRTBackingStore::beginPaint(const QRegion &region)
 {
     qCDebug(lcQpaBackingStore) << __FUNCTION__ << this << region;
 
     resize(window()->size(), region);
+    return true;
 }
 
 void QWinRTBackingStore::endPaint()

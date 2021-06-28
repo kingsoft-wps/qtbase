@@ -64,6 +64,23 @@ public:
     ~QPrintDialog();
 
     int exec() override;
+#if defined(Q_OS_MAC)
+    struct PrintPageInfo
+    {
+        QRect destRect;                 // Draw rectangle size
+        QSize pageSize;                 // Paper size
+        bool isOrientationLand;         // Is the page horizontal
+        bool isSelectionOnly;           // Print selected area
+        bool isPrintPreviewer;          // Print preview mode
+    };
+
+    virtual void PrintPage(void *ctx, int pageNum, const PrintPageInfo &info);//virtual function
+    virtual int GetPageCount(bool paperOrientationLand, float rectWidth, float rectHeight, bool isSelectionOnly);
+    virtual void* GetViewController();
+    virtual void GetPaperSize(float *paperWidth, float *paperHeight);
+    virtual void GetPrintJobName(QString &jobName);
+    virtual void GetPDFFilePathAndPassword(QString &filePath, QString &userKey, QString &ownerKey);
+#endif
 #if defined (Q_OS_UNIX) && !defined(Q_OS_MAC)
     virtual void accept() override;
 #endif
@@ -90,6 +107,11 @@ public:
 Q_SIGNALS:
     void accepted(QPrinter *printer);
 
+#ifdef Q_OS_MAC
+protected:
+    void DrawImageToContext(void* ctx, const QImage &img, const QRect &destRc);
+    void DrawPDFDocumentToContext(void *ctx, QString *filename, int rotate = 0, unsigned int pageIndex = 1, const char* password = nullptr);
+#endif
 private:
 #if defined (Q_OS_UNIX) && !defined(Q_OS_MAC)
     Q_PRIVATE_SLOT(d_func(), void _q_togglePageSetCombo(bool))

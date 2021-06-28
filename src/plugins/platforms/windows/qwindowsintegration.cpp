@@ -78,13 +78,11 @@
 
 #include <QtCore/qdebug.h>
 #include <QtCore/qvariant.h>
+#include <QtCore/qlibraryinfo.h>
 
 #include <limits.h>
 
-#if defined(QT_OPENGL_ES_2) || defined(QT_OPENGL_DYNAMIC)
-#  include "qwindowseglcontext.h"
-#endif
-#if !defined(QT_NO_OPENGL) && !defined(QT_OPENGL_ES_2)
+#if !defined(QT_NO_OPENGL)
 #  include "qwindowsglcontext.h"
 #endif
 
@@ -233,6 +231,8 @@ QWindowsIntegrationPrivate::QWindowsIntegrationPrivate(const QStringList &paramL
     // Default to per-monitor awareness to avoid being scaled when monitors with different DPI
     // are connected to Windows 8.1
     QtWindows::ProcessDpiAwareness dpiAwareness = QtWindows::ProcessPerMonitorDpiAware;
+    if (0 != QLibraryInfo::supportDPIAware().compare(QLatin1String("true")))
+        dpiAwareness = QtWindows::ProcessDpiUnaware;
     m_options = parseOptions(paramList, &tabletAbsoluteRange, &dpiAwareness);
     QWindowsFontDatabase::setFontOptions(m_options);
 
@@ -381,6 +381,11 @@ QPlatformWindow *QWindowsIntegration::createForeignWindow(QWindow *window, WId n
     return result;
 }
 
+QPlatformWindow *QWindowsIntegration::findPlatformWindow(WId nativeHandle) const
+{
+    return d->m_context.findPlatformWindow(reinterpret_cast<HWND>(nativeHandle));
+}
+
 // Overridden to return a QWindowsDirect2DWindow in Direct2D plugin.
 QWindowsWindow *QWindowsIntegration::createPlatformWindowHelper(QWindow *window, const QWindowsWindowData &data) const
 {
@@ -404,13 +409,6 @@ QWindowsStaticOpenGLContext *QWindowsStaticOpenGLContext::doCreate()
         }
         qCWarning(lcQpaGl, "System OpenGL failed. Falling back to Software OpenGL.");
         return QOpenGLStaticContext::create(true);
-    // If ANGLE is requested, use it, don't try anything else.
-    case QWindowsOpenGLTester::AngleRendererD3d9:
-    case QWindowsOpenGLTester::AngleRendererD3d11:
-    case QWindowsOpenGLTester::AngleRendererD3d11Warp:
-        return QWindowsEGLStaticContext::create(requestedRenderer);
-    case QWindowsOpenGLTester::Gles:
-        return QWindowsEGLStaticContext::create(requestedRenderer);
     case QWindowsOpenGLTester::SoftwareRasterizer:
         if (QWindowsStaticOpenGLContext *swCtx = QOpenGLStaticContext::create(true))
             return swCtx;
@@ -436,16 +434,7 @@ QWindowsStaticOpenGLContext *QWindowsStaticOpenGLContext::doCreate()
             return glCtx;
         }
     }
-    if (QWindowsOpenGLTester::Renderers glesRenderers = supportedRenderers & QWindowsOpenGLTester::GlesMask) {
-        if (QWindowsEGLStaticContext *eglCtx = QWindowsEGLStaticContext::create(glesRenderers))
-            return eglCtx;
-    }
     return QOpenGLStaticContext::create(true);
-#elif defined(QT_OPENGL_ES_2)
-    QWindowsOpenGLTester::Renderers glesRenderers = QWindowsOpenGLTester::requestedGlesRenderer();
-    if (glesRenderers == QWindowsOpenGLTester::InvalidRenderer)
-        glesRenderers = QWindowsOpenGLTester::supportedRenderers(QWindowsOpenGLTester::AngleRendererD3d11);
-    return QWindowsEGLStaticContext::create(glesRenderers);
 #elif !defined(QT_NO_OPENGL)
     return QOpenGLStaticContext::create();
 #endif
@@ -469,9 +458,7 @@ QPlatformOpenGLContext *QWindowsIntegration::createPlatformOpenGLContext(QOpenGL
 
 QOpenGLContext::OpenGLModuleType QWindowsIntegration::openGLModuleType()
 {
-#if defined(QT_OPENGL_ES_2)
-    return QOpenGLContext::LibGLES;
-#elif !defined(QT_OPENGL_DYNAMIC)
+#if !defined(QT_OPENGL_DYNAMIC)
     return QOpenGLContext::LibGL;
 #else
     if (const QWindowsStaticOpenGLContext *staticOpenGLContext = QWindowsIntegration::staticOpenGLContext())

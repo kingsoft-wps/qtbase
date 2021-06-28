@@ -1063,6 +1063,29 @@ private:
     Qt::ApplicationState m_applicationState;
 };
 
+class Q_GUI_EXPORT QModalEvent : public QEvent
+{
+public:
+    QModalEvent(Type type, QWindow *w);
+
+    QWindow *widgetWindow();
+
+private:
+    QWindow *w;
+};
+
+class Q_GUI_EXPORT QWindowsWindowGeometryChangedEvent : public QEvent
+{
+public:
+    QWindowsWindowGeometryChangedEvent(const QRect &geo, const QRect &oldGeo);
+    ~QWindowsWindowGeometryChangedEvent();
+
+    inline const QRect &geometry() const { return g; }
+    inline const QRect &oldGeometry() const { return oldg; }
+
+private:
+    QRect g, oldg;
+};
 QT_END_NAMESPACE
 
 #endif // QEVENT_H

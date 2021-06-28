@@ -673,6 +673,7 @@ void QWindowsKeyMapper::changeKeyboard()
 
     keyboardInputDirection = bidi ? Qt::RightToLeft : Qt::LeftToRight;
     m_seenAltGr = false;
+    QGuiApplicationPrivate::instance()->changeKeyboard();
 }
 
 // Helper function that is used when obtaining the list of characters that can be produced by one key and
@@ -1253,13 +1254,6 @@ bool QWindowsKeyMapper::translateKeyEventInternal(QWindow *window, MSG msg,
             const QString text = uch.isNull() ? QString() : QString(uch);
             const char a = uch.row() ? char(0) : char(uch.cell());
             const Qt::KeyboardModifiers modifiers(state);
-#ifndef QT_NO_SHORTCUT
-            // Is Qt interested in the context menu key?
-            if (modifiers == Qt::SHIFT && code == Qt::Key_F10
-                && !QGuiApplicationPrivate::instance()->shortcutMap.hasShortcutForKeySequence(QKeySequence(Qt::SHIFT + Qt::Key_F10))) {
-                return false;
-            }
-#endif // !QT_NO_SHORTCUT
             key_recorder.storeKey(int(msg.wParam), a, state, text);
 
             // QTBUG-71210
@@ -1275,18 +1269,25 @@ bool QWindowsKeyMapper::translateKeyEventInternal(QWindow *window, MSG msg,
             // Alt+<alphanumerical> go to the Win32 menu system if unhandled by Qt
             if (msgType == WM_SYSKEYDOWN && !result && a) {
                 HWND parent = GetParent(QWindowsWindow::handleOf(receiver));
-                while (parent) {
-                    if (GetMenu(parent)) {
-                        SendMessage(parent, WM_SYSCOMMAND, SC_KEYMENU, a);
-                        store = false;
-                        result = true;
-                        break;
-                    }
+                while (parent && GetParent(parent)) {
                     parent = GetParent(parent);
+                }
+                const QWindowsContext *context = QWindowsContext::instance();
+                if (parent && !context->findPlatformWindow(parent)) {
+                    SendMessage(parent, WM_SYSCOMMAND, SC_KEYMENU, a);
+                    store = false;
+                    result = true;
                 }
             }
             if (!store)
                 key_recorder.findKey(int(msg.wParam), true);
+#ifndef QT_NO_SHORTCUT
+            // Is Qt interested in the context menu key?
+            if (modifiers == Qt::SHIFT && code == Qt::Key_F10
+                && !QGuiApplicationPrivate::instance()->shortcutMap.hasShortcutForKeySequence(QKeySequence(Qt::SHIFT + Qt::Key_F10))) {
+                result = false;
+            }
+#endif // !QT_NO_SHORTCUT
         }
     }
 
@@ -1318,12 +1319,11 @@ bool QWindowsKeyMapper::translateKeyEventInternal(QWindow *window, MSG msg,
             if (code == Qt::Key_Alt) {
                 const QWindowsContext *context = QWindowsContext::instance();
                 HWND parent = GetParent(QWindowsWindow::handleOf(receiver));
-                while (parent) {
-                    if (!context->findPlatformWindow(parent) && GetMenu(parent)) {
-                        result = false;
-                        break;
-                    }
+                while (parent && GetParent(parent)) {
                     parent = GetParent(parent);
+                }
+                if (parent && !context->findPlatformWindow(parent)) {
+                    result = false;
                 }
             }
         }
@@ -1360,6 +1360,11 @@ QList<int> QWindowsKeyMapper::possibleKeys(const QKeyEvent *e) const
 
     quint32 baseKey = kbItem.qtKey[0];
     Qt::KeyboardModifiers keyMods = e->modifiers();
+    // same with Linux version, shortcut ignore KeyPad Modifier,
+    // so, we remove this.
+    if (keyMods & Qt::KeypadModifier)
+        keyMods = keyMods & ~Qt::KeypadModifier;
+
     if (baseKey == Qt::Key_Return && (e->nativeModifiers() & ExtendedKey)) {
         result << int(Qt::Key_Enter + keyMods);
         return result;

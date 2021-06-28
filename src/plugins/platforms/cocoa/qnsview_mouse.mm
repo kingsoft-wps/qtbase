@@ -266,7 +266,9 @@
         // The bug reference is QTBUG-46379
         if (!popup->window()->flags().testFlag(Qt::ToolTip)) {
             if (QNSView *popupView = qnsview_cast(popup->view()))
+            {
                 targetView = popupView;
+			}
         }
     }
 
@@ -294,6 +296,11 @@
 
 - (bool)handleMouseDownEvent:(NSEvent *)theEvent
 {
+    if (!m_platformWindow)
+        return false;
+
+    if (!m_platformWindow->window())
+        return false;
     if ([self isTransparentForUserInput])
         return false;
 
@@ -356,7 +363,6 @@
     m_buttons &= ~button;
 
     [self handleMouseEvent:theEvent];
-
     if (button == Qt::RightButton)
         m_sendUpAsRightButton = false;
 
@@ -390,16 +396,22 @@
         // Close the popups if the click was outside.
         if (!inside) {
             bool selfClosed = false;
+            bool needStopAfterSelfClosed = false;
             Qt::WindowType type = QCocoaIntegration::instance()->activePopupWindow()->window()->type();
             while (QCocoaWindow *popup = QCocoaIntegration::instance()->popPopupWindow()) {
                 selfClosed = self == popup->view();
-                QWindowSystemInterface::handleCloseEvent(popup->window());
-                QWindowSystemInterface::flushWindowSystemEvents();
+                QPopupWindowStateQueryEvent queryEvent;
+                QCoreApplication::sendEvent(popup->window(), &queryEvent);
+                needStopAfterSelfClosed = needStopAfterSelfClosed || queryEvent.stopAfterSelfClosed();
+                if (queryEvent.needClosed())
+                QWindowSystemInterface::handleCloseEvent<QWindowSystemInterface::SynchronousDelivery>(popup->window());
+                if (!m_platformWindow)
+                    return; // Bail out if window was destroyed
             }
             // Consume the mouse event when closing the popup, except for tool tips
             // were it's expected that the event is processed normally.
-            if (type != Qt::ToolTip || selfClosed)
-                 return;
+            if ((type != Qt::ToolTip || selfClosed) && needStopAfterSelfClosed)
+                return;
         }
     }
 
@@ -407,6 +419,11 @@
     QPointF qtScreenPoint;
     [self convertFromScreen:[self screenMousePoint:theEvent] toWindowPoint:&qtWindowPoint andScreenPoint:&qtScreenPoint];
     Q_UNUSED(qtScreenPoint);
+    if (!m_platformWindow)
+        return;
+
+    if (!m_platformWindow->window())
+        return;
 
     QRegion mask = m_platformWindow->window()->mask();
     const bool masked = !mask.isEmpty() && !mask.contains(qtWindowPoint.toPoint());
@@ -423,8 +440,18 @@
     }
 
     if ([self hasMarkedText]) {
-        [[NSTextInputContext currentInputContext] handleEvent:theEvent];
-    } else {
+        [self.inputContext handleEvent:theEvent];
+
+        // There are other issues with third-party type-ahead
+        if ([self hasMarkedText])
+        {
+            //Do this temporarily, but Apple doesn't recommend it. Only this solution is perfect.
+            [self.inputContext deactivate];
+            [self.inputContext activate];
+        }
+    // If it contains pre-input, you need to submit the pre-input data first and then respond to the mouse message
+    }
+    {
         auto ctrlOrMetaModifier = qApp->testAttribute(Qt::AA_MacDontSwapCtrlAndMeta) ? Qt::ControlModifier : Qt::MetaModifier;
         if (!m_dontOverrideCtrlLMB && [QNSView convertKeyModifiers:[theEvent modifierFlags]] & ctrlOrMetaModifier) {
             m_buttons |= Qt::RightButton;
@@ -539,7 +566,7 @@
     if (childWindow != m_platformWindow->window())
         return;
 
-    [self handleMouseEvent: theEvent];
+    [self handleMouseEvent:theEvent];
 }
 
 - (void)mouseEnteredImpl:(NSEvent *)theEvent

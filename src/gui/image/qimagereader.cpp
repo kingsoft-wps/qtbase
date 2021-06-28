@@ -231,8 +231,45 @@ static QImageIOHandler *createReadHandlerHelper(QIODevice *device,
     if (ignoresFormatAndExtension)
         testFormat = QByteArray();
 
+    // if we don't have a handler yet, check if we have built-in support for
+    // the format
+    if (!testFormat.isEmpty()) {
+        if (false) {
+#ifndef QT_NO_IMAGEFORMAT_PNG
+        } else if (testFormat == "png") {
+            handler = new QPngHandler;
+#endif
+#ifndef QT_NO_IMAGEFORMAT_BMP
+        } else if (testFormat == "bmp") {
+            handler = new QBmpHandler;
+        } else if (testFormat == "dib") {
+            handler = new QBmpHandler(QBmpHandler::DibFormat);
+#endif
+#ifndef QT_NO_IMAGEFORMAT_XPM
+        } else if (testFormat == "xpm") {
+            handler = new QXpmHandler;
+#endif
+#ifndef QT_NO_IMAGEFORMAT_XBM
+        } else if (testFormat == "xbm") {
+            handler = new QXbmHandler;
+            handler->setOption(QImageIOHandler::SubType, testFormat);
+#endif
+#ifndef QT_NO_IMAGEFORMAT_PPM
+        } else if (testFormat == "pbm" || testFormat == "pbmraw" || testFormat == "pgm"
+                   || testFormat == "pgmraw" || testFormat == "ppm" || testFormat == "ppmraw") {
+            handler = new QPpmHandler;
+            handler->setOption(QImageIOHandler::SubType, testFormat);
+#endif
+        }
+
+#ifdef QIMAGEREADER_DEBUG
+        if (handler)
+            qDebug() << "QImageReader::createReadHandler: using the built-in handler for" << testFormat;
+#endif
+    }
+
 #ifndef QT_NO_IMAGEFORMATPLUGIN
-    if (suffixPluginIndex != -1) {
+    if (!handler && suffixPluginIndex != -1) {
         // check if the plugin that claims support for this format can load
         // from this device with this format.
         const qint64 pos = device ? device->pos() : 0;
@@ -286,65 +323,6 @@ static QImageIOHandler *createReadHandlerHelper(QIODevice *device,
             device->seek(pos);
     }
 
-#endif // QT_NO_IMAGEFORMATPLUGIN
-
-    // if we don't have a handler yet, check if we have built-in support for
-    // the format
-    if (!handler && !testFormat.isEmpty()) {
-        if (false) {
-#ifndef QT_NO_IMAGEFORMAT_PNG
-        } else if (testFormat == "png") {
-            handler = new QPngHandler;
-#endif
-#ifndef QT_NO_IMAGEFORMAT_BMP
-        } else if (testFormat == "bmp") {
-            handler = new QBmpHandler;
-        } else if (testFormat == "dib") {
-            handler = new QBmpHandler(QBmpHandler::DibFormat);
-#endif
-#ifndef QT_NO_IMAGEFORMAT_XPM
-        } else if (testFormat == "xpm") {
-            handler = new QXpmHandler;
-#endif
-#ifndef QT_NO_IMAGEFORMAT_XBM
-        } else if (testFormat == "xbm") {
-            handler = new QXbmHandler;
-            handler->setOption(QImageIOHandler::SubType, testFormat);
-#endif
-#ifndef QT_NO_IMAGEFORMAT_PPM
-        } else if (testFormat == "pbm" || testFormat == "pbmraw" || testFormat == "pgm"
-                   || testFormat == "pgmraw" || testFormat == "ppm" || testFormat == "ppmraw") {
-            handler = new QPpmHandler;
-            handler->setOption(QImageIOHandler::SubType, testFormat);
-#endif
-        }
-
-#ifdef QIMAGEREADER_DEBUG
-        if (handler)
-            qDebug() << "QImageReader::createReadHandler: using the built-in handler for" << testFormat;
-#endif
-    }
-
-#ifndef QT_NO_IMAGEFORMATPLUGIN
-    if (!handler && (autoDetectImageFormat || ignoresFormatAndExtension)) {
-        // check if any of our plugins recognize the file from its contents.
-        const qint64 pos = device ? device->pos() : 0;
-        const int keyCount = keyMap.size();
-        for (int i = 0; i < keyCount; ++i) {
-            if (i != suffixPluginIndex) {
-                QImageIOPlugin *plugin = qobject_cast<QImageIOPlugin *>(l->instance(i));
-                if (plugin && plugin->capabilities(device, QByteArray()) & QImageIOPlugin::CanRead) {
-                    handler = plugin->create(device, testFormat);
-#ifdef QIMAGEREADER_DEBUG
-                    qDebug() << "QImageReader::createReadHandler: the" << keyMap.keys().at(i) << "plugin can read this data";
-#endif
-                    break;
-                }
-            }
-        }
-        if (device && !device->isSequential())
-            device->seek(pos);
-    }
 #endif // QT_NO_IMAGEFORMATPLUGIN
 
     if (!handler && (autoDetectImageFormat || ignoresFormatAndExtension)) {
@@ -422,6 +400,28 @@ static QImageIOHandler *createReadHandlerHelper(QIODevice *device,
         }
     }
 
+#ifndef QT_NO_IMAGEFORMATPLUGIN
+    if (!handler && (autoDetectImageFormat || ignoresFormatAndExtension)) {
+        // check if any of our plugins recognize the file from its contents.
+        const qint64 pos = device ? device->pos() : 0;
+        const int keyCount = keyMap.size();
+        for (int i = 0; i < keyCount; ++i) {
+            if (i != suffixPluginIndex) {
+                QImageIOPlugin *plugin = qobject_cast<QImageIOPlugin *>(l->instance(i));
+                if (plugin && plugin->capabilities(device, QByteArray()) & QImageIOPlugin::CanRead) {
+                    handler = plugin->create(device, testFormat);
+#ifdef QIMAGEREADER_DEBUG
+                    qDebug() << "QImageReader::createReadHandler: the" << keyMap.keys().at(i) << "plugin can read this data";
+#endif
+                    break;
+                }
+            }
+        }
+        if (device && !device->isSequential())
+            device->seek(pos);
+    }
+#endif // QT_NO_IMAGEFORMATPLUGIN
+
     if (!handler) {
 #ifdef QIMAGEREADER_DEBUG
         qDebug("QImageReader::createReadHandler: no handlers found. giving up.");
@@ -492,9 +492,10 @@ QImageReaderPrivate::QImageReaderPrivate(QImageReader *qq)
 */
 QImageReaderPrivate::~QImageReaderPrivate()
 {
-    if (deleteDevice)
+    if (deleteDevice && device)
         delete device;
-    delete handler;
+    if (handler)
+        delete handler;
 }
 
 /*!
@@ -1463,6 +1464,19 @@ QString QImageReader::errorString() const
     if (d->errorString.isEmpty())
         return QImageReader::tr("Unknown error");
     return d->errorString;
+}
+
+QVariant QImageReader::option(QImageIOHandler::ImageOption option) const
+{
+    if (!d->initHandler())
+        return QVariant();
+    return d->handler->option(option);
+}
+
+void QImageReader::setOption(QImageIOHandler::ImageOption option, const QVariant &value)
+{
+    if (d->initHandler())
+        d->handler->setOption(option, value);
 }
 
 /*!

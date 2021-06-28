@@ -250,6 +250,9 @@ inline const QPainterPath QVectorPath::convertToPainterPath() const
             data->fillRule = Qt::OddEvenFill;
         else
             data->fillRule = Qt::WindingFill;
+
+        path.setDirty(true);
+
         return path;
 }
 

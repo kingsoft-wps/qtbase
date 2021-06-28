@@ -2097,8 +2097,9 @@ QTransform::TransformationType QTransform::type() const
     case TxShear:
     case TxRotate:
         if (!qFuzzyIsNull(affine._m12) || !qFuzzyIsNull(affine._m21)) {
-            const qreal dot = affine._m11 * affine._m12 + affine._m21 * affine._m22;
-            if (qFuzzyIsNull(dot))
+            const qreal dot1 = affine._m11 * affine._m12 + affine._m21 * affine._m22;
+            const qreal dot2 = affine._m11 * affine._m21 + affine._m12 * affine._m22;
+            if (qFuzzyIsNull(dot1) || qFuzzyIsNull(dot2))
                 m_type = TxRotate;
             else
                 m_type = TxShear;
@@ -2357,6 +2358,52 @@ bool qt_scaleForTransform(const QTransform &transform, qreal *scale)
             *scale = qSqrt(qMax(xScale2, yScale2));
 
         return type == QTransform::TxRotate && qFuzzyCompare(xScale2, yScale2);
+    }
+}
+
+Q_GUI_EXPORT
+void qt_scaleForTransform(const QTransform &transform, qreal *scaleX, qreal* scaleY)
+{
+    const QTransform::TransformationType type = transform.type();
+
+    switch (type) {
+    case QTransform::TxNone:
+    case QTransform::TxTranslate:
+        if (scaleX)
+            *scaleX = 1.0;
+        if (scaleY)
+            *scaleY = 1.0;
+        break;
+    case QTransform::TxScale:
+        if (scaleX)
+            *scaleX = qAbs(transform.m11());
+        if (scaleY)
+            *scaleY = qAbs(transform.m22());
+        break;
+    case QTransform::TxRotate: {
+        qreal xScale = 1.0;
+        qreal yScale = 1.0;
+
+        if (qFuzzyIsNull(transform.m11() * transform.m21() + transform.m12() * transform.m22())) {
+            xScale = transform.m11() * transform.m11() + transform.m12() * transform.m12();
+            yScale = transform.m21() * transform.m21() + transform.m22() * transform.m22();
+        }
+        else {
+            xScale = transform.m11() * transform.m11() + transform.m21() * transform.m21();
+            yScale = transform.m12() * transform.m12() + transform.m22() * transform.m22();
+        }
+        if (scaleX)
+            *scaleX = qSqrt(xScale);
+        if (scaleY)
+            *scaleY = qSqrt(yScale);
+        break;
+    }
+    default:
+        Q_ASSERT(false);
+        if (scaleX)
+            *scaleX = 1.0;
+        if (scaleY)
+            *scaleY = 1.0;
     }
 }
 

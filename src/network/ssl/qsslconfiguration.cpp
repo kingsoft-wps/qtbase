@@ -331,6 +331,23 @@ void QSslConfiguration::setPeerVerifyMode(QSslSocket::PeerVerifyMode mode)
     d->peerVerifyMode = mode;
 }
 
+/*!
+    Sets a different host name, given by hostName, for the certificate validation instead of the one used for the TCP connection.
+    \sa verificationPeerName()
+*/
+void QSslConfiguration::setVerificationPeerName(const QString& hostName)
+{
+    d->verificationPeerName = hostName;
+}
+
+/*!
+    Return verificationPeerName
+    \sa setVerificationPeerName()
+*/
+QString QSslConfiguration::verificationPeerName() const
+{
+    return d->verificationPeerName;
+}
 
 /*!
     Returns the maximum number of certificates in the peer's certificate chain

@@ -119,6 +119,10 @@ init_context:
             unsupportedProtocol = true;
             break;
 #endif // TLS1_3_VERSION
+        case QSsl::GmSslV1:
+            if (client)
+                sslContext->ctx = q_SSL_CTX_new(q_CNTLS_client_method());
+            break;
         default:
             // The ssl options will actually control the supported methods
             sslContext->ctx = q_SSL_CTX_new(client ? q_TLS_client_method() : q_TLS_server_method());

@@ -1881,6 +1881,7 @@ static void qt_message_fatal(QtMsgType, const QMessageLogContext &context, const
     Q_UNUSED(message);
 #endif
 
+#if 0 // disabled TerminateProcess
 #ifdef Q_OS_WIN
     // std::abort() in the MSVC runtime will call _exit(3) if the abort
     // behavior is _WRITE_ABORT_MSG - see also _set_abort_behavior(). This is
@@ -1905,6 +1906,7 @@ static void qt_message_fatal(QtMsgType, const QMessageLogContext &context, const
     Q_UNREACHABLE_IMPL();
 #else // !Q_OS_WIN
     std::abort();
+#endif
 #endif
 }
 

@@ -56,7 +56,7 @@ public:
     explicit QWinRTBackingStore(QWindow *window);
     ~QWinRTBackingStore() override;
     QPaintDevice *paintDevice() override;
-    void beginPaint(const QRegion &) override;
+    bool beginPaint(const QRegion &) override;
     void endPaint() override;
     void flush(QWindow *window, const QRegion &region, const QPoint &offset) override;
     void resize(const QSize &size, const QRegion &staticContents) override;

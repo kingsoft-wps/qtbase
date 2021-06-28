@@ -77,7 +77,10 @@ public:
 
     bool load(bool onlySystemDirectory = true)
     {
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_MSVC(4996)   // "'QString::utf16': was declared deprecated"
         m_handle = load((const wchar_t *)m_libraryName.utf16(), onlySystemDirectory);
+QT_WARNING_POP
         m_didLoad = true;
         return (m_handle != 0);
     }

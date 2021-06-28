@@ -629,6 +629,15 @@ QString QHostInfo::localHostName()
     return QSysInfo::machineHostName();
 }
 
+#ifdef Q_OS_MAC
+QString QHostInfo::macHostName()
+{
+    QString hostName = QSysInfo::machineHostName();
+    if (hostName.endsWith(".local", Qt::CaseInsensitive))
+        hostName = hostName.left(hostName.size() - QString(".local").size());
+    return hostName;
+}
+#endif
 /*!
     \fn QString QHostInfo::localDomainName()
 

@@ -46,7 +46,9 @@
 #include "private/qpainter_p.h"
 #include "private/qpicture_p.h"
 #include "private/qfont_p.h"
+#include "private/qpen_p.h"
 #include "QtGui/qpicture.h"
+#include "QtGui/qcomplexstroker.h"
 
 QT_BEGIN_NAMESPACE
 
@@ -124,7 +126,8 @@ void QAlphaPaintEngine::updateState(const QPaintEngineState &state)
             d->m_advancedPen = false;
             d->m_alphaPen = false;
         } else {
-            d->m_advancedPen = (d->m_pen.brush().style() != Qt::SolidPattern);
+            d->m_advancedPen = (d->m_pen.brush().style() != Qt::SolidPattern)
+                || qpen_is_complex(d->m_pen);
             d->m_alphaPen = !d->m_pen.brush().isOpaque();
         }
     }
@@ -304,14 +307,18 @@ void QAlphaPaintEngine::flushAndInit(bool init)
 
         // set clip region
         d->m_alphargn = d->m_alphargn.intersected(QRect(0, 0, d->m_pdev->width(), d->m_pdev->height()));
+        QRegion region = d->m_alphargn;
 
         // just use the bounding rect if it's a complex region..
+        bool isComplexRegion = false;
         if (d->m_alphargn.rectCount() > 10) {
+            isComplexRegion = true;
             QRect br = d->m_alphargn.boundingRect();
             d->m_alphargn = QRegion(br);
         }
 
         const auto oldAlphaRegion = d->m_cliprgn = d->m_alphargn;
+        d->m_cliprgn = region;
 
         // now replay the QPicture
         ++d->m_pass; // we are now doing pass #2
@@ -332,6 +339,9 @@ void QAlphaPaintEngine::flushAndInit(bool init)
         d->m_cliprgn = QRegion();
         d->resetState(painter());
 
+         // some printers does not support complex clip region
+        if (!isComplexRegion)
+            painter()->setClipRegion(region);
         // fill in the alpha images
         for (const auto &rect : oldAlphaRegion)
             d->drawAlphaImage(rect);
@@ -416,6 +426,18 @@ QRectF QAlphaPaintEnginePrivate::addPenWidth(const QPainterPath &path)
     bool cosmetic = qt_pen_is_cosmetic(m_pen, q->state->renderHints());
     if (cosmetic)
         tmp = path * m_transform;
+
+    if (qpen_is_complex(m_pen))
+    {
+        auto stroker = QComplexStroker::fromPen(m_pen);
+        if (m_pen.widthF() == 0.0f)
+            stroker.setWidth(1.0);
+        tmp = stroker.createStroke(tmp);
+        if (m_pen.isCosmetic())
+            return tmp.controlPointRect();
+        else
+            return (tmp.controlPointRect() * m_transform).boundingRect();
+    }
 
     QPainterPathStroker stroker;
     if (m_pen.widthF() == 0.0f)

@@ -101,10 +101,10 @@ bool QFontDef::exactMatch(const QFontDef &other) const
       positive results.
     */
     if (pixelSize != -1 && other.pixelSize != -1) {
-        if (pixelSize != other.pixelSize)
+        if (!qFuzzyCompare(pixelSize, other.pixelSize))
             return false;
     } else if (pointSize != -1 && other.pointSize != -1) {
-        if (pointSize != other.pointSize)
+        if (!qFuzzyCompare(pointSize, other.pointSize))
             return false;
     } else {
         return false;
@@ -124,6 +124,10 @@ bool QFontDef::exactMatch(const QFontDef &other) const
             && styleStrategy == other.styleStrategy
             && weight        == other.weight
             && style        == other.style
+            && escapementAngle == other.escapementAngle
+            && verticalMetrics == other.verticalMetrics
+            && manualBolden == other.manualBolden
+            && forceScalable == other.forceScalable
             && this_family   == other_family
             && (styleName.isEmpty() || other.styleName.isEmpty() || styleName == other.styleName)
             && (this_foundry.isEmpty()
@@ -172,7 +176,8 @@ Q_GUI_EXPORT int qt_defaultDpi()
 QFontPrivate::QFontPrivate()
     : engineData(0), dpi(qt_defaultDpi()), screen(0),
       underline(false), overline(false), strikeOut(false), kerning(true),
-      capital(0), letterSpacingIsAbsolute(false), scFont(0)
+      capital(0), letterSpacingIsAbsolute(false), scFont(0),
+      manualBolden(false)
 {
 }
 
@@ -182,7 +187,8 @@ QFontPrivate::QFontPrivate(const QFontPrivate &other)
       strikeOut(other.strikeOut), kerning(other.kerning),
       capital(other.capital), letterSpacingIsAbsolute(other.letterSpacingIsAbsolute),
       letterSpacing(other.letterSpacing), wordSpacing(other.wordSpacing),
-      scFont(other.scFont)
+      scFont(other.scFont),
+      manualBolden(other.manualBolden)
 {
     if (scFont && scFont != this)
         scFont->ref.ref();
@@ -310,6 +316,18 @@ void QFontPrivate::resolve(uint mask, const QFontPrivate *other)
         wordSpacing = other->wordSpacing;
     if (! (mask & QFont::CapitalizationResolved))
         capital = other->capital;
+
+    if (! (mask & QFont::VerticalMetricsResolved))
+        request.verticalMetrics = other->request.verticalMetrics;
+
+    if (! (mask & QFont::EscapementAngleResolved))
+        request.escapementAngle = other->request.escapementAngle;
+
+    if (! (mask & QFont::ManualBoldenResolved))
+        request.manualBolden = other->request.manualBolden;
+
+    if (! (mask & QFont::ForceScalableResolved))
+        request.forceScalable = other->request.forceScalable;
 }
 
 
@@ -1596,6 +1614,73 @@ QFont::Capitalization QFont::capitalization() const
     return static_cast<QFont::Capitalization> (d->capital);
 }
 
+
+bool QFont::verticalMetrics() const
+{
+    return d->request.verticalMetrics;
+}
+
+void QFont::setVerticalMetrics(bool enable)
+{
+    if ((resolve_mask & VerticalMetricsResolved) &&
+        verticalMetrics() == enable) {
+            return;
+    }
+
+    detach();
+    d->request.verticalMetrics = enable;
+    resolve_mask |= VerticalMetricsResolved;
+}
+
+qreal QFont::escapementAngle() const
+{
+    return d->request.escapementAngle;
+}
+
+void QFont::setEscapementAngle(qreal degree)
+{
+    if ((resolve_mask & EscapementAngleResolved) &&
+        qFuzzyCompare(escapementAngle(), degree)) {
+            return;
+    }
+    detach();
+    d->request.escapementAngle = degree;
+    resolve_mask |= EscapementAngleResolved;
+}
+
+bool QFont::manualBolden() const
+{
+    return d->request.manualBolden;
+}
+void QFont::setManualBolden(bool enable)
+{
+    if ((resolve_mask & ManualBoldenResolved) &&
+        manualBolden() == enable) {
+        return;
+    }
+
+    detach();
+    d->request.manualBolden = enable;
+    resolve_mask |= ManualBoldenResolved;
+}
+
+bool QFont::forceScalable() const
+{
+    return d->request.forceScalable;
+}
+
+void QFont::setForceScalable(bool enable)
+{
+    if ((resolve_mask & ForceScalableResolved) &&
+        forceScalable() == enable) {
+            return;
+    }
+
+    detach();
+    d->request.forceScalable = enable;
+    resolve_mask |= ForceScalableResolved;
+}
+
 #if QT_DEPRECATED_SINCE(5, 5)
 /*!
     \fn void QFont::setRawMode(bool enable)
@@ -1679,6 +1764,10 @@ bool QFont::operator<(const QFont &f) const
     const QFontDef &r2 = d->request;
     if (r1.pointSize != r2.pointSize) return r1.pointSize < r2.pointSize;
     if (r1.pixelSize != r2.pixelSize) return r1.pixelSize < r2.pixelSize;
+    if (r1.escapementAngle != r2.escapementAngle) return r1.escapementAngle < r2.escapementAngle;
+    if (r1.verticalMetrics != r2.verticalMetrics) return r1.verticalMetrics < r2.verticalMetrics;
+    if (r1.manualBolden != r2.manualBolden) return r1.manualBolden < r2.manualBolden;
+    if (r1.forceScalable != r2.forceScalable) return r1.forceScalable < r2.forceScalable;
     if (r1.weight != r2.weight) return r1.weight < r2.weight;
     if (r1.style != r2.style) return r1.style < r2.style;
     if (r1.stretch != r2.stretch) return r1.stretch < r2.stretch;
@@ -2261,6 +2350,12 @@ QDataStream &operator<<(QDataStream &s, const QFont &font)
         s << (quint8)font.d->request.hintingPreference;
     if (s.version() >= QDataStream::Qt_5_6)
         s << (quint8)font.d->capital;
+    if (s.version() >= QDataStream::Qt_5_12) {
+        s << font.d->request.escapementAngle;
+        s << static_cast<bool>(font.d->request.verticalMetrics);
+        s << font.d->request.manualBolden;
+        s << static_cast<bool>(font.d->request.forceScalable);
+    }
     return s;
 }
 
@@ -2355,6 +2450,20 @@ QDataStream &operator>>(QDataStream &s, QFont &font)
         quint8 value;
         s >> value;
         font.d->capital = QFont::Capitalization(value);
+    }
+    if (s.version() >= QDataStream::Qt_5_12) {
+        qreal escepement = 0;
+        s >> escepement;
+        font.d->request.escapementAngle = escepement;
+        bool vertical = false;
+        s >> vertical;
+        font.d->request.verticalMetrics = vertical;
+        bool scalable = false;
+        s >> scalable;
+        font.d->request.forceScalable = scalable;
+        bool bolden = false;
+        s >> bolden;
+        font.d->request.manualBolden = bolden;
     }
     return s;
 }

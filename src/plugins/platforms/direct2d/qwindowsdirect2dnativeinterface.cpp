@@ -38,8 +38,14 @@
 ****************************************************************************/
 
 #include "qwindowsdirect2dnativeinterface.h"
+#include "qwindowsdirect2dcontext.h"
+#include "qwindowsdirect2dbitmap.h"
+#include "qwindowsdirect2dplatformpixmap.h"
+#include "qwindowsdirect2ddevicecontext.h"
+#include "qwindowsdirect2dpaintengine.h"
 
 #include <QtGui/qbackingstore.h>
+#include <QtPlatformHeaders/qwindowsdirect2dfunctions.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -57,6 +63,60 @@ void *QWindowsDirect2DNativeInterface::nativeResourceForBackingStore(const QByte
     qWarning("%s: Invalid key '%s' requested.", __FUNCTION__, resource.constData());
     return nullptr;
 
+}
+
+static QPlatformPixmap * createPixmap(ID2D1Bitmap1 *bm, ID2D1DeviceContext *dc)
+{
+    QScopedPointer<QWindowsDirect2DBitmap> bitmap(new QWindowsDirect2DBitmap(bm, dc));
+    return new QWindowsDirect2DPlatformPixmap(
+        QPlatformPixmap::PixmapType, QWindowsDirect2DPaintEngine::NoFlag, bitmap.take(), true);
+}
+
+static QPlatformPixmap * createPixmapFromTexture(ID3D11Texture2D *texture, bool isTarget, QWindowsDirect2DFunctions::AlphaMode mode)
+{
+    QScopedPointer<QWindowsDirect2DBitmap> bitmap(
+        QWindowsDirect2DBitmap::fromTexture(texture, isTarget, static_cast<int>(mode)));
+    if (bitmap)
+        return new QWindowsDirect2DPlatformPixmap(
+            QPlatformPixmap::PixmapType, QWindowsDirect2DPaintEngine::NoFlag, bitmap.take(), true);
+    else
+        return nullptr;
+}
+
+static ID2D1DeviceContext * getDeviceContext(QPlatformPixmap *pm)
+{
+    if (pm == nullptr || pm->classId() != QPlatformPixmap::Direct2DClass)
+        return nullptr;
+    auto d2dpm = static_cast<QWindowsDirect2DPlatformPixmap *>(pm);
+    return d2dpm->bitmap()->deviceContext()->get();
+}
+
+static void rebuildDirect2DContext()
+{
+    QWindowsDirect2DContext::instance()->resetHardwareResources();
+}
+
+QFunctionPointer QWindowsDirect2DNativeInterface::platformFunction(const QByteArray &function) const
+{
+    if (function == QWindowsDirect2DFunctions::createPixmapIdentifier())
+        return QFunctionPointer(createPixmap);
+    if (function == QWindowsDirect2DFunctions::createPixmapFromTextureIdentifier())
+        return QFunctionPointer(createPixmapFromTexture);
+    if (function == QWindowsDirect2DFunctions::getDeviceContextIdentifier())
+        return QFunctionPointer(getDeviceContext);
+    if (function == QWindowsDirect2DFunctions::preferredDeviceTypeIdentifier())
+        return QFunctionPointer(QWindowsDirect2DContext::preferredDeviceTypeStatic);
+    if (function == QWindowsDirect2DFunctions::currentDeviceTypeIdentifier())
+        return QFunctionPointer(QWindowsDirect2DContext::currentDeviceTypeStatic);
+    if (function == QWindowsDirect2DFunctions::contextIdentifier())
+        return QFunctionPointer(QWindowsDirect2DContext::contextStatic);
+    if (function == QWindowsDirect2DFunctions::matchDWriteFontIdentifier())
+        return QFunctionPointer(QWindowsDirect2DPaintEngine::matchDWriteFont);
+    if (function == QWindowsDirect2DFunctions::getDWriteFontPathIdentifier())
+        return QFunctionPointer(QWindowsDirect2DPaintEngine::getDWriteFontPath);
+    if (function == QWindowsDirect2DFunctions::rebuildDirect2DContextIdentifier())
+        return QFunctionPointer(rebuildDirect2DContext);
+    return nullptr;
 }
 
 QT_END_NAMESPACE

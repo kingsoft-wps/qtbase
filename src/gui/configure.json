@@ -9,8 +9,6 @@
     "commandline": {
         "options": {
             "accessibility": "boolean",
-            "angle": "boolean",
-            "combined-angle-lib": "boolean",
             "direct2d": "boolean",
             "directfb": "boolean",
             "directwrite": "boolean",
@@ -46,7 +44,8 @@
             "xcb-xlib": "boolean",
             "xcb-xinput": "boolean",
             "xkb": "boolean",
-            "xkbcommon": "boolean"
+            "xkbcommon": "boolean",
+            "jxr": "boolean"
         }
     },
 
@@ -62,61 +61,6 @@
             "headers": ["bcm_host.h"],
             "sources": [
                 { "type": "makeSpec", "spec": "BCM_HOST" }
-            ]
-        },
-        "dxguid": {
-            "label": "DirectX GUID",
-            "sources": [
-                "-ldxguid"
-            ]
-        },
-        "dxgi": {
-            "label": "DirectX GI",
-            "headers": "dxgi.h",
-            "sources": [
-                "-ldxgi"
-            ]
-        },
-        "dxgi1_2": {
-            "label": "DirectX GI 1.2",
-            "test": {
-                "main": [
-                    "// fails with mingw-w64 5.4.0 - declaration is missing from header",
-                    "IDXGISurface1 *surface;",
-                    "(void) surface;"
-                ]
-            },
-            "headers": "dxgi1_2.h",
-            "sources": [
-                "-ldxgi"
-            ]
-        },
-        "d3d9": {
-            "label": "Direct3D 9",
-            "headers": "d3d9.h",
-            "sources": [
-                "-ld3d9"
-            ]
-        },
-        "d3d11": {
-            "label": "Direct3D 11",
-            "headers": "d3d11.h",
-            "sources": [
-                "-ld3d11"
-            ]
-        },
-        "d3d11_1": {
-            "label": "Direct3D 11.1",
-            "headers": "d3d11_1.h",
-            "sources": [
-                "-ld3d11"
-            ]
-        },
-        "d3dcompiler": {
-            "label": "Direct3D Shader Compiler Library",
-            "headers": "d3dcompiler.h",
-            "sources": [
-                "-ld3dcompiler"
             ]
         },
         "d2d1": {
@@ -798,22 +742,6 @@
     },
 
     "tests": {
-        "angle_d3d11_qdtd": {
-            "label": "D3D11_QUERY_DATA_TIMESTAMP_DISJOINT",
-            "type": "compile",
-            "test": {
-                "include": "d3d11.h",
-                "main": [
-                    "D3D11_QUERY_DATA_TIMESTAMP_DISJOINT qdtd;",
-                    "(void) qdtd;"
-                ]
-            }
-        },
-        "fxc": {
-            "label": "Direct3D Shader Compiler",
-            "type": "fxc",
-            "log": "value"
-        },
         "drm_atomic": {
             "label": "DRM Atomic API",
             "type": "compile",
@@ -1105,27 +1033,6 @@
             "condition": "features.accessibility && features.xcb && features.dbus && libs.atspi",
             "output": [ "privateFeature", "feature" ]
         },
-        "angle": {
-            "label": "ANGLE",
-            "autoDetect": "features.opengles2 || features.opengl-dynamic",
-            "condition": "features.dxguid && tests.fxc && (features.direct3d9 || (config.winrt && features.direct3d11 && libs.d3dcompiler))",
-            "output": [
-                "publicFeature",
-                { "type": "define", "name": "QT_OPENGL_ES_2_ANGLE" },
-                { "type": "varAssign", "name": "QMAKE_FXC_LOCATION", "value": "tests.fxc.value" }
-            ]
-        },
-        "angle_d3d11_qdtd": {
-            "label": "D3D11_QUERY_DATA_TIMESTAMP_DISJOINT",
-            "condition": "features.angle && tests.angle_d3d11_qdtd",
-            "output": [ "privateFeature" ]
-        },
-        "combined-angle-lib": {
-            "label": "Combined ANGLE Library",
-            "autoDetect": false,
-            "condition": "features.angle",
-            "output": [ "publicFeature" ]
-        },
         "directfb": {
             "label": "DirectFB",
             "section": "Platform plugins",
@@ -1151,39 +1058,9 @@
             "condition": "features.directwrite1 && libs.dwrite_2",
             "output": [ "privateFeature" ]
         },
-        "dxguid": {
-            "label": "DirectX GUID",
-            "condition": "config.win32 && libs.dxguid",
-            "output": [ "privateFeature" ]
-        },
-        "direct3d9": {
-            "label": "Direct 3D 9",
-            "condition": "config.win32 && !config.winrt && libs.d3d9",
-            "output": [ "privateFeature" ]
-        },
-        "dxgi": {
-            "label": "DirectX GI",
-            "condition": "config.win32 && libs.dxgi",
-            "output": [ "privateFeature" ]
-        },
-        "dxgi1_2": {
-            "label": "DirectX GI 1.2",
-            "condition": "features.dxgi && libs.dxgi1_2",
-            "output": [ "privateFeature" ]
-        },
-        "direct3d11": {
-            "label": "Direct 3D 11",
-            "condition": "features.dxgi && libs.d3d11",
-            "output": [ "privateFeature" ]
-        },
-        "direct3d11_1": {
-            "label": "Direct 3D 11.1",
-            "condition": "features.direct3d11 && features.dxgi1_2 && libs.d3d11_1",
-            "output": [ "privateFeature" ]
-        },
         "direct2d": {
             "label": "Direct 2D",
-            "condition": "config.win32 && !config.winrt && features.direct3d11 && libs.d2d1",
+            "condition": "config.win32 && !config.winrt && libs.d2d1",
             "output": [ "privateFeature" ]
         },
         "direct2d1_1": {
@@ -1323,7 +1200,7 @@
         },
         "opengles3": {
             "label": "OpenGL ES 3.0",
-            "condition": "features.opengles2 && !features.angle && tests.opengles3 && !config.wasm",
+            "condition": "features.opengles2 && tests.opengles3 && !config.wasm",
             "output": [
                 "publicFeature",
                 { "type": "define", "name": "QT_OPENGL_ES_3" }
@@ -1349,13 +1226,12 @@
             "label": "Desktop OpenGL",
             "enable": "input.opengl == 'desktop'",
             "disable": "input.opengl == 'es2' || input.opengl == 'dynamic' || input.opengl == 'no'",
-            "condition": "(config.win32 && !config.winrt && !features.opengles2 && (config.msvc || libs.opengl))
+            "condition": "(config.win32 && !config.winrt && (config.msvc || libs.opengl))
                           || (!config.watchos && !config.win32 && !config.wasm && libs.opengl)"
         },
         "opengl-dynamic": {
             "label": "Dynamic OpenGL",
-            "enable": "input.opengl == 'dynamic'",
-            "autoDetect": false,
+            "disable": "input.opengl == 'no' || input.opengl == 'desktop'",
             "condition": "config.win32 && !config.winrt",
             "output": [
                 { "type": "publicFeature", "name": "dynamicgl" },
@@ -1379,7 +1255,7 @@
         },
         "egl": {
             "label": "EGL",
-            "condition": "(features.opengl || features.openvg) && (features.angle || libs.egl)",
+            "condition": "(features.opengl || features.openvg) && libs.egl",
             "output": [ "privateFeature", "feature" ]
         },
         "egl_x11": {
@@ -1487,6 +1363,11 @@
             "autoDetect": "features.system-zlib",
             "condition": "features.png && libs.libpng",
             "output": [ "privateFeature" ]
+        },
+        "jxr": {
+            "label": "JXR",
+            "condition": "features.imageformatplugin",
+            "output": [ "privateFeature", "feature" ]
         },
         "qpa_default_platform": {
             "label": "QPA default platform",
@@ -1842,13 +1723,6 @@ See \"Platform backends\" in the output of --help."
         },
         {
             "type": "warning",
-            "condition": "config.win32 && (features.opengles2 || features.opengl-dynamic) && !features.angle",
-            "message": "Using OpenGL ES 2.0 on Windows without ANGLE.
-The build will most likely fail.
-Specify -opengl desktop to use regular OpenGL."
-        },
-        {
-            "type": "warning",
             "condition": "config.darwin && features.system-harfbuzz",
             "message": "On OS X, AAT is supported only with -qt-harfbuzz."
         },
@@ -1879,7 +1753,7 @@ QMAKE_LIBDIR_OPENGL[_ES2] and QMAKE_LIBS_OPENGL[_ES2] in the mkspec for your pla
                 {
                     "section": "Image formats",
                     "entries": [
-                        "gif", "ico", "jpeg", "system-jpeg", "png", "system-png"
+                        "gif", "ico", "jpeg", "system-jpeg", "png", "system-png", "jxr"
                     ]
                 },
                 "egl",
@@ -1887,16 +1761,6 @@ QMAKE_LIBDIR_OPENGL[_ES2] and QMAKE_LIBS_OPENGL[_ES2] in the mkspec for your pla
                 {
                     "section": "OpenGL",
                     "entries": [
-                        {
-                            "type": "feature",
-                            "args": "angle",
-                            "condition": "config.win32"
-                        },
-                        {
-                            "type": "feature",
-                            "args": "combined-angle-lib",
-                            "condition": "features.angle"
-                        },
                         "opengl-desktop",
                         {
                             "type": "feature",

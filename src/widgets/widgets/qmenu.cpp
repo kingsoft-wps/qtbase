@@ -656,6 +656,19 @@ void QMenuPrivate::setFirstActionActive()
     }
 }
 
+void QMenuPrivate::restoreCurrentAction()
+{
+    Q_Q(QMenu);
+    if (activeMenu) {
+        if (currentAction)
+            q->update(actionRect(currentAction));
+
+        currentAction = activeMenu->menuAction();
+        activateAction(currentAction, QAction::Hover);
+        q->update(actionRect(currentAction));
+    }
+}
+
 // popup == -1 means do not popup, 0 means immediately, others mean use a timer
 void QMenuPrivate::setCurrentAction(QAction *action, int popup, SelectionReason reason, bool activateFirst)
 {
@@ -2547,7 +2560,7 @@ void QMenu::popup(const QPoint &p, QAction *atAction)
             {
                 pos.rx() = parentActionRect.right();
                 if (pos.x() + menuSizeHint.width() > screen.x() + screen.width())
-                    pos.rx() = parentActionRect.left() - menuSizeHint.width();
+                    pos.rx() = parentActionRect.left() - menuSizeHint.width() - subMenuOffset;
                 if (pos.x() < screen.x())
                     pos.rx() = screen.x() + screen.width() - menuSizeHint.width();
             }
@@ -2605,6 +2618,7 @@ void QMenu::popup(const QPoint &p, QAction *atAction)
     {
         show();
     }
+    QGuiApplication::inputMethod()->disableFocusIME();
 
 #ifndef QT_NO_ACCESSIBILITY
     QAccessibleEvent event(this, QAccessible::PopupMenuStart);
@@ -2750,6 +2764,8 @@ void QMenu::hideEvent(QHideEvent *)
     d->causedPopup.action = 0;
     if (d->scroll)
         d->scroll->scrollTimer.stop(); //make sure the timer stops
+
+    QGuiApplication::inputMethod()->update(Qt::ImEnabled);
 }
 
 /*!
@@ -3523,7 +3539,10 @@ QMenu::timerEvent(QTimerEvent *e)
             return;
         d->delayState.stop();
         d->sloppyState.stopTimer();
-        internalDelayedPopup();
+        if (rect().contains(mapFromGlobal(QCursor::pos())))
+            internalDelayedPopup();
+        else
+            d->restoreCurrentAction();
     } else if (d->sloppyState.isTimerId(e->timerId())) {
         d->sloppyState.timeout();
     } else if(d->searchBufferTimer.timerId() == e->timerId()) {

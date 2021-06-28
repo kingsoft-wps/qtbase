@@ -62,6 +62,8 @@ class QScreen;
 class QWindow;
 class QPlatformWindow;
 class QBackingStore;
+class QMimeData;
+class QFontEngine;
 
 class Q_GUI_EXPORT QPlatformNativeInterface : public QObject
 {
@@ -74,6 +76,7 @@ public:
     virtual void *nativeResourceForBackingStore(const QByteArray &resource, QBackingStore *backingStore);
 #ifndef QT_NO_CURSOR
     virtual void *nativeResourceForCursor(const QByteArray &resource, const QCursor &cursor);
+    virtual bool registerCustomWindowCursor(const QCursor &cursor, void* hcur);
 #endif
 
     typedef void * (*NativeResourceForIntegrationFunction)();
@@ -94,6 +97,10 @@ public:
     virtual QVariant windowProperty(QPlatformWindow *window, const QString &name, const QVariant &defaultValue) const;
     virtual void setWindowProperty(QPlatformWindow *window, const QString &name, const QVariant &value);
 
+    virtual void *nativeResourceForMimeData(const QByteArray &resource, const QMimeData *mime);
+    virtual bool isWindowsDropMimeData(const QMimeData *mime);
+
+    virtual QVariant fontEngineProperty(const QFontEngine *engine, const QString &name);
 Q_SIGNALS:
     void windowPropertyChanged(QPlatformWindow *window, const QString &propertyName);
 };

@@ -95,13 +95,35 @@ class QEventDispatcherWin32Private;
 #define DWORD_PTR DWORD
 #endif
 
+typedef MMRESULT(WINAPI *ptimeSetEvent)(UINT, UINT, LPTIMECALLBACK, DWORD_PTR, UINT);
+typedef MMRESULT(WINAPI *ptimeKillEvent)(UINT);
+
+static ptimeSetEvent qtimeSetEvent = 0;
+static ptimeKillEvent qtimeKillEvent = 0;
+
 LRESULT QT_WIN_CALLBACK qt_internal_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp);
+
+static void resolveTimerAPI()
+{
+    static bool triedResolve = false;
+    if (!triedResolve) {
+#ifndef QT_NO_THREAD
+        QMutexLocker locker(QMutexPool::globalInstanceGet(&triedResolve));
+        if (triedResolve)
+            return;
+#endif
+        triedResolve = true;
+        qtimeSetEvent = (ptimeSetEvent)QSystemLibrary::resolve(QLatin1String("winmm"), "timeSetEvent");
+        qtimeKillEvent = (ptimeKillEvent)QSystemLibrary::resolve(QLatin1String("winmm"), "timeKillEvent");
+    }
+}
 
 QEventDispatcherWin32Private::QEventDispatcherWin32Private()
     : threadId(GetCurrentThreadId()), interrupt(false), internalHwnd(0),
       getMessageHook(0), serialNumber(0), lastSerialNumber(0), sendPostedEventsWindowsTimerId(0),
       wakeUps(0), activateNotifiersPosted(false), winEventNotifierActivatedEvent(NULL)
 {
+    resolveTimerAPI();
 }
 
 QEventDispatcherWin32Private::~QEventDispatcherWin32Private()
@@ -145,7 +167,7 @@ LRESULT QT_WIN_CALLBACK qt_internal_proc(HWND hwnd, UINT message, WPARAM wp, LPA
             KillTimer(hwnd, wp);
         return 0;
     }
-    if (dispatcher->filterNativeEvent(QByteArrayLiteral("windows_dispatcher_MSG"), &msg, &result))
+    if (dispatcher->filterNativeEvent(false, QAbstractNativeEventFilter::DispatcherMsg, QByteArrayLiteral("windows_dispatcher_MSG"), &msg, &result))
         return result;
 
 #ifdef GWLP_USERDATA
@@ -366,7 +388,7 @@ static HWND qt_create_internal_window(const QEventDispatcherWin32 *eventDispatch
                             ctx->className,    // window name
                             0,                 // style
                             0, 0, 0, 0,        // geometry
-                            HWND_MESSAGE,            // parent
+                            0/*HWND_MESSAGE*/,            // parent
                             0,                 // menu handle
                             GetModuleHandle(0),     // application
                             0);                // windows creation data.
@@ -409,11 +431,9 @@ void QEventDispatcherWin32Private::registerTimer(WinTimerInfo *t)
         // optimization for single-shot-zero-timer
         QCoreApplication::postEvent(q, new QZeroTimerEvent(t->timerId));
         ok = true;
-    } else if (interval < 20u || t->timerType == Qt::PreciseTimer) {
-        // 3/2016: Although MSDN states timeSetEvent() is deprecated, the function
-        // is still deemed to be the most reliable precision timer.
-        t->fastTimerId = timeSetEvent(interval, 1, qt_fast_timer_proc, DWORD_PTR(t),
-                                      TIME_CALLBACK_FUNCTION | TIME_PERIODIC | TIME_KILL_SYNCHRONOUS);
+    } else if ((interval < 20u || t->timerType == Qt::PreciseTimer) && qtimeSetEvent) {
+        t->fastTimerId = qtimeSetEvent(interval, 1, qt_fast_timer_proc, (DWORD_PTR)t,
+                                            TIME_CALLBACK_FUNCTION | TIME_PERIODIC | TIME_KILL_SYNCHRONOUS);
         ok = t->fastTimerId;
     }
 
@@ -431,7 +451,7 @@ void QEventDispatcherWin32Private::unregisterTimer(WinTimerInfo *t)
     if (t->interval == 0) {
         QCoreApplicationPrivate::removePostedTimerEvent(t->dispatcher, t->timerId);
     } else if (t->fastTimerId != 0) {
-        timeKillEvent(t->fastTimerId);
+        qtimeKillEvent(t->fastTimerId);
         QCoreApplicationPrivate::removePostedTimerEvent(t->dispatcher, t->timerId);
     } else if (internalHwnd) {
         KillTimer(internalHwnd, t->timerId);
@@ -637,7 +657,7 @@ bool QEventDispatcherWin32::processEvents(QEventLoop::ProcessEventsFlags flags)
                     return false;
                 }
 
-                if (!filterNativeEvent(QByteArrayLiteral("windows_generic_MSG"), &msg, 0)) {
+                if (!filterNativeEvent(false, QAbstractNativeEventFilter::WinProcessMsg, QByteArrayLiteral("windows_generic_MSG"), &msg, 0)) {
                     TranslateMessage(&msg);
                     DispatchMessage(&msg);
                 }

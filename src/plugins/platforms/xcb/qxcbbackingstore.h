@@ -71,7 +71,7 @@ public:
     void resize(const QSize &size, const QRegion &staticContents) override;
     bool scroll(const QRegion &area, int dx, int dy) override;
 
-    void beginPaint(const QRegion &) override;
+    bool beginPaint(const QRegion &) override;
     void endPaint() override;
 
     static bool createSystemVShmSegment(xcb_connection_t *c, size_t segmentSize = 1,
@@ -92,7 +92,7 @@ public:
     QXcbSystemTrayBackingStore(QWindow *window);
     ~QXcbSystemTrayBackingStore();
 
-    void beginPaint(const QRegion &) override;
+    bool beginPaint(const QRegion &) override;
 
 protected:
     void render(xcb_window_t window, const QRegion &region, const QPoint &offset) override;

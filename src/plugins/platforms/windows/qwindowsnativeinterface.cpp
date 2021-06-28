@@ -47,20 +47,19 @@
 #include "qwindowsintegration.h"
 #include "qwindowsmime.h"
 #include "qwin10helpers.h"
+#include "qwindowsdrag.h"
 
 #include <QtGui/qwindow.h>
 #include <QtGui/qopenglcontext.h>
 #include <QtGui/qscreen.h>
 #include <qpa/qplatformscreen.h>
 #include <QtFontDatabaseSupport/private/qwindowsfontdatabase_p.h>
+#include <QtFontDatabaseSupport/private/qwindowsfontengine_p.h>
 
 QT_BEGIN_NAMESPACE
 
 enum ResourceType {
     RenderingContextType,
-    EglContextType,
-    EglDisplayType,
-    EglConfigType,
     HandleType,
     GlHandleType,
     GetDCType,
@@ -72,9 +71,6 @@ static int resourceType(const QByteArray &key)
 {
     static const char *names[] = { // match ResourceType
         "renderingcontext",
-        "eglcontext",
-        "egldisplay",
-        "eglconfig",
         "handle",
         "glhandle",
         "getdc",
@@ -135,7 +131,43 @@ void *QWindowsNativeInterface::nativeResourceForCursor(const QByteArray &resourc
     }
     return nullptr;
 }
+
+bool QWindowsNativeInterface::registerCustomWindowCursor(const QCursor &cursor, void *hcur)
+{
+    return QWindowsCursor::registerCustomWindowCursor(cursor, reinterpret_cast<HCURSOR>(hcur));
+}
+
 #endif // !QT_NO_CURSOR
+
+
+void *QWindowsNativeInterface::nativeResourceForMimeData(const QByteArray &resource, const QMimeData *mime)
+{
+    if (resource == QByteArrayLiteral("dropdataobject")) {
+        const QWindowsDropMimeData *dropMimeData = dynamic_cast<const QWindowsDropMimeData *>(mime);
+        if (dropMimeData)
+            return QWindowsDrag::instance()->dropDataObject();
+    }
+    return nullptr;
+}
+
+bool QWindowsNativeInterface::isWindowsDropMimeData(const QMimeData *mime) 
+{
+    const QWindowsDropMimeData *dropMimeData = dynamic_cast<const QWindowsDropMimeData *>(mime);
+    return (nullptr != dropMimeData);
+}
+
+
+QVariant QWindowsNativeInterface::fontEngineProperty(const QFontEngine *engine,
+                                                          const QString &name)
+{
+    if (name == QLatin1String("_name")) {
+        if (engine && engine->type() == QFontEngine::Win) {
+            const QWindowsFontEngine *win = static_cast<const QWindowsFontEngine *>(engine);
+            return qVariantFromValue(win->privateName());
+        }
+    }
+    return QVariant();
+}
 
 static const char customMarginPropertyC[] = "WindowsCustomMargins";
 
@@ -190,19 +222,6 @@ void *QWindowsNativeInterface::nativeResourceForContext(const QByteArray &resour
         return nullptr;
     }
 
-    QWindowsOpenGLContext *glcontext = static_cast<QWindowsOpenGLContext *>(context->handle());
-    switch (resourceType(resource)) {
-    case RenderingContextType: // Fall through.
-    case EglContextType:
-        return glcontext->nativeContext();
-    case EglDisplayType:
-        return glcontext->nativeDisplay();
-    case EglConfigType:
-        return glcontext->nativeConfig();
-    default:
-        break;
-    }
-
     qWarning("%s: Invalid key '%s' requested.", __FUNCTION__, resource.constData());
     return nullptr;
 }
@@ -250,6 +269,21 @@ void QWindowsNativeInterface::registerWindowsMime(void *mimeIn)
 void QWindowsNativeInterface::unregisterWindowsMime(void *mimeIn)
 {
     QWindowsContext::instance()->mimeConverter().unregisterMime(reinterpret_cast<QWindowsMime *>(mimeIn));
+}
+
+void QWindowsNativeInterface::unregisterInternalTextMime()
+{
+    QWindowsMime::unregisterInternalTextMime();
+}
+
+void QWindowsNativeInterface::unregisterInternalHtmlMime()
+{
+    QWindowsMime::unregisterInternalHtmlMime();
+}
+
+void QWindowsNativeInterface::addLastExcludeMimeType(const QString &mimeType)
+{
+    QWindowsMime::addLastExcludeMimeType(mimeType);
 }
 
 int QWindowsNativeInterface::registerMimeType(const QString &mimeType)

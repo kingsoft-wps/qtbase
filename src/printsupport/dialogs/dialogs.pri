@@ -11,9 +11,12 @@ qtConfig(printdialog) {
         dialogs/qprintdialog.h
 
     macos {
+        HEADERS += dialogs/qprintdialogpreview_mac.h
+        SOURCES += dialogs/qprintdialogpreview_mac.mm
+
         OBJECTIVE_SOURCES += dialogs/qpagesetupdialog_mac.mm \
                              dialogs/qprintdialog_mac.mm
-        LIBS_PRIVATE += -framework AppKit
+        LIBS_PRIVATE += -framework AppKit -framework PDFKit
     }
 
     win32 {

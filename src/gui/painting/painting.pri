@@ -14,6 +14,7 @@ HEADERS += \
         painting/qdrawhelper_p.h \
         painting/qdrawhelper_x86_p.h \
         painting/qdrawingprimitive_sse2_p.h \
+        painting/qpathgradient_p.h \
         painting/qemulationpaintengine_p.h \
         painting/qfixed_p.h \
         painting/qgrayraster_p.h \
@@ -54,7 +55,11 @@ HEADERS += \
         painting/qtriangulatingstroker_p.h \
         painting/qtriangulator_p.h \
         painting/qplatformbackingstore.h \
-        painting/qpathsimplifier_p.h
+        painting/qpathsimplifier_p.h \
+		painting/qcomplexstroker.h \
+        painting/qcomplexstroker_p.h \
+		painting/qcustomlineanchor.h \
+        painting/qcustomlineanchor_p.h
 
 
 SOURCES += \
@@ -97,7 +102,9 @@ SOURCES += \
         painting/qtriangulatingstroker.cpp \
         painting/qtriangulator.cpp \
         painting/qplatformbackingstore.cpp \
-        painting/qpathsimplifier.cpp
+        painting/qpathsimplifier.cpp \
+		painting/qcomplexstroker.cpp \
+		painting/qcustomlineanchor.cpp
 
 webgradients.files = painting/webgradients.binaryjson
 webgradients.prefix = qgradient

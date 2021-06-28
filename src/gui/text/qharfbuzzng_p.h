@@ -82,6 +82,19 @@ Q_GUI_EXPORT hb_font_t *hb_qt_font_get_for_engine(QFontEngine *fe);
 Q_GUI_EXPORT void hb_qt_font_set_use_design_metrics(hb_font_t *font, uint value);
 Q_GUI_EXPORT uint hb_qt_font_get_use_design_metrics(hb_font_t *font);
 
+Q_GUI_EXPORT bool hb_qt_ot_layout_substitution_has_feature(
+        hb_face_t *face,
+        hb_tag_t script_tag,
+        hb_tag_t feature_tag);
+
+Q_GUI_EXPORT bool hb_qt_ot_layout_substitution_has_script(
+        hb_face_t *face,
+        hb_tag_t script_tag);
+
+Q_GUI_EXPORT hb_codepoint_t hb_qt_ot_layout_substitution_apply(
+        hb_face_t *face,
+        hb_codepoint_t glyph);
+
 QT_END_NAMESPACE
 
 #endif // QHARFBUZZNG_P_H

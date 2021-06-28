@@ -108,22 +108,31 @@ public:
     int getPointInOutline(glyph_t glyph, int flags, quint32 point, QFixed *xpos, QFixed *ypos, quint32 *nPoints);
 
     bool isScalableBitmap() const;
+    bool hasColor() const;
 
     static void addGlyphToPath(FT_Face face, FT_GlyphSlot g, const QFixedPoint &point, QPainterPath *path, FT_Fixed x_scale, FT_Fixed y_scale);
     static void addBitmapToPath(FT_GlyphSlot slot, const QFixedPoint &point, QPainterPath *path);
 
+    void initForVerticalMode();
+    bool isRotatedInVerticalMode(glyph_t glyphIndex);
+    glyph_t substituteForVerticalMode(glyph_t glyphIndex);
 private:
     friend class QFontEngineFT;
     friend class QtFreetypeData;
     friend struct QScopedPointerDeleter<QFreetypeFace>;
-    QFreetypeFace() : _lock(QMutex::Recursive) {}
+    QFreetypeFace() : _lock(QMutex::Recursive), isCJKFont(false), hasGsubVert(false) {}
     ~QFreetypeFace() {}
+    bool testCJKFont();
     void cleanup();
     QAtomicInt ref;
     QMutex _lock;
     QByteArray fontData;
 
     QFontEngine::Holder hbFace;
+    QVarLengthArray<quint8> glyphVerticalAttributes;
+    QHash<glyph_t, glyph_t> verticalSubst;
+    bool isCJKFont;
+    bool hasGsubVert;
 };
 
 class QFontEngineFT : public QFontEngine
@@ -152,11 +161,13 @@ public:
         QFixed subPixelPosition;
     };
 
+    virtual bool needEmbolden() const;
     struct QGlyphSet
     {
         QGlyphSet();
         ~QGlyphSet();
         FT_Matrix transformationMatrix;
+        FT_Vector verticalModeOffset;
         bool outline_drawing;
 
         void removeGlyphFromCache(glyph_t index, QFixed subPixelPosition);
@@ -179,11 +190,7 @@ private:
     QFontEngine::FaceId faceId() const override;
     QFontEngine::Properties properties() const override;
     QFixed emSquareSize() const override;
-    bool supportsSubPixelPositions() const override
-    {
-        return default_hint_style == HintLight ||
-               default_hint_style == HintNone;
-    }
+    bool supportsSubPixelPositions() const override;
 
     bool getSfntTableData(uint tag, uchar *buffer, uint *length) const override;
     int synthesized() const override;
@@ -229,7 +236,14 @@ private:
                                         QFontEngine::GlyphFormat format) override;
     Glyph *glyphData(glyph_t glyph, QFixed subPixelPosition,
                      GlyphFormat neededFormat, const QTransform &t) override;
-    bool hasInternalCaching() const override { return cacheEnabled; }
+    Glyph *glyphDataForCustomBold(glyph_t glyph, QFixed subPixelPosition,
+                                  GlyphFormat neededFormat, const QTransform &t, int wx, int wy) override;
+    bool hasInternalCaching() const override;
+    bool isColorFont() const override;
+    bool hasColorLayer(glyph_t g) const override;
+    void addColorLayersToPath(glyph_t glyph, const QFixedPoint &position,
+                              QVector<QPainterPath> &paths, QVector<QColor> &colors) override;
+
     bool expectsGammaCorrectedBlending() const override;
 
     void removeGlyphFromCache(glyph_t glyph) override;
@@ -254,7 +268,8 @@ private:
     inline Glyph *loadGlyph(uint glyph, QFixed subPixelPosition, GlyphFormat format = Format_None, bool fetchMetricsOnly = false, bool disableOutlineDrawing = false) const
     { return loadGlyph(cacheEnabled ? &defaultGlyphSet : 0, glyph, subPixelPosition, format, fetchMetricsOnly, disableOutlineDrawing); }
     Glyph *loadGlyph(QGlyphSet *set, uint glyph, QFixed subPixelPosition, GlyphFormat = Format_None, bool fetchMetricsOnly = false, bool disableOutlineDrawing = false) const;
-    Glyph *loadGlyphFor(glyph_t g, QFixed subPixelPosition, GlyphFormat format, const QTransform &t, bool fetchBoundingBox = false, bool disableOutlineDrawing = false);
+    Glyph *loadGlyphFor(glyph_t g, QFixed subPixelPosition, GlyphFormat format, const QTransform &t,
+                        bool fetchBoundingBox = false, bool disableOutlineDrawing = false, int wx = 0, int wy = 0);
 
     QGlyphSet *loadGlyphSet(const QTransform &matrix);
 
@@ -277,8 +292,15 @@ private:
 
     HintStyle defaultHintStyle() const { return default_hint_style; }
 
+    static QFontEngine::SubpixelAntialiasingType subpixelAntialiasingTypeHint();
+
     static QFontEngineFT *create(const QFontDef &fontDef, FaceId faceId, const QByteArray &fontData = QByteArray());
     static QFontEngineFT *create(const QByteArray &fontData, qreal pixelSize, QFont::HintingPreference hintingPreference);
+
+    QGlyphSet* customBoldWidthGlyphSet(int wx, int wy);
+    QGlyphSet* loadCustomBoldGlyphSet(int wx, int wy, const QTransform &matrix);
+    bool hasCustomBoldWidth(int penWidth, int vw, int vh, int ww, int wh, int& wx, int& wy);
+    bool customEmbolden;
 
 protected:
 
@@ -301,6 +323,19 @@ private:
     friend class QFontconfigDatabase;
     friend class QFreeTypeFontDatabase;
     friend class QFontEngineMultiFontConfig;
+
+    struct QCustomBoldGlyphSet : public QGlyphSet
+    {
+        int customBoldWidthx;
+        int customBoldWidthy;
+        QCustomBoldGlyphSet(int wx, int wy)
+            : QGlyphSet()
+            , customBoldWidthx(wx)
+            , customBoldWidthy(wy)
+        {}
+    };
+    QList<QCustomBoldGlyphSet> customBoldGlyphSets;
+    QList<QCustomBoldGlyphSet> transformedCustomBoldGlyphSets;
 
     int loadFlags(QGlyphSet *set, GlyphFormat format, int flags, bool &hsubpixel, int &vfactor) const;
     bool shouldUseDesignMetrics(ShaperFlags flags) const;

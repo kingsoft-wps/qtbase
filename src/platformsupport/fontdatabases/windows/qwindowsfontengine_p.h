@@ -132,11 +132,29 @@ public:
 
     void setUniqueFamilyName(const QString &newName) { uniqueFamilyName = newName; }
 
+    const QString &privateName() const { return _name; }
+
+    virtual void clearGlyphCache(const void *key);
+    virtual void setGlyphCache(const void *key, QFontEngineGlyphCache *data);
+    virtual QFontEngineGlyphCache *glyphCache(const void *key, GlyphFormat format, const QTransform &transform,const QColor &color = QColor()) const;
+
 private:
     QWindowsNativeImage *drawGDIGlyph(HFONT font, glyph_t, int margin, const QTransform &xform,
                                       QImage::Format mask_format);
+
+    void getGasp();
+    bool isGrayscaleSmoothingEnabled(qreal size);
+
     bool hasCFFTable() const;
     bool hasCMapTable() const;
+
+    struct GlyphInfo
+    {
+        GlyphInfo() = default;
+
+        int leftBearing;
+        int rightBearing;
+    };
 
     const QSharedPointer<QWindowsFontEngineData> m_fontEngineData;
 
@@ -152,6 +170,9 @@ private:
     const unsigned char *cmap = nullptr;
     int cmapSize = 0;
     QByteArray cmapTable;
+    QTextCodec *cmapCodec;
+    QVarLengthArray<QPair<quint16, quint16>, 4> gaspLookup;
+    QHash<glyph_t, GlyphInfo> glyphInfo;
     mutable qreal lbearing = SHRT_MIN;
     mutable qreal rbearing = SHRT_MIN;
     QFixed designToDevice;
@@ -165,6 +186,17 @@ private:
     mutable uint widthCacheSize = 0;
     mutable QFixed *designAdvances = nullptr;
     mutable int designAdvancesSize = 0;
+
+private:
+    struct CustomEmboldenGlyphCacheEntry : public GlyphCacheEntry {
+        QFixed customBoldwidth;
+        bool operator==(const CustomEmboldenGlyphCacheEntry &other) {
+            return customBoldwidth == other.customBoldwidth && GlyphCacheEntry::operator==(other);
+        }
+    };
+
+    typedef QLinkedList<CustomEmboldenGlyphCacheEntry> CustomBoldGlyphCaches;
+    mutable QHash<const void *, CustomBoldGlyphCaches> m_customBoldWidthGlyphCaches;
 };
 
 QT_END_NAMESPACE

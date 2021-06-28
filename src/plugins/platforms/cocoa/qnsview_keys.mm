@@ -130,7 +130,7 @@
                 return true;
         }
 
-        QObject *fo = m_platformWindow->window()->focusObject();
+        QObject *fo = [self topLevelWindow]->focusObject();
         if (m_sendKeyEvent && fo) {
             QInputMethodQueryEvent queryEvent(Qt::ImEnabled | Qt::ImHints);
             if (QCoreApplication::sendEvent(fo, &queryEvent)) {

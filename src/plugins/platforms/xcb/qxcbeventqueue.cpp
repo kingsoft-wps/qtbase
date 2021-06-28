@@ -362,6 +362,14 @@ void QXcbEventQueue::waitForNewEvents(const QXcbEventNode *sinceFlushedTail,
     m_newEventsCondition.wait(&m_newEventsMutex, time);
 }
 
+void QXcbEventQueue::put(xcb_window_t window, const xcb_generic_event_t *event)
+{
+    // FIXME: enqueueEvent directly?
+    xcb_connection_t *c = m_connection->xcb_connection();
+    xcb_send_event(c, false, window, XCB_EVENT_MASK_NO_EVENT,
+                   reinterpret_cast<const char *>(event));
+}
+
 void QXcbEventQueue::sendCloseConnectionEvent() const
 {
     // A hack to close XCB connection. Apparently XCB does not have any APIs for this?

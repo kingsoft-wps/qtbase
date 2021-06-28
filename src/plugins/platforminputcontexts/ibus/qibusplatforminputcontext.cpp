@@ -44,6 +44,7 @@
 #include <QDBusVariant>
 #include <qwindow.h>
 #include <qevent.h>
+#include <qwidget.h>
 
 #include <qpa/qplatformcursor.h>
 #include <qpa/qplatformscreen.h>
@@ -130,8 +131,8 @@ QIBusPlatformInputContext::QIBusPlatformInputContext ()
 
     connectToContextSignals();
 
-    QInputMethod *p = qApp->inputMethod();
-    connect(p, SIGNAL(cursorRectangleChanged()), this, SLOT(cursorRectChanged()));
+/*    QInputMethod *p = qApp->inputMethod();
+	connect(p, SIGNAL(cursorRectangleChanged()), this, SLOT(cursorRectChanged()))*/;
     m_eventFilterUseSynchronousMode = false;
     if (qEnvironmentVariableIsSet("IBUS_ENABLE_SYNC_MODE")) {
         bool ok;
@@ -171,9 +172,9 @@ void QIBusPlatformInputContext::invokeAction(QInputMethod::Action a, int)
         commit();
 }
 
-void QIBusPlatformInputContext::reset()
+void QIBusPlatformInputContext::reset(bool bCancel)
 {
-    QPlatformInputContext::reset();
+    QPlatformInputContext::reset(bCancel);
 
     if (!d->busConnected)
         return;
@@ -197,11 +198,15 @@ void QIBusPlatformInputContext::commit()
         return;
     }
 
+    /*
     if (!d->predit.isEmpty()) {
         QInputMethodEvent event;
         event.setCommitString(d->predit);
         QCoreApplication::sendEvent(input, &event);
     }
+    */
+
+    hidePreeditText();
 
     d->context->Reset();
     d->predit = QString();
@@ -238,6 +243,9 @@ void QIBusPlatformInputContext::update(Qt::InputMethodQueries q)
 
         d->context->SetSurroundingText(dbusText, cursorPosition, anchorPosition);
     }
+    if (q.testFlag(Qt::ImCursorRectangle)){
+        cursorRectChanged();
+    }
     QPlatformInputContext::update(q);
 }
 
@@ -253,7 +261,19 @@ void QIBusPlatformInputContext::cursorRectChanged()
     QWindow *inputWindow = qApp->focusWindow();
     if (!inputWindow)
         return;
-    r.moveTopLeft(inputWindow->mapToGlobal(r.topLeft()));
+
+    QObject *focusobj = qApp->focusObject();
+    if (!focusobj)
+        return;
+
+    if (QWidget *widget = qobject_cast<QWidget*>(focusobj)) {
+        r = widget->inputMethodQuery(Qt::ImCursorRectangle).toRect();
+        r.moveTopLeft(widget->mapToGlobal(r.topLeft()));
+    }
+    else {
+        r.moveTopLeft(inputWindow->mapToGlobal(r.topLeft()));
+    }
+
     if (debug)
         qDebug() << "microFocus" << r;
     d->context->SetCursorLocation(r.x(), r.y(), r.width(), r.height());
@@ -269,6 +289,8 @@ void QIBusPlatformInputContext::setFocusObject(QObject *object)
     // Mysteriously however that is not sufficient to fix bug QTBUG-63066.
     if (!inputMethodAccepted())
         return;
+
+    cursorRectChanged();
 
     if (debug)
         qDebug() << "setFocusObject" << object;
@@ -338,6 +360,9 @@ void QIBusPlatformInputContext::forwardKeyEvent(uint keyval, uint keycode, uint 
 
     if (debug)
         qDebug() << "forwardKeyEvent" << keyval << keycode << state;
+
+    if (keyval < '0' || keyval > '9')
+        return;
 
     QEvent::Type type = QEvent::KeyPress;
     if (state & IBUS_RELEASE_MASK)
@@ -409,6 +434,8 @@ bool QIBusPlatformInputContext::filterEvent(const QEvent *event)
 
     if (!inputMethodAccepted())
         return false;
+
+    cursorRectChanged();
 
     const QKeyEvent *keyEvent = static_cast<const QKeyEvent *>(event);
     quint32 sym = keyEvent->nativeVirtualKey();
@@ -711,7 +738,20 @@ QString QIBusPlatformInputContextPrivate::getSocketPath()
     QByteArray display(qgetenv("DISPLAY"));
     QByteArray host = "unix";
     QByteArray displayNumber = "0";
+    QByteArray type(qgetenv("XDG_SESSION_TYPE"));
 
+    QString path = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation) +
+                       QLatin1String("/ibus/bus/") +
+                       QLatin1String(QDBusConnection::localMachineId()) +
+                       QLatin1Char('-') + QString::fromLocal8Bit(host) + QLatin1Char('-');
+
+    if (type == "wayland")
+    {
+        displayNumber = qgetenv("WAYLAND_DISPLAY");
+        QString filename = path + QString::fromLocal8Bit(displayNumber);
+        if (QFile::exists(filename))
+            return filename;
+    }
     int pos = display.indexOf(':');
     if (pos > 0)
         host = display.left(pos);
@@ -724,10 +764,7 @@ QString QIBusPlatformInputContextPrivate::getSocketPath()
     if (debug)
         qDebug() << "host=" << host << "displayNumber" << displayNumber;
 
-    return QStandardPaths::writableLocation(QStandardPaths::ConfigLocation) +
-               QLatin1String("/ibus/bus/") +
-               QLatin1String(QDBusConnection::localMachineId()) +
-               QLatin1Char('-') + QString::fromLocal8Bit(host) + QLatin1Char('-') + QString::fromLocal8Bit(displayNumber);
+    return path + QString::fromLocal8Bit(displayNumber);
 }
 
 QDBusConnection *QIBusPlatformInputContextPrivate::createConnection()

@@ -78,6 +78,7 @@ public:
                   NoDotDot      = 0x4000,
                   NoDotAndDotDot = NoDot | NoDotDot,
 
+                  ForbiddenFilter = 0x10000, // the broken symlinks are not list by default, this option will not filter and returns AllEntries list
                   NoFilter = -1
     };
     Q_DECLARE_FLAGS(Filters, Filter)

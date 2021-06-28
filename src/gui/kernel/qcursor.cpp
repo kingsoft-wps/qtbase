@@ -50,6 +50,7 @@
 #include <qpa/qplatformcursor.h>
 #include <private/qguiapplication_p.h>
 #include <private/qhighdpiscaling_p.h>
+#include <qhashfunctions.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -273,6 +274,12 @@ void QCursor::setPos(QScreen *screen, int x, int y)
 void QCursor::setPos(int x, int y)
 {
     QCursor::setPos(QGuiApplication::primaryScreen(), x, y);
+}
+
+
+uint QCursor::hashCode() const
+{
+    return qHash(d);
 }
 
 #ifndef QT_NO_CURSOR
@@ -551,8 +558,12 @@ void QCursor::setShape(Qt::CursorShape shape)
     if (!QCursorData::initialized)
         QCursorData::initialize();
     QCursorData *c = uint(shape) <= Qt::LastCursor ? qt_cursorTable[shape] : 0;
-    if (!c)
-        c = qt_cursorTable[0];
+    if (!c) {
+        if (shape != Qt::CustomCursor)
+            c = qt_cursorTable[0];
+        else
+            c = new QCursorData(Qt::CustomCursor);
+    }
     c->ref.ref();
     if (!d) {
         d = c;

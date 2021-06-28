@@ -161,6 +161,10 @@ QDirIteratorPrivate::QDirIteratorPrivate(const QFileSystemEntry &entry, const QS
       , filters(QDir::NoFilter == filters ? QDir::AllEntries : filters)
       , iteratorFlags(flags)
 {
+    // check ForbiddenFilter
+    if (filters & QDir::ForbiddenFilter)
+        filters = QDir::ForbiddenFilter | QDir::AllEntries;
+
 #ifndef QT_NO_REGEXP
     nameRegExps.reserve(nameFilters.size());
     for (int i = 0; i < nameFilters.size(); ++i)
@@ -320,6 +324,10 @@ void QDirIteratorPrivate::checkAndPushDirectory(const QFileInfo &fileInfo)
 
 bool QDirIteratorPrivate::matchesFilters(const QString &fileName, const QFileInfo &fi) const
 {
+    // forbid filter
+    if (filters & QDir::ForbiddenFilter)
+        return true;
+
     if (fileName.isEmpty())
         return false;
 

@@ -38,6 +38,7 @@
 #include <qlocale.h>
 #include <qstack.h>
 #include <qxmlstream.h>
+#include <qcryptographichash.h>
 
 #include <algorithm>
 
@@ -104,7 +105,7 @@ public:
     QString resourceName() const;
 
 public:
-    qint64 writeDataBlob(RCCResourceLibrary &lib, qint64 offset, QString *errorMessage);
+    qint64 writeDataBlob(RCCResourceLibrary &lib, qint64 offset, QMap<QByteArray, int> *pMapDataBlobs, QString *errorMessage);
     qint64 writeDataName(RCCResourceLibrary &, qint64 offset);
     void writeDataInfo(RCCResourceLibrary &lib);
 
@@ -218,7 +219,7 @@ void RCCFileInfo::writeDataInfo(RCCResourceLibrary &lib)
 }
 
 qint64 RCCFileInfo::writeDataBlob(RCCResourceLibrary &lib, qint64 offset,
-    QString *errorMessage)
+    QMap<QByteArray, int> *pMapDataBlobs, QString *errorMessage)
 {
     const bool text = lib.m_format == RCCResourceLibrary::C_Code;
     const bool pass1 = lib.m_format == RCCResourceLibrary::Pass1;
@@ -235,7 +236,24 @@ qint64 RCCFileInfo::writeDataBlob(RCCResourceLibrary &lib, qint64 offset,
         return 0;
     }
     QByteArray data = file.readAll();
+    if (pMapDataBlobs) {
+        QMap<QByteArray, int>& mapDataBlobs = *pMapDataBlobs;
+        const QByteArray sha1 = QCryptographicHash::hash(data, QCryptographicHash::Sha1);
+        QMap<QByteArray, int>::iterator it = mapDataBlobs.find(sha1);
+        if (it != mapDataBlobs.end()) {
+            // some info
+            if (text) {
+                lib.writeString("  // ");
+                lib.writeByteArray(m_fileInfo.absoluteFilePath().toLocal8Bit());
+                lib.writeString("\n  ");
+                lib.writeString("  // duplicate removed.\n  ");
+            }
+            m_dataOffset = it.value();
+            return offset;
+        }
 
+        mapDataBlobs[sha1] = m_dataOffset;
+    }
 #ifndef QT_NO_COMPRESS
     // Check if compression is useful for this file
     if (m_compressLevel != 0 && data.size() != 0) {
@@ -351,6 +369,7 @@ RCCResourceLibrary::RCCResourceLibrary(quint8 formatVersion)
   : m_root(0),
     m_format(C_Code),
     m_verbose(false),
+    m_removeDuplicate(false),
     m_compressLevel(CONSTANT_COMPRESSLEVEL_DEFAULT),
     m_compressThreshold(CONSTANT_COMPRESSTHRESHOLD_DEFAULT),
     m_treeOffset(0),
@@ -905,6 +924,9 @@ bool RCCResourceLibrary::writeDataBlobs()
     if (!m_root)
         return false;
 
+    QMap<QByteArray, int> mapDataBlobs;
+    QMap<QByteArray, int>* pMapDataBlobs = m_removeDuplicate ? &mapDataBlobs : nullptr;
+
     QStack<RCCFileInfo*> pending;
     pending.push(m_root);
     qint64 offset = 0;
@@ -917,7 +939,7 @@ bool RCCResourceLibrary::writeDataBlobs()
             if (child->m_flags & RCCFileInfo::Directory)
                 pending.push(child);
             else {
-                offset = child->writeDataBlob(*this, offset, &errorMessage);
+                offset = child->writeDataBlob(*this, offset, pMapDataBlobs, &errorMessage);
                 if (offset == 0) {
                     m_errorDevice->write(errorMessage.toUtf8());
                     return false;

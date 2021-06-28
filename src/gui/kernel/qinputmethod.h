@@ -41,6 +41,7 @@
 #define QINPUTMETHOD_H
 
 #include <QtGui/qtguiglobal.h>
+#include <QtGui/qwindowdefs.h>
 #include <QtCore/qobject.h>
 
 QT_BEGIN_NAMESPACE
@@ -101,10 +102,14 @@ public Q_SLOTS:
     void hide();
 
     void update(Qt::InputMethodQueries queries);
-    void reset();
+    void reset(bool bCancel = true);
     void commit();
 
     void invokeAction(Action a, int cursorPosition);
+    void disableFocusIME(QWindow *pWindow = nullptr);
+    void updateFocusIME(QObject *o);
+    void updateEnable(QWindow *pWindow);
+    void closeCandidateWindow();
 
 Q_SIGNALS:
     void cursorRectangleChanged();

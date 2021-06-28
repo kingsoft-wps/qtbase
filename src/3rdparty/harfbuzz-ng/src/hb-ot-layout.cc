@@ -937,6 +937,25 @@ hb_ot_layout_lookup_substitute_closure (hb_face_t    *face,
   l.closure (&c);
 }
 
+hb_codepoint_t
+hb_ot_layout_lookup_substitute(hb_face_t *face,
+							   unsigned int lookup_index,
+							   hb_codepoint_t glyph)
+{
+  hb_buffer_t *buffer = hb_buffer_create();
+  hb_buffer_add_codepoints(buffer, &glyph, 1, 0, 1);
+
+  OT::hb_apply_context_t c(0, face, buffer);
+  const OT::SubstLookup& l = _get_gsub (face).get_lookup (lookup_index);
+
+  hb_codepoint_t result = l.apply(&c) && buffer->out_len == 1
+          ? buffer->out_info[0].codepoint
+          : glyph;
+  hb_buffer_destroy(buffer);
+
+  return result;
+}
+
 /*
  * OT::GPOS
  */

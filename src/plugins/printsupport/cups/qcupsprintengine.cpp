@@ -52,6 +52,13 @@
 #include <cups/cups.h>
 
 #include "private/qcore_unix_p.h" // overrides QT_OPEN
+#include <QCoreApplication>
+#include <QLibrary>
+#include <QDateTime>
+#include <QSettings>
+#include <QDir>
+#include <QMessageBox>
+#include <QPrinterInfo>
 
 QT_BEGIN_NAMESPACE
 
@@ -104,7 +111,7 @@ void QCupsPrintEngine::setProperty(PrintEnginePropertyKey key, const QVariant &v
         break;
     case PPK_QPageLayout: {
         QPageLayout pageLayout = value.value<QPageLayout>();
-        if (pageLayout.isValid() && (d->m_printDevice.isValidPageLayout(pageLayout, d->resolution)
+        if (pageLayout.isValid() && (d->m_printDevice.isValidPageLayout(pageLayout, QSize(d->resolution, d->resolution))
                                      || d->m_printDevice.supportsCustomPageSizes()
                                      || d->m_printDevice.supportedPageSizes().isEmpty())) {
             // supportedPageSizes().isEmpty() because QPageSetupWidget::initPageSizes says
@@ -187,7 +194,6 @@ bool QCupsPrintEnginePrivate::openPrintDevice()
 void QCupsPrintEnginePrivate::closePrintDevice()
 {
     QPdfPrintEnginePrivate::closePrintDevice();
-
     if (!cupsTempFile.isEmpty()) {
         QString tempFile = cupsTempFile;
         cupsTempFile.clear();
@@ -247,15 +253,18 @@ void QCupsPrintEnginePrivate::closePrintDevice()
             cupsOptStruct.append(opt);
         }
 
-        // Print the file
-        // Cups expect the printer original name without instance, the full name is used only to retrieve the configuration
-        const auto parts = printerName.splitRef(QLatin1Char('/'));
-        const auto printerOriginalName = parts.at(0);
-        cups_option_t* optPtr = cupsOptStruct.size() ? &cupsOptStruct.first() : 0;
-        cupsPrintFile(printerOriginalName.toLocal8Bit().constData(), tempFile.toLocal8Bit().constData(),
-                      title.toLocal8Bit().constData(), cupsOptStruct.size(), optPtr);
+		// by kso kxapplication handler
+		emit QCoreApplication::instance()->closePrintDevice(tempFile);
 
-        QFile::remove(tempFile);
+		// Print the file
+		// Cups expect the printer original name without instance, the full name is used only to retrieve the configuration
+		const auto parts = printerName.splitRef(QLatin1Char('/'));
+		const auto printerOriginalName = parts.at(0);
+		cups_option_t* optPtr = cupsOptStruct.size() ? &cupsOptStruct.first() : 0;
+		cupsPrintFile(printerOriginalName.toLocal8Bit().constData(), tempFile.toLocal8Bit().constData(),
+					title.toLocal8Bit().constData(), cupsOptStruct.size(), optPtr);
+
+		QFile::remove(tempFile);
     }
 }
 
@@ -297,7 +306,7 @@ void QCupsPrintEnginePrivate::setPageSize(const QPageSize &pageSize)
         // Find if the requested page size has a matching printer page size, if so use its defined name instead
         QPageSize printerPageSize = m_printDevice.supportedPageSize(pageSize);
         QPageSize usePageSize = printerPageSize.isValid() ? printerPageSize : pageSize;
-        QMarginsF printable = m_printDevice.printableMargins(usePageSize, m_pageLayout.orientation(), resolution);
+        QMarginsF printable = m_printDevice.printableMargins(usePageSize, m_pageLayout.orientation(), QSize(resolution, resolution));
         m_pageLayout.setPageSize(usePageSize, qt_convertMargins(printable, QPageLayout::Point, m_pageLayout.units()));
     }
 }

@@ -83,7 +83,7 @@ static inline int panTouchPoints()
     // where 1 finger movements are used for mouse event synthetization. For now,
     // default to 2 until all classes inheriting QScrollArea are fixed to handle it
     // correctly.
-    return 2;
+    return 1;	//change default to 1
 }
 #endif
 

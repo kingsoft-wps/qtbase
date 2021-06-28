@@ -44,6 +44,7 @@
 #include <QtCore/qbytearray.h>
 #include <QtCore/qobjectdefs.h>
 
+#include <QtCore/qvariant.h>
 QT_BEGIN_NAMESPACE
 
 
@@ -286,8 +287,16 @@ public:
 
         TabletTrackingChange = 219,             // tablet tracking state has changed
 
+        EnterModal = 250,    // added
+        LeaveModal = 251,    // added
+        CancelEmbeddingControl = 252, // added, for cancel EmbbedingControl.
+        WindowsWindowGeometryChanged = 253,// added, for QWindow Size Changed on WM_SIZE
+
         // 512 reserved for Qt Jambi's MetaCall event
         // 513 reserved for Qt Jambi's DeleteOnMainThread event
+
+        GpuDeviceLost = 999,    // GPU device lost event
+        GpuResourceUnrecoverable = 1000,
 
         User = 1000,                            // first user event id
         MaxUser = 65535                         // last user event id
@@ -382,6 +391,115 @@ private:
     friend class QCoreApplication;
 };
 
+#ifdef Q_OS_MAC
+class Q_CORE_EXPORT QEncryptFileEvent : public QEvent
+{
+public:
+
+    enum Type
+    {
+        EncryptFile = QEvent::User + 666
+    };
+
+    explicit QEncryptFileEvent(const QString &name, const QString &path, const QString &ext,
+                               const QVariant &v = QVariant());
+    ~QEncryptFileEvent();
+    const QString& fileName() const { return _fileName; }
+    const QString& filePath() const { return _filePath; }
+    const QString& fileExt() const { return _fileExt; }
+    QVariant getExtraArg() const { return m_extraArg; }
+protected:
+    QString _fileName;
+    QString _filePath;
+    QString _fileExt;
+    QVariant m_extraArg;
+};
+
+class Q_CORE_EXPORT QLocationFileEvent : public QEvent
+{
+public:
+
+    enum Type
+    {
+        LocationFile = QEvent::User + 667
+    };
+
+    explicit QLocationFileEvent(const QString& name, const QString& ext, const QVariant &v = QVariant());
+    ~QLocationFileEvent();
+    const QString& fileName() const { return _fileName; }
+    const QString& fileExt() const { return _fileExt; }
+    QVariant getExtraArg() const { return m_extraArg; }
+protected:
+    QString _fileName;
+    QString _fileExt;
+    QVariant m_extraArg;
+};
+
+class Q_CORE_EXPORT QAppThemeChangeEvent : public QEvent
+{
+public:
+
+    enum Type
+    {
+        AppThemeChange = QEvent::User + 668
+    };
+
+    // Theme style
+    enum ThemeMode
+    {
+        Normal, // normal mode
+        Dark,   // dark mode
+    };
+
+    QAppThemeChangeEvent(ThemeMode type);
+    ~QAppThemeChangeEvent();
+
+    ThemeMode themeType() const { return m_themeType; }
+
+protected:
+    ThemeMode m_themeType;
+};
+
+// The status of the query pop-up dialog determines the subsequent operation
+class Q_CORE_EXPORT QPopupWindowStateQueryEvent : public QEvent
+{
+public:
+
+	// Mouse Type
+	enum Type
+	{
+        PopupWindowStateQueryEvent = QEvent::User + 669
+	};
+
+    explicit QPopupWindowStateQueryEvent();
+    ~QPopupWindowStateQueryEvent();
+
+    void setStopAfterSelfClosed(bool b) { m_bStopAfterSelfClosed = b; }
+    bool stopAfterSelfClosed() { return m_bStopAfterSelfClosed; }
+
+    void setNeedClosed(bool b) { m_bNeedClosed = b; }
+    bool needClosed() { return m_bNeedClosed; }
+
+protected:
+    // Do you need to terminate the operation after the pop-up menu is closed
+    bool m_bStopAfterSelfClosed;
+    // Do pop up menus need to be closed
+    bool m_bNeedClosed;
+};
+
+class Q_CORE_EXPORT QSaveToCloudEvent : public QEvent
+{
+public:
+
+    enum Type
+    {
+        SaveToCloud = QEvent::User + 670
+    };
+
+    explicit QSaveToCloudEvent();
+    ~QSaveToCloudEvent();
+};
+#endif
 QT_END_NAMESPACE
 
 #endif // QCOREEVENT_H

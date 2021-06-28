@@ -73,6 +73,8 @@ void QToolBarExtension::paintEvent(QPaintEvent *)
     QStylePainter p(this);
     QStyleOptionToolButton opt;
     initStyleOption(&opt);
+    if (!opt.icon.isNull())
+        opt.iconSize = opt.icon.actualSize(opt.rect.size());
     // We do not need to draw both extension arrows
     opt.features &= ~QStyleOptionToolButton::HasMenu;
     p.drawComplexControl(QStyle::CC_ToolButton, opt);

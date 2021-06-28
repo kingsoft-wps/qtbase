@@ -4110,6 +4110,17 @@ QDebug operator<<(QDebug dbg, const QLocale &l)
     return dbg;
 }
 #endif
+#ifdef Q_OS_MAC
+QString QLocale::macSystemLanguage() const
+{
+#ifndef QT_NO_SYSTEMLOCALE
+    QVariant res = systemLocale()->query(QSystemLocale::SystemLanguage, QVariant());
+    if (!res.isNull())
+        return res.toString();
+#endif
+    return QString();
+}
+#endif
 QT_END_NAMESPACE
 
 #ifndef QT_NO_QOBJECT

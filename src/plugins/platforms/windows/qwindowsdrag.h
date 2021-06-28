@@ -48,9 +48,10 @@
 #include <QtGui/qdrag.h>
 
 struct IDropTargetHelper;
+typedef DWORD DROPEFFECT;
 
 QT_BEGIN_NAMESPACE
-
+class QDropDescription;
 class QPlatformScreen;
 
 class QWindowsDropMimeData : public QWindowsInternalMimeData {
@@ -71,7 +72,7 @@ public:
     STDMETHOD(DragLeave)();
     STDMETHOD(Drop)(LPDATAOBJECT pDataObj, DWORD grfKeyState, POINTL pt, LPDWORD pdwEffect);
 
-private:
+protected:
     void handleDrag(QWindow *window, DWORD grfKeyState, const QPoint &, LPDWORD pdwEffect);
 
     QWindow *const m_window;
@@ -79,6 +80,40 @@ private:
     QPoint m_lastPoint;
     DWORD m_chosenEffect = 0;
     DWORD m_lastKeyState = 0;
+};
+
+class QWindowsOleDropTargetEx : public QWindowsOleDropTarget
+{
+public:
+    QWindowsOleDropTargetEx(QWindow *w);
+    virtual ~QWindowsOleDropTargetEx();
+
+    // IDropTarget methods
+    STDMETHOD(DragEnter)(LPDATAOBJECT pDataObj, DWORD grfKeyState, POINTL pt, LPDWORD pdwEffect);
+    STDMETHOD(DragOver)(DWORD grfKeyState, POINTL pt, LPDWORD pdwEffect);
+    STDMETHOD(DragLeave)();
+    STDMETHOD(Drop)(LPDATAOBJECT pDataObj, DWORD grfKeyState, POINTL pt, LPDWORD pdwEffect);
+
+private:
+    void ClearStateFlags();
+    bool AddDropDescriptionText(DWORD nType, QString qsText, QString qsTextMirror,
+                                QString qsInsert = QString());
+    bool AddDropInsertText(QString qsInsertText);
+    bool SetDropDescription(DROPEFFECT dwEffect);
+    bool SetDropDescription(DWORD nImageType, QString qsDescText, bool bCreate);
+    inline bool ClearDropDescription();
+    DROPEFFECT FilterDropEffect(DROPEFFECT dropEffect) const;
+
+private:
+    QDropDescription *m_DropDescription;
+    DROPEFFECT m_nDropEffects; // Drop effects passed to DoDragDrop
+    DROPEFFECT m_nPreferredDropEffect;
+    IDropTargetHelper *m_pDropTargetHelper;
+    bool m_bCanShowDescription;
+    bool m_bUseDropDescription;
+    bool m_bDescriptionUpdated;
+    bool m_bHasDragImage;
+    bool m_bTextAllowed;
 };
 
 class QWindowsDrag : public QPlatformDrag

@@ -234,6 +234,28 @@ void QPdfPrintEngine::setProperty(PrintEnginePropertyKey key, const QVariant &va
             d->m_pageLayout = pageLayout;
         break;
     }
+    case PPK_CupsMaxPantumBoldSize:
+        d->maxPantumBoldSize = value.toInt();
+        break;
+
+    case PPK_ImageQuality: {
+        d->imageQuality = 0;
+        if (!value.isNull())
+        {
+            bool bOk = false;;
+			int imageQuality = value.toInt(&bOk);
+			if (bOk && imageQuality > 0)
+				d->imageQuality = imageQuality;
+        }
+        break;
+    }
+    case PPK_AdaptiveImageQuality: {
+        d->bAdaptiveImageQuality = false;
+        if (!value.isNull())
+            d->bAdaptiveImageQuality = value.toBool();
+        break;
+    }
+
     // No default so that compiler will complain if new keys added and not handled in this engine
     }
 }
@@ -343,6 +365,16 @@ QVariant QPdfPrintEngine::property(PrintEnginePropertyKey key) const
     case PPK_QPageLayout:
         ret.setValue(d->m_pageLayout);
         break;
+
+    case PPK_CupsMaxPantumBoldSize:
+        ret = d->maxPantumBoldSize;
+        break;
+    case PPK_ImageQuality:
+        ret = d->imageQuality;
+        break;
+    case PPK_AdaptiveImageQuality:
+        ret = d->bAdaptiveImageQuality;
+        break;
     // No default so that compiler will complain if new keys added and not handled in this engine
     }
     return ret;
@@ -397,6 +429,8 @@ QPdfPrintEnginePrivate::QPdfPrintEnginePrivate(QPrinter::PrinterMode m)
         resolution = 1200;
     else if (m == QPrinter::ScreenResolution)
         resolution = qt_defaultDpi();
+    else if (m == QPrinter::ExportResolution)
+        resolution = 600;
 }
 
 QPdfPrintEnginePrivate::~QPdfPrintEnginePrivate()

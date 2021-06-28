@@ -94,6 +94,7 @@ QHttpNetworkConnectionChannel::QHttpNetworkConnectionChannel()
     , lastStatus(0)
     , pendingEncrypt(false)
     , reconnectAttempts(reconnectAttemptsDefault)
+    , bHttpsReConnects(false)
     , authMethod(QAuthenticatorPrivate::None)
     , proxyAuthMethod(QAuthenticatorPrivate::None)
     , authenticationCredentialsSent(false)
@@ -392,8 +393,8 @@ bool QHttpNetworkConnectionChannel::ensureConnection()
             // check whether we can re-use an existing SSL session
             // (meaning another socket in this connection has already
             // performed a full handshake)
-            if (!connection->sslContext().isNull())
-                QSslSocketPrivate::checkSettingSslContext(sslSocket, connection->sslContext());
+			if (!connection->sslContext().isNull() && sslSocket->protocol() != QSsl::GmSslV1)
+				QSslSocketPrivate::checkSettingSslContext(sslSocket, connection->sslContext());
 
             sslSocket->connectToHostEncrypted(connectHost, connectPort, QIODevice::ReadWrite, networkLayerPreference);
             if (ignoreAllSslErrors)
@@ -1031,6 +1032,14 @@ void QHttpNetworkConnectionChannel::_q_error(QAbstractSocket::SocketError socket
         } else {
             errorCode = QNetworkReply::RemoteHostClosedError;
         }
+        if (!bHttpsReConnects && pendingEncrypt)
+        {
+            QSslSocket* pSocket = static_cast<QSslSocket *>(this->socket);
+            pSocket->setProtocol(QSsl::GmSslV1);
+            closeAndResendCurrentRequest();
+            bHttpsReConnects = true;
+            return;
+        }
         break;
     case QAbstractSocket::SocketTimeoutError:
         // try to reconnect/resend before sending an error.
@@ -1044,7 +1053,16 @@ void QHttpNetworkConnectionChannel::_q_error(QAbstractSocket::SocketError socket
         errorCode = QNetworkReply::ProxyAuthenticationRequiredError;
         break;
     case QAbstractSocket::SslHandshakeFailedError:
-        errorCode = QNetworkReply::SslHandshakeFailedError;
+        {
+            QSslSocket* pSocket = qobject_cast<QSslSocket *>(this->socket);
+            if (pSocket != nullptr && !bHttpsReConnects && protocolHandler) {
+                pSocket->setProtocol(QSsl::GmSslV1);
+                resendCurrentRequest();
+                bHttpsReConnects = true;
+                return;
+            }
+            errorCode = QNetworkReply::SslHandshakeFailedError;
+        }
         break;
     case QAbstractSocket::ProxyConnectionClosedError:
         // try to reconnect/resend before sending an error.

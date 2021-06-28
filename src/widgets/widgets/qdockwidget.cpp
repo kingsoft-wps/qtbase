@@ -69,11 +69,18 @@ extern QMainWindowLayout *qt_mainwindow_layout(const QMainWindow *window);
 static inline QMainWindowLayout *qt_mainwindow_layout_from_dock(const QDockWidget *dock)
 {
     const QWidget *p = dock->parentWidget();
+    const QMainWindow *window = qobject_cast<const QMainWindow*>(p);
+    if (window)
+        return qt_mainwindow_layout(window);
+
+    bool useDockWidgetGroup = qobject_cast<const QDockWidgetGroupWindow*>(p);
     while (p) {
-        const QMainWindow *window = qobject_cast<const QMainWindow*>(p);
-        if (window)
-            return qt_mainwindow_layout(window);
         p = p->parentWidget();
+        const QMainWindow *window = qobject_cast<const QMainWindow*>(p);
+        if (window && useDockWidgetGroup)
+            return qt_mainwindow_layout(window);
+
+        useDockWidgetGroup = useDockWidgetGroup || qobject_cast<const QDockWidgetGroupWindow*>(p);
     }
     return nullptr;
 }
@@ -605,6 +612,11 @@ void QDockWidgetLayout::setVerticalTitleBar(bool b)
     parentWidget()->update();
 }
 
+void QDockWidgetLayout::_resetTitleArea(const QRect &rect)
+{
+    _titleArea = rect;
+}
+
 /******************************************************************************
 ** QDockWidgetItem
 */
@@ -852,17 +864,26 @@ void QDockWidgetPrivate::endDrag(bool abort)
                 QDockWidgetLayout *dwLayout = qobject_cast<QDockWidgetLayout*>(layout);
                 if (!dwLayout->nativeWindowDeco()) {
                     // get rid of the X11BypassWindowManager window flag and activate the resizer
+#ifndef Q_OS_WIN
                     Qt::WindowFlags flags = q->windowFlags();
                     flags &= ~Qt::X11BypassWindowManagerHint;
                     q->setWindowFlags(flags);
+#endif
                     setResizerActive(q->isFloating());
+#ifdef Q_OS_WIN
+                    if (!q->isVisible())
+                        q->show();
+#else
                     q->show();
+#endif
+
                 } else {
                     setResizerActive(false);
                 }
                 if (q->isFloating()) // Might not be floating when dragging a QDockWidgetGroupWindow
                     undockedGeometry = q->geometry();
-                q->activateWindow();
+                if (q->focusPolicy() != Qt::NoFocus)
+                    q->activateWindow();
             } else {
                 // The tab was not plugged back in the QMainWindow but the QDockWidget cannot
                 // stay floating, revert to the previous state.
@@ -1135,6 +1156,7 @@ void QDockWidgetPrivate::setWindowState(bool floating, bool unplug, const QRect 
         unplug = false;
     bool hidden = q->isHidden();
 
+    q->setUpdatesEnabled(false);
     if (q->isVisible())
         q->hide();
 
@@ -1164,6 +1186,8 @@ void QDockWidgetPrivate::setWindowState(bool floating, bool unplug, const QRect 
 
     if (!hidden)
         q->show();
+
+    q->setUpdatesEnabled(true);
 
     if (floating != wasFloating) {
         emit q->topLevelChanged(floating);

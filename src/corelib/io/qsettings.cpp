@@ -83,6 +83,7 @@
 #include <stdlib.h>
 
 #ifdef Q_OS_WIN // for homedirpath reading from registry
+#  include <private/qsystemlibrary_p.h>
 #  include <qt_windows.h>
 #  ifndef Q_OS_WINRT
 #    include <shlobj.h>
@@ -964,15 +965,39 @@ void QConfFileSettingsPrivate::initAccess()
 }
 
 #if defined(Q_OS_WIN) && !defined(Q_OS_WINRT)
-static QString windowsConfigPath(const KNOWNFOLDERID &type)
+static QString _sHGetKnownFolderPath(const KNOWNFOLDERID &type)
 {
     QString result;
+    typedef HRESULT(WINAPI * GetKnownFolderPath)(const GUID &, DWORD, HANDLE, LPWSTR *);
 
-    PWSTR path = nullptr;
-    if (SHGetKnownFolderPath(type, KF_FLAG_DONT_VERIFY, NULL, &path) == S_OK) {
-        result = QString::fromWCharArray(path);
-        CoTaskMemFree(path);
+    static const GetKnownFolderPath sHGetKnownFolderPath = // Vista onwards.
+            reinterpret_cast<GetKnownFolderPath>(
+                    QSystemLibrary::resolve(QLatin1String("shell32"), "SHGetKnownFolderPath"));
+
+    if (sHGetKnownFolderPath) {
+        LPWSTR path;
+        if (SUCCEEDED(sHGetKnownFolderPath(type, KF_FLAG_DONT_VERIFY, NULL, &path))) {
+            result = QString::fromWCharArray(path);
+            CoTaskMemFree(path);
+        }
+    } else {
+        int id = 0;
+        if (type == FOLDERID_ProgramData) {
+            id = CSIDL_COMMON_APPDATA;
+        } else if (type == FOLDERID_RoamingAppData) {
+            id = CSIDL_APPDATA;
+        }
+        wchar_t path[MAX_PATH];
+        if (Q_LIKELY(id >= 0 && SHGetSpecialFolderPath(0, path, id, FALSE))) {
+            result = QString::fromWCharArray(path);
+        }
     }
+
+    return result;
+}
+static QString windowsConfigPath(const KNOWNFOLDERID &type)
+{
+    QString result = _sHGetKnownFolderPath(type);
 
     if (result.isEmpty()) {
         if (type == FOLDERID_ProgramData) {

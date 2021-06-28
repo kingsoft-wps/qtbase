@@ -176,6 +176,16 @@ static void qt_maybeSendKeyEquivalentUpEvent(NSEvent *event)
     }
 }
 
+- (id)validRequestorForSendType:(NSString*)sendType returnType:(NSString*)returnType
+{
+    return [self.delegate validRequestorForSendType:sendType returnType:returnType];
+}
+
+- (BOOL)readSelectionFromPasteboard:(NSPasteboard *)pboard
+{
+    [self.delegate readSelectionFromPasteboard:pboard];
+    return YES;
+}
 @end
 
 QT_BEGIN_NAMESPACE

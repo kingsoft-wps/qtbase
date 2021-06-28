@@ -565,6 +565,42 @@ int QFontMetrics::width(const QString &text, int len, int flags) const
     return horizontalAdvance(text, len);
 }
 
+int QFontMetrics::width(const QString& text, bool ignoreBidi, int len /*= -1*/) const
+{
+    return horizontalAdvance(text, ignoreBidi, len);
+}
+
+int QFontMetrics::width(const QString& text, bool ignoreBidi, int len, int flags) const
+{
+#if QT_DEPRECATED_SINCE(5, 11) && QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+    if (flags & Qt::TextBypassShaping) {
+        int pos = text.indexOf(QLatin1Char('\x9c'));
+        if (pos != -1) {
+            len = (len < 0) ? pos : qMin(pos, len);
+        } else if (len < 0) {
+            len = text.length();
+        }
+        if (len == 0)
+            return 0;
+
+        // Skip complex shaping, only use advances
+        int numGlyphs = len;
+        QVarLengthGlyphLayoutArray glyphs(numGlyphs);
+        QFontEngine *engine = d->engineForScript(QChar::Script_Common);
+        if (!engine->stringToCMap(text.data(), len, &glyphs, &numGlyphs, 0))
+            Q_UNREACHABLE();
+
+        QFixed width;
+        for (int i = 0; i < numGlyphs; ++i)
+            width += glyphs.advances[i];
+        return qRound(width);
+    }
+#else
+    Q_UNUSED(flags)
+#endif
+
+    return horizontalAdvance(text, ignoreBidi, len);
+}
 /*!
     \overload
 
@@ -596,6 +632,34 @@ int QFontMetrics::width(QChar ch) const
     return horizontalAdvance(ch);
 }
 #endif // QT_DEPRECATED_SINCE(5, 11)
+
+/*!
+    Returns the horizontal advance in pixels of the first \a len characters of \a
+    text. If \a len is negative (the default), the entire string is
+    used.
+
+    This is the distance appropriate for drawing a subsequent character
+    after \a text.
+
+    \since 5.11
+
+    \sa boundingRect()
+*/
+int QFontMetrics::horizontalAdvance(const QString &text, bool ignoreBidi, int len) const
+{
+    int pos = text.indexOf(QLatin1Char('\x9c'));
+    if (pos != -1) {
+        len = (len < 0) ? pos : qMin(pos, len);
+    } else if (len < 0) {
+        len = text.length();
+    }
+    if (len == 0)
+        return 0;
+
+    QStackTextEngine layout(text, QFont(d.data()));
+    layout.ignoreBidi = ignoreBidi;
+    return qRound(layout.width(0, len));
+}
 
 /*!
     Returns the horizontal advance in pixels of the first \a len characters of \a

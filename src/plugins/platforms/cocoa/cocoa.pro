@@ -69,6 +69,14 @@ HEADERS += qcocoaintegration.h \
     qiosurfacegraphicsbuffer.h \
     qcocoamimetypes.h
 
+SOURCES +=  nscustomsavepanel.mm \
+    nstextfield_keyevent.mm \
+    qcocoawindowtitleview.mm
+
+HEADERS +=  nscustomsavepanel.h \
+    nstextfield_keyevent.h \
+    qcocoawindowtitleview.h
+
 qtConfig(opengl.*) {
     SOURCES += qcocoaglcontext.mm
     HEADERS += qcocoaglcontext.h

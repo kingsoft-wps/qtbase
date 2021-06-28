@@ -66,9 +66,12 @@ struct QWindowsGeometryHint
     static QMargins frame(const QWindow *w, const QRect &geometry,
                           DWORD style, DWORD exStyle);
     static bool handleCalculateSize(const QMargins &customMargins, const MSG &msg, LRESULT *result);
+    static void applyToMinMaxInfo(const QWindow *w, const QScreen *screen,
+                                  const QMargins &margins, MINMAXINFO *mmi);
     static void applyToMinMaxInfo(const QWindow *w, const QMargins &margins,
                                   MINMAXINFO *mmi);
-    static void frameSizeConstraints(const QWindow *w, const QMargins &margins,
+    static void frameSizeConstraints(const QWindow *w, const QScreen *screen,
+                                     const QMargins &margins,
                                      QSize *minimumSize, QSize *maximumSize);
     static inline QPoint mapToGlobal(HWND hwnd, const QPoint &);
     static inline QPoint mapToGlobal(const QWindow *w, const QPoint &);
@@ -80,13 +83,16 @@ struct QWindowsGeometryHint
 
 struct QWindowCreationContext
 {
-    explicit QWindowCreationContext(const QWindow *w,
+    explicit QWindowCreationContext(const QWindow *w, const QScreen *screen,
                                     const QRect &geometryIn, const QRect &geometry,
                                     const QMargins &customMargins,
                                     DWORD style, DWORD exStyle);
     void applyToMinMaxInfo(MINMAXINFO *mmi) const;
 
     const QWindow *window;
+    // The screen to use to scale size constraints, etc. Might differ from the
+    // screen of the window after QPlatformWindow::initialGeometry() (QTBUG-77307).
+    const QScreen *screen;
     QRect requestedGeometryIn; // QWindow scaled
     QRect requestedGeometry; // after QPlatformWindow::initialGeometry()
     QRect obtainedGeometry;
@@ -148,6 +154,7 @@ protected:
     void hide_sys();
     void raise_sys();
     void lower_sys();
+    void stackUnder_sys(const QPlatformWindow* w);
     void setWindowTitle_sys(const QString &title);
 };
 
@@ -217,7 +224,8 @@ public:
         WithinDpiChanged = 0x400000,
         VulkanSurface = 0x800000,
         ResizeMoveActive = 0x1000000,
-        DisableNonClientScaling = 0x2000000
+        DisableNonClientScaling = 0x2000000,
+        FullFrameMarginsChanged = 0x4000000,
     };
 
     QWindowsWindow(QWindow *window, const QWindowsWindowData &data);
@@ -228,6 +236,7 @@ public:
     using QPlatformWindow::screenForGeometry;
 
     QSurfaceFormat format() const override { return m_format; }
+    void setFormat(const QSurfaceFormat& format) override { m_format = format; }
     void setGeometry(const QRect &rect) override;
     QRect geometry() const override { return m_data.geometry; }
     QRect normalGeometry() const override;
@@ -249,6 +258,7 @@ public:
     void setWindowTitle(const QString &title) override;
     void raise() override { raise_sys(); }
     void lower() override { lower_sys(); }
+    void stackUnder(const QPlatformWindow* w) override { stackUnder_sys(w); }
 
     bool windowEvent(QEvent *event) override;
 
@@ -264,6 +274,7 @@ public:
     void setMask(const QRegion &region) override;
     qreal opacity() const { return m_opacity; }
     void requestActivateWindow() override;
+    void requestFocusWindow() override;
 
     bool setKeyboardGrabEnabled(bool grab) override;
     bool setMouseGrabEnabled(bool grab) override;
@@ -274,6 +285,8 @@ public:
 
     void setFrameStrutEventsEnabled(bool enabled) override;
     bool frameStrutEventsEnabled() const override { return testFlag(FrameStrutEventsEnabled); }
+    void syncTransientParent() override;
+    void updateWindowExpose() override;
 
     // QWindowsBaseWindow overrides
     HWND handle() const override { return m_data.hwnd; }
@@ -284,6 +297,8 @@ public:
 
     QMargins customMargins() const { return m_data.customMargins; }
     void setCustomMargins(const QMargins &m);
+
+    Qt::WindowFlags windowFlags() const { return m_data.flags; }
 
     void setStyle(unsigned s) const;
     void setExStyle(unsigned s) const;
@@ -355,12 +370,14 @@ private:
     inline void updateTransientParent() const;
     void destroyWindow();
     inline bool isDropSiteEnabled() const { return m_dropTarget != 0; }
-    void setDropSiteEnabled(bool enabled);
-    void updateDropSite(bool topLevel);
+    void setDropSiteEnabled(bool enabled, bool acceptenforceDrop = false);
+    void updateDropSite(bool topLevel,bool acceptenforceDrop = false);
     void handleGeometryChange();
     void handleWindowStateChange(Qt::WindowStates state);
     inline void destroyIcon();
     void fireExpose(const QRegion &region, bool force=false);
+    void fireFullExpose(bool force=false);
+    void requestActiveInner(bool bForegroundWnd = true);
 
     mutable QWindowsWindowData m_data;
     QPointer<QWindowsMenuBar> m_menuBar;
@@ -374,7 +391,7 @@ private:
     QWindowsOleDropTarget *m_dropTarget = nullptr;
     unsigned m_savedStyle = 0;
     QRect m_savedFrameGeometry;
-    const QSurfaceFormat m_format;
+    QSurfaceFormat m_format;
     HICON m_iconSmall = 0;
     HICON m_iconBig = 0;
     void *m_surface = nullptr;

@@ -63,6 +63,7 @@ QT_BEGIN_NAMESPACE
 class QAction;
 class QToolBarExtension;
 class QMenu;
+class QAbstractButton;
 
 class QToolBarItem : public QWidgetItem
 {
@@ -70,6 +71,12 @@ public:
     QToolBarItem(QWidget *widget);
     bool isEmpty() const override;
 
+    QSize sizeHint(Qt::Orientation o) const;
+    QSize minimumSize(Qt::Orientation o) const;
+    QSize maximumSize(Qt::Orientation o) const;
+    void setGeometry(Qt::Orientation o, const QRect &rc);
+
+public:
     QAction *action;
     bool customWidget;
 };
@@ -95,6 +102,9 @@ public:
     QSize minimumSize() const override;
     QSize sizeHint() const override;
 
+    QSize dockSizeHint(Qt::Orientation o) const;
+    QSize dockMinimumSize(Qt::Orientation o) const;
+
     void insertAction(int index, QAction *action);
     int indexOf(QAction *action) const;
     using QLayout::indexOf; // bring back the hidden members
@@ -110,21 +120,30 @@ public:
     void updateMarginAndSpacing();
     bool hasExpandFlag() const;
 
+    int titleHeight() const;
+    QSize getMargins(Qt::Orientation o, bool bFloating) const;
+    QRect dragRect() const;
+
     void updateMacBorderMetrics();
 public Q_SLOTS:
     void setExpanded(bool b);
+    void setExpanded(bool bExp, bool bAnimating);
 
 private:
     QList<QToolBarItem*> items;
     QSize hint, minSize;
+    QSize dockHint, dockMinSize;
+    QSize dockHintVert, dockMinSizeVert;
     bool dirty, expanding, empty, expandFlag;
     QVector<QLayoutStruct> geomArray;
     QRect handRect;
     QToolBarExtension *extension;
 
     void updateGeomArray() const;
+    void updateDockSize();
     QToolBarItem *createItem(QAction *action);
     QMenu *popupMenu;
+    QAbstractButton *closebutton;
 };
 
 QT_END_NAMESPACE

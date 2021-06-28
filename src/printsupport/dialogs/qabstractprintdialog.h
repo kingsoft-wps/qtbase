@@ -74,7 +74,12 @@ public:
         PrintShowPageSize       = 0x0008,
         PrintCollateCopies      = 0x0010,
         DontUseSheet            = 0x0020,
-        PrintCurrentPage        = 0x0040
+        PrintCurrentPage        = 0x0040,
+#ifdef Q_OS_MAC
+        PaperOrientationLand    = 0x0080,
+        PaperPortraitSpecial    = 0x0100,
+        PrintNeedViewController = 0x0200
+#endif // Q_OS_MAC
     };
     Q_ENUM(PrintDialogOption)
 

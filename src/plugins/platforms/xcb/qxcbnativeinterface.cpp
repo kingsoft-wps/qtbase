@@ -44,6 +44,7 @@
 #include "qxcbwindow.h"
 #include "qxcbintegration.h"
 #include "qxcbsystemtraytracker.h"
+#include "qxcbkeyboard.h"
 
 #include <private/qguiapplication_p.h>
 #include <QtCore/QMap>
@@ -85,7 +86,10 @@ static int resourceType(const QByteArray &key)
         QByteArrayLiteral("vksurface"),
         QByteArrayLiteral("generatepeekerid"),
         QByteArrayLiteral("removepeekerid"),
-        QByteArrayLiteral("peekeventqueue")
+        QByteArrayLiteral("peekeventqueue"),
+        QByteArrayLiteral("takefirstevent"),
+        QByteArrayLiteral("putevent"),
+        QByteArrayLiteral("keysymtokeycode")
     };
     const QByteArray *end = names + sizeof(names) / sizeof(names[0]);
     const QByteArray *result = std::find(names, end, key);
@@ -267,6 +271,12 @@ QPlatformNativeInterface::NativeResourceForIntegrationFunction QXcbNativeInterfa
         return NativeResourceForIntegrationFunction(reinterpret_cast<void *>(removePeekerId));
     if (lowerCaseResource == "peekeventqueue")
         return NativeResourceForIntegrationFunction(reinterpret_cast<void *>(peekEventQueue));
+    if (lowerCaseResource == "takefirstevent")
+        return NativeResourceForIntegrationFunction(reinterpret_cast<void *>(takeFirstEvent));
+    if (lowerCaseResource == "putevent")
+        return NativeResourceForIntegrationFunction(reinterpret_cast<void *>(putEvent));
+    if (lowerCaseResource == "keysymtokeycode")
+        return NativeResourceForIntegrationFunction(reinterpret_cast<void *>(keysymToKeycode));
 
     return 0;
 }
@@ -454,6 +464,24 @@ bool QXcbNativeInterface::peekEventQueue(QXcbEventQueue::PeekerCallback peeker, 
 {
     QXcbIntegration *integration = QXcbIntegration::instance();
     return integration->defaultConnection()->eventQueue()->peekEventQueue(peeker, peekerData, option, peekerId);
+}
+
+void QXcbNativeInterface::putEvent(xcb_window_t window, xcb_generic_event_t *event)
+{
+    QXcbIntegration *integration = QXcbIntegration::instance();
+    return integration->defaultConnection()->eventQueue()->put(window, event);
+}
+
+xcb_generic_event_t *QXcbNativeInterface::takeFirstEvent()
+{
+    QXcbIntegration *integration = QXcbIntegration::instance();
+    return integration->defaultConnection()->eventQueue()->takeFirst();
+}
+
+xcb_keycode_t QXcbNativeInterface::keysymToKeycode(xcb_keysym_t keysym)
+{
+    QXcbIntegration *integration = QXcbIntegration::instance();
+    return integration->defaultConnection()->keyboard()->keysymToKeycode(keysym);
 }
 
 void QXcbNativeInterface::setStartupId(const char *data)

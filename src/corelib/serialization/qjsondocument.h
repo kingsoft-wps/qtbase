@@ -67,7 +67,8 @@ struct Q_CORE_EXPORT QJsonParseError
         MissingObject,
         DeepNesting,
         DocumentTooLarge,
-        GarbageAtEnd
+        GarbageAtEnd,
+        IllegalComment
     };
 
     QString    errorString() const;

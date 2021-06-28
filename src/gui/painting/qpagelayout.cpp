@@ -138,6 +138,7 @@ public:
     QMarginsF margins(QPageLayout::Unit units) const;
     QMargins marginsPoints() const;
     QMargins marginsPixels(int resolution) const;
+    QMargins marginsPixels(const QSize &resolution) const;
 
     void setDefaultMargins(const QMarginsF &minMargins);
 
@@ -147,6 +148,7 @@ public:
     QRectF fullRect(QPageLayout::Unit units) const;
     QRect fullRectPoints() const;
     QRect fullRectPixels(int resolution) const;
+    QRect fullRectPixels(const QSize &resolution) const;
 
     QRectF paintRect() const;
 
@@ -228,6 +230,21 @@ QMargins QPageLayoutPrivate::marginsPixels(int resolution) const
     return marginsPoints() / qt_pixelMultiplier(resolution);
 }
 
+QMargins QPageLayoutPrivate::marginsPixels(const QSize &resolution) const
+{
+    const int res_x = resolution.width();
+    const int res_y = resolution.height();
+    const qreal multiplier_x = qt_pixelMultiplier(res_x);
+    const qreal multiplier_y = qt_pixelMultiplier(res_y);
+
+    const QMargins m = marginsPoints();
+
+    return QMargins(m.left() / multiplier_x,
+        m.top() / multiplier_y,
+        m.right() / multiplier_x,
+        m.bottom() / multiplier_y);
+}
+
 void QPageLayoutPrivate::setDefaultMargins(const QMarginsF &minMargins)
 {
     m_minMargins = minMargins;
@@ -264,6 +281,14 @@ QRect QPageLayoutPrivate::fullRectPoints() const
 }
 
 QRect QPageLayoutPrivate::fullRectPixels(int resolution) const
+{
+    if (m_orientation == QPageLayout::Landscape)
+        return QRect(QPoint(0, 0), m_pageSize.sizePixels(resolution).transposed());
+    else
+        return QRect(QPoint(0, 0), m_pageSize.sizePixels(resolution));
+}
+
+QRect QPageLayoutPrivate::fullRectPixels(const QSize &resolution) const
 {
     if (m_orientation == QPageLayout::Landscape)
         return QRect(QPoint(0, 0), m_pageSize.sizePixels(resolution).transposed());
@@ -867,6 +892,11 @@ QRect QPageLayout::fullRectPixels(int resolution) const
     return isValid() ? d->fullRectPixels(resolution) : QRect();
 }
 
+QRect QPageLayout::fullRectPixels(const QSize& resolution) const
+{
+    return isValid() ? d->fullRectPixels(resolution) : QRect();
+}
+
 /*!
     Returns the page rectangle in the current layout units.
 
@@ -936,6 +966,14 @@ QRect QPageLayout::paintRectPixels(int resolution) const
         return QRect();
     return d->m_mode == FullPageMode ? d->fullRectPixels(resolution)
                                                   : d->fullRectPixels(resolution) - d->marginsPixels(resolution);
+}
+
+QRect QPageLayout::paintRectPixels(const QSize& resolution) const
+{
+    if (!isValid())
+        return QRect();
+    return d->m_mode == FullPageMode ? d->fullRectPixels(resolution)
+        : d->fullRectPixels(resolution) - d->marginsPixels(resolution);
 }
 
 #ifndef QT_NO_DEBUG_STREAM

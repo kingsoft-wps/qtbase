@@ -52,30 +52,40 @@ class QWindowsDirect2DBitmap;
 
 class QWindowsDirect2DWindow : public QWindowsWindow
 {
+    friend class QWindowsDirect2DBackingStore;
+
 public:
-    QWindowsDirect2DWindow(QWindow *window, const QWindowsWindowData &data);
+    QWindowsDirect2DWindow(QWindow *window, const QWindowsWindowData &data, bool directRenderingEnabled);
     ~QWindowsDirect2DWindow();
 
     void setWindowFlags(Qt::WindowFlags flags) override;
+    void setFormat(const QSurfaceFormat& format) override;
 
+    bool isPixmapAvaliable() const;
+    bool isTranslucent() const;
     QPixmap *pixmap();
+    QWindowsDirect2DBitmap* bitmap() const;
     void flush(QWindowsDirect2DBitmap *bitmap, const QRegion &region, const QPoint &offset);
     void present(const QRegion &region);
     void setupSwapChain();
     void resizeSwapChain(const QSize &size);
 
+    virtual void resetDeviceDependentResources() override;
+
     QSharedPointer<QWindowsDirect2DBitmap> copyBackBuffer() const;
 
 private:
     void setupBitmap();
-
+    void updateDirectRendering(Qt::WindowFlags flags, const QSurfaceFormat& format);
+    bool isDirectRendering() const;
 private:
     Microsoft::WRL::ComPtr<IDXGISwapChain1> m_swapChain;
     Microsoft::WRL::ComPtr<ID2D1DeviceContext> m_deviceContext;
     QScopedPointer<QWindowsDirect2DBitmap> m_bitmap;
     QScopedPointer<QPixmap> m_pixmap;
     bool m_needsFullFlush = true;
-    bool m_directRendering = false;
+    const bool m_directRenderingEnabled = true;
+    bool m_isTranslucent = false;
 };
 
 QT_END_NAMESPACE

@@ -69,6 +69,7 @@ public:
     void setMimeData(QMimeData *data, QClipboard::Mode mode = QClipboard::Clipboard) override;
     bool supportsMode(QClipboard::Mode mode) const override;
     bool ownsMode(QClipboard::Mode mode) const override;
+    void flushClipboard() override;
 
     inline bool clipboardViewerWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, LRESULT *result);
 

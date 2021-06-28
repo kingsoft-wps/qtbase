@@ -512,12 +512,19 @@ display an actual ampersand, use '&&'.
 There is no default text.
 */
 
+#ifdef Q_OS_MAC
+    extern void qt_set_sequence_auto_mnemonic(bool);
+#endif
 void QAbstractButton::setText(const QString &text)
 {
     Q_D(QAbstractButton);
     if (d->text == text)
         return;
     d->text = text;
+#ifdef Q_OS_MAC
+    // we Need hotkey processing temporarily
+    qt_set_sequence_auto_mnemonic(true);
+#endif
 #ifndef QT_NO_SHORTCUT
     QKeySequence newMnemonic = QKeySequence::mnemonic(text);
     setShortcut(newMnemonic);
@@ -528,6 +535,9 @@ void QAbstractButton::setText(const QString &text)
 #ifndef QT_NO_ACCESSIBILITY
     QAccessibleEvent event(this, QAccessible::NameChanged);
     QAccessible::updateAccessibility(&event);
+#endif
+#ifdef Q_OS_MAC
+    qt_set_sequence_auto_mnemonic(false);
 #endif
 }
 
@@ -1193,6 +1203,20 @@ void QAbstractButton::changeEvent(QEvent *e)
     }
     QWidget::changeEvent(e);
 }
+
+#ifdef Q_OS_MAC
+/*! \reimp */
+void QAbstractButton::leaveEvent(QEvent *)
+{
+    // Trigger redraw
+    this->update();
+}
+
+void QAbstractButton::enterEvent(QEvent *)
+{
+    this->update();
+}
+#endif // Q_OS_MAC
 
 /*!
     \fn void QAbstractButton::paintEvent(QPaintEvent *e)

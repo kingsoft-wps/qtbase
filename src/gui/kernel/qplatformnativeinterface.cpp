@@ -94,7 +94,37 @@ void *QPlatformNativeInterface::nativeResourceForCursor(const QByteArray &resour
     Q_UNUSED(cursor);
     return nullptr;
 }
+
+bool QPlatformNativeInterface::registerCustomWindowCursor(const QCursor &cursor, void *hcur)
+{
+    Q_UNUSED(cursor);
+    Q_UNUSED(hcur);
+    return false;
+}
+
 #endif // !QT_NO_CURSOR
+
+void *QPlatformNativeInterface::nativeResourceForMimeData(const QByteArray &resource, const QMimeData *mime)
+{
+    Q_UNUSED(resource);
+    Q_UNUSED(mime);
+    return nullptr;
+}
+
+bool QPlatformNativeInterface::isWindowsDropMimeData(const QMimeData* mime) 
+{
+    Q_UNUSED(mime);
+    return false;
+}
+
+
+QVariant QPlatformNativeInterface::fontEngineProperty(const QFontEngine *engine,
+                                                           const QString &name)
+{
+    Q_UNUSED(engine);
+    Q_UNUSED(name);
+    return QVariant();
+}
 
 QPlatformNativeInterface::NativeResourceForIntegrationFunction QPlatformNativeInterface::nativeResourceFunctionForIntegration(const QByteArray &resource)
 {

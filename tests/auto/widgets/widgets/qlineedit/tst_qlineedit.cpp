@@ -2664,9 +2664,9 @@ void tst_QLineEdit::setValidator_QIntValidator_data()
             << 0
             << 100
             << QString("153")
-            << QString("153")
+            << QString(useKeys ? "15" : "")
             << bool(useKeys)
-            << bool(false)
+            << bool(useKeys ? true : false)
             << uint(QLineEdit::Normal);
         QTest::newRow(QString(inputMode + "range [-100,100] int '-153'").toLatin1())
             << -100
@@ -2687,7 +2687,7 @@ void tst_QLineEdit::setValidator_QIntValidator_data()
         QTest::newRow(QString(inputMode + "range [3,7] int '8'").toLatin1())
             << 3
             << 7
-            << QString("")
+            << QString("8")
             << QString("")
             << bool(useKeys)
             << bool(false)
@@ -3292,7 +3292,7 @@ void tst_QLineEdit::editInvalidText()
 {
     QLineEdit *testWidget = ensureTestWidget();
     testWidget->clear();
-    testWidget->setValidator(new QIntValidator(0, 12, 0));
+    testWidget->setValidator(new QIntValidator(0, 120, 0));
     testWidget->setText("1234");
 
     QVERIFY(!testWidget->hasAcceptableInput());

@@ -71,8 +71,12 @@ class Q_WIDGETS_EXPORT QToolBar : public QWidget
     Q_PROPERTY(QSize iconSize READ iconSize WRITE setIconSize NOTIFY iconSizeChanged)
     Q_PROPERTY(Qt::ToolButtonStyle toolButtonStyle READ toolButtonStyle WRITE setToolButtonStyle
                NOTIFY toolButtonStyleChanged)
-    Q_PROPERTY(bool floating READ isFloating)
+    Q_PROPERTY(bool floating READ isFloating WRITE setFloating)
     Q_PROPERTY(bool floatable READ isFloatable WRITE setFloatable)
+    Q_PROPERTY(bool closable READ isClosable WRITE setClosable)
+#ifdef Q_OS_LINUX
+    Q_PROPERTY(bool hastitle READ isHasTitle WRITE setHasTitle)
+#endif
 
 public:
     explicit QToolBar(const QString &title, QWidget *parent = nullptr);
@@ -171,6 +175,16 @@ public:
     bool isFloatable() const;
     void setFloatable(bool floatable);
     bool isFloating() const;
+    void setFloating(bool floating);
+
+    bool isFullSize() const;
+
+    bool isClosable() const;
+    void setClosable(bool closable);
+#ifdef Q_OS_LINUX
+    bool isHasTitle() const;
+    void setHasTitle(bool hastitle);
+#endif
 
 public Q_SLOTS:
     void setIconSize(const QSize &iconSize);
@@ -187,12 +201,22 @@ Q_SIGNALS:
     void visibilityChanged(bool visible);
 
 protected:
+    void setFullSize(bool fullSize);
+
+protected:
     void actionEvent(QActionEvent *event) override;
     void changeEvent(QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     bool event(QEvent *event) override;
+#ifndef QT_NO_CONTEXTMENU
+    void contextMenuEvent(QContextMenuEvent *event) override;
+#endif
     void initStyleOption(QStyleOptionToolBar *option) const;
 
+    QSize getMargins(Qt::Orientation o, bool bFloating) const;
+    virtual QSize dockSizeHint(Qt::Orientation o, int size) const;
+    virtual QSize dockMinimumSizeHint(Qt::Orientation o) const;
+    virtual QSize dockMaximumSize(Qt::Orientation o) const;
 
 private:
     Q_DECLARE_PRIVATE(QToolBar)
@@ -205,6 +229,7 @@ private:
     friend class QMainWindowLayout;
     friend class QToolBarLayout;
     friend class QToolBarAreaLayout;
+    friend class QToolBarAreaLayoutItem;
 };
 
 inline QAction *QToolBar::actionAt(int ax, int ay) const

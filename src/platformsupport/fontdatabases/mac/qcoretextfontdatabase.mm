@@ -55,6 +55,7 @@
 #endif
 #include <QtCore/QtEndian>
 #ifndef QT_NO_FREETYPE
+#include "qcoretextfontdatahelper_ft_p.h"
 #include <QtFontDatabaseSupport/private/qfontengine_ft_p.h>
 #endif
 
@@ -490,7 +491,7 @@ QStringList QCoreTextFontDatabase::fallbacksForFamily(const QString &family, QFo
     return fallbackList;
 }
 
-QStringList QCoreTextFontDatabase::addApplicationFont(const QByteArray &fontData, const QString &fileName)
+QStringList QCoreTextFontDatabase::addApplicationFont(const QByteArray &fontData, const QString &fileName, void **handle)
 {
     QCFType<CFArrayRef> fonts;
 
@@ -507,6 +508,7 @@ QStringList QCoreTextFontDatabase::addApplicationFont(const QByteArray &fontData
         }
     } else {
         QCFType<CFURLRef> fontURL = QUrl::fromLocalFile(fileName).toCFURL();
+        CTFontManagerRegisterFontsForURL(fontURL, kCTFontManagerScopeProcess, nil);
         fonts = CTFontManagerCreateFontDescriptorsFromURL(fontURL);
     }
 
@@ -515,10 +517,17 @@ QStringList QCoreTextFontDatabase::addApplicationFont(const QByteArray &fontData
 
     QStringList families;
     const int numFonts = CFArrayGetCount(fonts);
+    QMap<QString, QStringList> localizedFamilyNameMap = QCoreTextFontDataHelper_FT::instance()->localizedFamilyNames(fonts);
     for (int i = 0; i < numFonts; ++i) {
         CTFontDescriptorRef fontDescriptor = CTFontDescriptorRef(CFArrayGetValueAtIndex(fonts, i));
         populateFromDescriptor(fontDescriptor);
         QCFType<CFStringRef> familyName = CFStringRef(CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontFamilyNameAttribute));
+        QStringList localizedFamilyNames = localizedFamilyNameMap.value((QString) QCFString(familyName));
+        for (const QString& localizedFamilyName : localizedFamilyNames)
+        {
+            if (QString::fromCFString(familyName) != localizedFamilyName)
+                QPlatformFontDatabase::registerAliasToFontFamily(QString::fromCFString(familyName), localizedFamilyName);
+        }
         families.append(QString::fromCFString(familyName));
     }
 

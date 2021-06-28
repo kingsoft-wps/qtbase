@@ -72,7 +72,7 @@ public:
     virtual bool isValid() const;
     virtual bool hasCapability(Capability capability) const;
 
-    virtual void reset();
+    virtual void reset(bool bCancel);
     virtual void commit();
     virtual void update(Qt::InputMethodQueries);
     virtual void invokeAction(QInputMethod::Action, int cursorPosition);
@@ -95,6 +95,9 @@ public:
 
     virtual void setFocusObject(QObject *object);
     bool inputMethodAccepted() const;
+    virtual void updateEnable(QWindow *pWindow);
+    virtual void updateFocusEnable();
+    virtual void closeCandidateWindow();
 
     static void setSelectionOnFocusObject(const QPointF &anchorPos, const QPointF &cursorPos);
 

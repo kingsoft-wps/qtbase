@@ -75,6 +75,21 @@ QAbstractNativeEventFilter::~QAbstractNativeEventFilter()
 }
 
 /*!
+allowNativeEventFilter
+*/
+bool QAbstractNativeEventFilter::allowNativeEventFilter(const AllowNativeEventFilterFlag& flag, bool checkInputMsg)
+{
+    const AllowNativeEventFilterFlags flags = nativeEventFilterFlags();
+    if (!flags.testFlag(flag))
+        return false;
+
+    if (checkInputMsg && !flags.testFlag(AllowInputMsg))
+        return false;
+
+    return true;
+}
+
+/*!
     \fn bool QAbstractNativeEventFilter::nativeEventFilter(const QByteArray &eventType, void *message, long *result)
 
     This method is called for every native event.

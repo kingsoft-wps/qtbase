@@ -56,12 +56,14 @@ public:
     QWindowsDirect2DPlatformPixmapPrivate()
         : owns_bitmap(true)
         , bitmap(new QWindowsDirect2DBitmap)
-        , device(new QWindowsDirect2DPaintDevice(bitmap, QInternal::Pixmap))
+        , device(new QWindowsDirect2DPaintDevice(bitmap, QInternal::Pixmap, QWindowsDirect2DPaintEngine::TranslucentTopLevelWindow))
     {}
 
     QWindowsDirect2DPlatformPixmapPrivate(QWindowsDirect2DBitmap *bitmap,
-                                          QWindowsDirect2DPaintEngine::Flags flags)
-        : bitmap(bitmap)
+                                          QWindowsDirect2DPaintEngine::Flags flags,
+                                          bool takeBitmap)
+        : owns_bitmap(takeBitmap)
+        , bitmap(bitmap)
         , device(new QWindowsDirect2DPaintDevice(bitmap, QInternal::Pixmap, flags))
     {}
 
@@ -88,9 +90,10 @@ QWindowsDirect2DPlatformPixmap::QWindowsDirect2DPlatformPixmap(PixelType pixelTy
 
 QWindowsDirect2DPlatformPixmap::QWindowsDirect2DPlatformPixmap(QPlatformPixmap::PixelType pixelType,
                                                                QWindowsDirect2DPaintEngine::Flags flags,
-                                                               QWindowsDirect2DBitmap *bitmap)
+                                                               QWindowsDirect2DBitmap *bitmap,
+                                                               bool takeBitmap)
     : QPlatformPixmap(pixelType, Direct2DClass)
-    , d_ptr(new QWindowsDirect2DPlatformPixmapPrivate(bitmap, flags))
+    , d_ptr(new QWindowsDirect2DPlatformPixmapPrivate(bitmap, flags, takeBitmap))
 {
     setSerialNumber(qt_d2dpixmap_serno++);
 
@@ -164,6 +167,9 @@ QImage QWindowsDirect2DPlatformPixmap::toImage(const QRect &rect) const
 {
     Q_D(const QWindowsDirect2DPlatformPixmap);
 
+    if (d->bitmap->hasSourceImage())
+        return d->bitmap->toImage(rect);
+
     QWindowsDirect2DPaintEngineSuspender suspender(static_cast<QWindowsDirect2DPaintEngine *>(d->device->paintEngine()));
     return d->bitmap->toImage(rect);
 }
@@ -190,6 +196,11 @@ QWindowsDirect2DBitmap *QWindowsDirect2DPlatformPixmap::bitmap() const
 {
     Q_D(const QWindowsDirect2DPlatformPixmap);
     return d->bitmap;
+}
+
+void QWindowsDirect2DPlatformPixmap::copy(const QPlatformPixmap *data, const QRect &rect)
+{
+    fromImage(data->toImage(rect).copy(), Qt::NoOpaqueDetection);
 }
 
 QT_END_NAMESPACE

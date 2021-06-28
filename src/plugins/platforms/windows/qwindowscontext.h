@@ -85,8 +85,14 @@ class QTouchDevice;
 struct QWindowsUser32DLL
 {
     inline void init();
+    inline bool initTouch();
     inline bool supportsPointerApi();
 
+    typedef BOOL (WINAPI *IsTouchWindow)(HWND, PULONG);
+    typedef BOOL (WINAPI *RegisterTouchWindow)(HWND, ULONG);
+    typedef BOOL (WINAPI *UnregisterTouchWindow)(HWND);
+    typedef BOOL (WINAPI *GetTouchInputInfo)(HANDLE, UINT, PVOID, int);
+    typedef BOOL (WINAPI *CloseTouchInputHandle)(HANDLE);
     typedef BOOL (WINAPI *EnableMouseInPointer)(BOOL);
     typedef BOOL (WINAPI *GetPointerType)(UINT32, PVOID);
     typedef BOOL (WINAPI *GetPointerInfo)(UINT32, PVOID);
@@ -97,6 +103,12 @@ struct QWindowsUser32DLL
     typedef BOOL (WINAPI *GetPointerPenInfo)(UINT32, PVOID);
     typedef BOOL (WINAPI *GetPointerPenInfoHistory)(UINT32, UINT32 *, PVOID);
     typedef BOOL (WINAPI *SkipPointerFrameMessages)(UINT32);
+    typedef BOOL (WINAPI *SetLayeredWindowAttributes)(HWND, COLORREF, BYTE, DWORD);
+    typedef BOOL (WINAPI *UpdateLayeredWindow)(HWND, HDC , const POINT *,
+                 const SIZE *, HDC, const POINT *, COLORREF,
+                 const BLENDFUNCTION *, DWORD);
+    typedef BOOL (WINAPI *UpdateLayeredWindowIndirect)(HWND, const UPDATELAYEREDWINDOWINFO *);
+    typedef BOOL (WINAPI *IsHungAppWindow)(HWND);
     typedef BOOL (WINAPI *SetProcessDPIAware)();
     typedef BOOL (WINAPI *AddClipboardFormatListener)(HWND);
     typedef BOOL (WINAPI *RemoveClipboardFormatListener)(HWND);
@@ -106,8 +118,25 @@ struct QWindowsUser32DLL
     typedef BOOL (WINAPI *EnableNonClientDpiScaling)(HWND);
     typedef int  (WINAPI *GetWindowDpiAwarenessContext)(HWND);
     typedef int  (WINAPI *GetAwarenessFromDpiAwarenessContext)(int);
+    typedef UINT (WINAPI *GetDpiForSystem)();
     typedef BOOL (WINAPI *SystemParametersInfoForDpi)(UINT, UINT, PVOID, UINT, UINT);
+    typedef BOOL(WINAPI *ChangeWindowMessageFilter)(UINT message, DWORD dwFlag);
+    typedef BOOL(WINAPI *ChangeWindowMessageFilterEx)(HWND hWnd, UINT message, DWORD action,
+                                                         void *pChangeFilterStruct);
+    // Functions missing in Q_CC_GNU stub libraries.
+    SetLayeredWindowAttributes setLayeredWindowAttributes = nullptr;
+    UpdateLayeredWindow updateLayeredWindow = nullptr;
 
+    // Functions missing in older versions of Windows
+    UpdateLayeredWindowIndirect updateLayeredWindowIndirect = nullptr;;
+    IsHungAppWindow isHungAppWindow = nullptr;
+
+    // Touch functions from Windows 7 onwards (also for use with Q_CC_MSVC).
+    IsTouchWindow isTouchWindow = nullptr;
+    RegisterTouchWindow registerTouchWindow = nullptr;
+    UnregisterTouchWindow unregisterTouchWindow = nullptr;
+    GetTouchInputInfo getTouchInputInfo= nullptr;
+    CloseTouchInputHandle closeTouchInputHandle= nullptr;;
     // Windows pointer functions (Windows 8 or later).
     EnableMouseInPointer enableMouseInPointer = nullptr;
     GetPointerType getPointerType = nullptr;
@@ -123,8 +152,7 @@ struct QWindowsUser32DLL
     // Windows Vista onwards
     SetProcessDPIAware setProcessDPIAware = nullptr;
 
-    // Clipboard listeners are present on Windows Vista onwards
-    // but missing in MinGW 4.9 stub libs. Can be removed in MinGW 5.
+    // Clipboard listeners, Windows Vista onwards
     AddClipboardFormatListener addClipboardFormatListener = nullptr;
     RemoveClipboardFormatListener removeClipboardFormatListener = nullptr;
 
@@ -136,7 +164,36 @@ struct QWindowsUser32DLL
     EnableNonClientDpiScaling enableNonClientDpiScaling = nullptr;
     GetWindowDpiAwarenessContext getWindowDpiAwarenessContext = nullptr;
     GetAwarenessFromDpiAwarenessContext getAwarenessFromDpiAwarenessContext = nullptr;
+    GetDpiForSystem getDpiForSystem = nullptr;
     SystemParametersInfoForDpi systemParametersInfoForDpi = nullptr;
+    ChangeWindowMessageFilter changeWindowMessageFilter = nullptr;
+    ChangeWindowMessageFilterEx changeWindowMessageFilterEx = nullptr;
+};
+
+struct QWindowsShell32DLL
+{
+    struct Q_NOTIFYICONIDENTIFIER {
+        DWORD cbSize;
+        HWND hWnd;
+        UINT uID;
+        GUID guidItem;
+    };
+
+    inline void init();
+
+    typedef HRESULT (WINAPI *SHCreateItemFromParsingName)(PCWSTR, IBindCtx *, const GUID&, void **);
+    typedef HRESULT (WINAPI *SHGetKnownFolderIDList)(const GUID &, DWORD, HANDLE, PIDLIST_ABSOLUTE *);
+    typedef HRESULT (WINAPI *SHGetStockIconInfo)(int , int , _SHSTOCKICONINFO *);
+    typedef HRESULT (WINAPI *SHGetImageList)(int, REFIID , void **);
+    typedef HRESULT (WINAPI *SHCreateItemFromIDList)(PCIDLIST_ABSOLUTE, REFIID, void **);
+    typedef HRESULT(WINAPI *Shell_NotifyIconGetRect)(const Q_NOTIFYICONIDENTIFIER *identifier,
+                                                        RECT *iconLocation);
+    SHCreateItemFromParsingName sHCreateItemFromParsingName = nullptr;
+    SHGetKnownFolderIDList sHGetKnownFolderIDList = nullptr;
+    SHGetStockIconInfo sHGetStockIconInfo = nullptr;
+    SHGetImageList sHGetImageList = nullptr;
+    SHCreateItemFromIDList sHCreateItemFromIDList = nullptr;
+    Shell_NotifyIconGetRect shell_NotifyIconGetRect = nullptr;
 };
 
 // Shell scaling library (Windows 8.1 onwards)
@@ -151,6 +208,36 @@ struct QWindowsShcoreDLL {
     GetProcessDpiAwareness getProcessDpiAwareness = nullptr;
     SetProcessDpiAwareness setProcessDpiAwareness = nullptr;
     GetDpiForMonitor getDpiForMonitor = nullptr;
+};
+
+struct QWindowsDwmApiDLL {
+    void init();
+    inline bool isValid() const
+    {
+        return dwmEnableBlurBehindWindow && dwmIsCompositionEnabled;
+    }
+
+    struct DwmBlurBehind {
+        DWORD dwFlags;
+        BOOL fEnable;
+        HRGN hRgnBlur;
+        BOOL fTransitionOnMaximized;
+    };
+    enum { dwmBbEnable = 0x1, dwmBbBlurRegion = 0x2 };
+
+    typedef HRESULT(WINAPI *PtrDwmEnableBlurBehindWindow)(HWND, const DwmBlurBehind *);
+    typedef HRESULT(WINAPI *PtrDwmIsCompositionEnabled)(BOOL *);
+
+    PtrDwmEnableBlurBehindWindow dwmEnableBlurBehindWindow = nullptr;
+    PtrDwmIsCompositionEnabled dwmIsCompositionEnabled = nullptr;
+};
+
+struct QWindowsKernel32DLL
+{
+    inline void init();
+    typedef BOOL(WINAPI *GetLogicalProcessorInformation)(PSYSTEM_LOGICAL_PROCESSOR_INFORMATION, PDWORD);
+
+    GetLogicalProcessorInformation getLogicalProcessorInformation = nullptr;
 };
 
 class QWindowsContext
@@ -238,7 +325,10 @@ public:
     QWindowsTabletSupport *tabletSupport() const;
 
     static QWindowsUser32DLL user32dll;
+    static QWindowsShell32DLL shell32dll;
     static QWindowsShcoreDLL shcoredll;
+    static QWindowsDwmApiDLL dwmapidll;
+    static QWindowsKernel32DLL kernel32dll;
 
     static QByteArray comErrorString(HRESULT hr);
     bool asyncExpose() const;
@@ -259,7 +349,7 @@ public:
 
     QTouchDevice *touchDevice() const;
 
-    static bool filterNativeEvent(MSG *msg, LRESULT *result);
+    static bool filterNativeEvent(MSG *msg, LRESULT *result, bool checkInputMsg = false);
     static bool filterNativeEvent(QWindow *window, MSG *msg, LRESULT *result);
 
 private:
@@ -272,6 +362,7 @@ private:
 
     QScopedPointer<QWindowsContextPrivate> d;
     static QWindowsContext *m_instance;
+    HWND m_preCapture = nullptr;
 };
 
 extern "C" LRESULT QT_WIN_CALLBACK qWindowsWndProc(HWND, UINT, WPARAM, LPARAM);

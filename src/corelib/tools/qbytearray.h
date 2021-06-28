@@ -537,6 +537,7 @@ class Q_CORE_EXPORT QByteRef {
         : a(array),i(idx) {}
     friend class QByteArray;
 public:
+    QByteRef(const QByteRef &) = default;
     inline operator char() const
         { return i < a.d->size ? a.d->data()[i] : char(0); }
     inline QByteRef &operator=(char c)

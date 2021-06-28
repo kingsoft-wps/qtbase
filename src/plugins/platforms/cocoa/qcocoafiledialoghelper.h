@@ -72,7 +72,7 @@ public:
     void setFilter() override;
     void selectNameFilter(const QString &filter) override;
     QString selectedNameFilter() const override;
-
+    QString userFileName() const Q_DECL_OVERRIDE;
 public:
     bool showCocoaFilePanel(Qt::WindowModality windowModality, QWindow *parent);
     bool hideCocoaFilePanel();
@@ -82,7 +82,8 @@ public:
     void QNSOpenSavePanelDelegate_panelClosed(bool accepted);
     void QNSOpenSavePanelDelegate_directoryEntered(const QString &newDir);
     void QNSOpenSavePanelDelegate_filterSelected(int menuIndex);
-
+    void QNSEncryptFile();
+    void QNSSaveToCloud();
 private:
     QT_MANGLE_NAMESPACE(QNSOpenSavePanelDelegate) *mDelegate;
     QUrl mDir;

@@ -52,14 +52,18 @@
 #include <QtCore/qmath.h>
 #include <QtCore/qstack.h>
 #include <QtCore/qsettings.h>
+#include <QtCore/qcache.h>
 #include <QtGui/private/qpaintengine_p.h>
 #include <QtGui/private/qtextengine_p.h>
 #include <QtGui/private/qfontengine_p.h>
 #include <QtGui/private/qstatictext_p.h>
 
+#include <algorithm>
+
 #include <d2d1_1.h>
 #include <dwrite_1.h>
 #include <wrl.h>
+#include <memory>
 
 using Microsoft::WRL::ComPtr;
 
@@ -101,7 +105,11 @@ enum ClipType {
 // aliased painting is turned on on the d2d device context.
 static const qreal MAGICAL_ALIASING_OFFSET = 0.5;
 
+#ifdef QT_DEBUG
 #define D2D_TAG(tag) d->dc()->SetTags(tag, tag)
+#else
+#define D2D_TAG(tag)
+#endif
 
 Q_GUI_EXPORT QImage qt_imageForBrush(int brushStyle, bool invert);
 
@@ -258,6 +266,172 @@ struct D2DVectorPathCache {
     }
 };
 
+struct LinearGradientKey
+{
+    explicit LinearGradientKey(const QLinearGradient& g)
+        : start(g.start()), end(g.finalStop()), stops(g.stops())
+    {
+    }
+
+    bool operator==(const LinearGradientKey& rhs) const
+    {
+        return start == rhs.start
+            && end == rhs.end
+            && stops == rhs.stops;
+    }
+
+    QPointF start;
+    QPointF end;
+    QGradientStops stops;
+};
+
+struct RadialGradientKey
+{
+    explicit RadialGradientKey(const QRadialGradient& g)
+        : radius(g.radius()), center(g.center()), focus(g.focalPoint()), stops(g.stops())
+    {
+    }
+
+    bool operator==(const RadialGradientKey& rhs) const
+    {
+        return radius == rhs.radius
+            && center == rhs.center
+            && focus == rhs.focus
+            && stops == rhs.stops;
+    }
+
+    qreal radius;
+    QPointF center;
+    QPointF focus;
+    QGradientStops stops;
+};
+
+struct SolidColorBrushKey
+{
+    explicit SolidColorBrushKey(const QColor &c)
+        : color(c)
+    {
+    }
+
+    bool operator==(const SolidColorBrushKey& rhs) const
+    {
+        return color == rhs.color;
+    }
+
+    QColor color;
+};
+
+uint qHash(const QPointF& p, uint seed)
+{
+    return qHash(p.y(), qHash(p.x(), seed));
+}
+
+uint qHash(const QColor& c, uint seed)
+{
+    return qHash(c.rgba(), seed);
+}
+
+uint qHash(const LinearGradientKey& k, uint seed)
+{
+    return qHash(k.stops, qHash(k.end, qHash(k.start, seed)));
+}
+
+uint qHash(const RadialGradientKey& k, uint seed)
+{
+    return qHash(k.stops, qHash(k.center, qHash(k.focus, qHash(k.radius, seed))));
+}
+
+uint qHash(const SolidColorBrushKey &k, uint seed)
+{
+    return qHash(k.color, seed);
+}
+
+#define Q_BRUSH_CACHE_SIZE_MAX 256
+class QDirect2DBrushCache
+{
+public:
+    ComPtr<ID2D1Brush> findLinearGradient(const QLinearGradient *qlinear)
+    {
+        auto it = m_linearBrushes.find(LinearGradientKey(*qlinear));
+        if (it != m_linearBrushes.constEnd())
+            return *it;
+        return ComPtr<ID2D1Brush>();
+    }
+
+    void addLinearGradient(const QLinearGradient *qlinear, const ComPtr<ID2D1Brush> &brush)
+    {
+        if (m_linearBrushes.size() >= Q_BRUSH_CACHE_SIZE_MAX)
+            m_linearBrushes.clear();
+
+        m_linearBrushes.insert(LinearGradientKey(*qlinear), brush);
+    }
+
+    ComPtr<ID2D1Brush> findRadialGradient(const QRadialGradient *qradial)
+    {
+        auto it = m_radialBrushes.find(RadialGradientKey(*qradial));
+        if (it != m_radialBrushes.constEnd())
+            return *it;
+        return ComPtr<ID2D1Brush>();
+    }
+
+    void addRadialGradient(const QRadialGradient *qradial, const ComPtr<ID2D1Brush> &brush)
+    {
+        if (m_radialBrushes.size() >= Q_BRUSH_CACHE_SIZE_MAX)
+            m_radialBrushes.clear();
+
+        m_radialBrushes.insert(RadialGradientKey(*qradial), brush);
+    }
+
+    ComPtr<ID2D1Brush> findSolidColorBrush(const QColor &color)
+    {
+        auto it = m_solidColorBrushes.find(SolidColorBrushKey(color));
+        if (it != m_solidColorBrushes.constEnd())
+            return *it;
+        return ComPtr<ID2D1Brush>();
+    }
+
+    void addSolidColorBrush(const QColor &color, const ComPtr<ID2D1Brush> &brush)
+    {
+        if (m_solidColorBrushes.size() >= Q_BRUSH_CACHE_SIZE_MAX)
+            m_solidColorBrushes.clear();
+
+        m_solidColorBrushes.insert(SolidColorBrushKey(color), brush);
+    }
+
+    void reset()
+    {
+        m_linearBrushes.clear();
+        m_radialBrushes.clear();
+        m_solidColorBrushes.clear();
+    }
+
+private:
+    QHash<LinearGradientKey, ComPtr<ID2D1Brush>> m_linearBrushes;
+    QHash<RadialGradientKey, ComPtr<ID2D1Brush>> m_radialBrushes;
+    QHash<SolidColorBrushKey, ComPtr<ID2D1Brush>> m_solidColorBrushes;
+};
+
+static QHash<ID2D1DeviceContext*, std::shared_ptr<QDirect2DBrushCache>> brushCaches;
+
+void enableDirect2DBrushCache(ID2D1DeviceContext *dc)
+{
+    if (brushCaches.contains(dc))
+        return;
+    brushCaches.insert(dc, std::make_shared<QDirect2DBrushCache>());
+}
+
+void cleanDirect2DBrushCache(ID2D1DeviceContext *dc)
+{
+    brushCaches.remove(dc);
+}
+
+void clearDirect2DBrushCache(ID2D1DeviceContext* dc)
+{
+    auto f = brushCaches.find(dc);
+    if (f != brushCaches.end())
+        f->reset();
+}
+
 class QWindowsDirect2DPaintEnginePrivate : public QPaintEngineExPrivate
 {
     Q_DECLARE_PUBLIC(QWindowsDirect2DPaintEngine)
@@ -270,6 +444,9 @@ public:
         brush.reset();
 
         dc()->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+        auto iter = brushCaches.constFind(dc());
+        if (iter != brushCaches.constEnd())
+            m_brushCache = iter.value();
     }
 
     QWindowsDirect2DBitmap *bitmap;
@@ -312,6 +489,14 @@ public:
             qbrush = QBrush();
         }
     } brush;
+
+    inline bool own(ID2D1Resource* res)
+    {
+        ComPtr<ID2D1Factory> resfactory, myfactory;
+        res->GetFactory(&resfactory);
+        dc()->GetFactory(&myfactory);
+        return resfactory == myfactory;
+    }
 
     inline ID2D1DeviceContext *dc() const
     {
@@ -430,8 +615,30 @@ public:
         }
     }
 
+    void popClip(int count)
+    {
+        if (count <= 0)
+            return;
+
+        Q_ASSERT(pushedClips.size() >= count);
+        if (count > pushedClips.size())
+            count = pushedClips.size();
+
+        while (count--) {
+            switch (pushedClips.pop()) {
+            case AxisAlignedClip:
+                dc()->PopAxisAlignedClip();
+                break;
+            case LayerClip:
+                dc()->PopLayer();
+                break;
+            }
+        }
+    }
+
     void updateCompositionMode(QPainter::CompositionMode mode)
     {
+        bool needComposite = false;
         switch (mode) {
         case QPainter::CompositionMode_Source:
             dc()->SetPrimitiveBlend(D2D1_PRIMITIVE_BLEND_COPY);
@@ -439,7 +646,13 @@ public:
         case QPainter::CompositionMode_SourceOver:
             dc()->SetPrimitiveBlend(D2D1_PRIMITIVE_BLEND_SOURCE_OVER);
             break;
-
+        case QPainter::CompositionMode_Difference:
+        {
+            // The effect is not the same as CompositionMode_Difference, so for the time being
+            enterComposite(D2D1_COMPOSITE_MODE_MASK_INVERT);
+            needComposite = true;
+            break;
+        }
         default:
             // Activating an unsupported mode at any time will cause the QImage
             // fallback to be used for the remainder of the active paint session
@@ -447,6 +660,9 @@ public:
             flags |= QWindowsDirect2DPaintEngine::EmulateComposition;
             break;
         }
+
+        if (!needComposite)
+            leaveComposite();
     }
 
     void updateBrush(const QBrush &newBrush)
@@ -545,8 +761,10 @@ public:
         props.miterLimit = FLOAT(newPen.miterLimit() * qreal(2.0)); // D2D and Qt miter specs differ
         props.dashOffset = FLOAT(newPen.dashOffset());
 
-        if (newPen.widthF() == 0)
+        if (newPen.widthF() == 0) {
             props.transformType = D2D1_STROKE_TRANSFORM_TYPE_HAIRLINE;
+            pen.qpen.setWidth(1);
+        }
         else if (qt_pen_is_cosmetic(newPen, q->state()->renderHints))
             props.transformType = D2D1_STROKE_TRANSFORM_TYPE_FIXED;
         else
@@ -609,6 +827,91 @@ public:
             qWarning("%s: Could not create stroke style: %#lx", __FUNCTION__, hr);
     }
 
+    ComPtr<ID2D1Brush> toLinearGradinetBrush(const QLinearGradient *qlinear)
+    {
+        ComPtr<ID2D1Brush> result;
+
+        if (!m_brushCache.expired()) {
+            result = m_brushCache.lock()->findLinearGradient(qlinear);
+            if (result)
+                return result;
+        }
+
+        HRESULT hr = E_FAIL;
+        D2D1_LINEAR_GRADIENT_BRUSH_PROPERTIES linearGradientBrushProperties;
+        ComPtr<ID2D1GradientStopCollection> gradientStopCollection;
+
+        linearGradientBrushProperties.startPoint = to_d2d_point_2f(qlinear->start());
+        linearGradientBrushProperties.endPoint = to_d2d_point_2f(qlinear->finalStop());
+
+        const QVector<D2D1_GRADIENT_STOP> stops = qGradientStopsToD2DStops(qlinear->stops());
+
+        hr = dc()->CreateGradientStopCollection(stops.constData(),
+                                                UINT32(stops.size()),
+                                                &gradientStopCollection);
+        if (FAILED(hr)) {
+            qWarning("%s: Could not create gradient stop collection for linear gradient: %#lx", __FUNCTION__, hr);
+            return result;
+        }
+
+        ComPtr<ID2D1LinearGradientBrush> linear;
+        hr = dc()->CreateLinearGradientBrush(linearGradientBrushProperties, gradientStopCollection.Get(),
+                                             &linear);
+        if (FAILED(hr)) {
+            qWarning("%s: Could not create Direct2D linear gradient brush: %#lx", __FUNCTION__, hr);
+            return result;
+        }
+
+        result.Attach(linear.Detach());
+
+        if (!m_brushCache.expired())
+            m_brushCache.lock()->addLinearGradient(qlinear, result);
+
+        return result;
+    }
+
+    ComPtr<ID2D1Brush> toRadialGradinetBrush(const QRadialGradient* qradial)
+    {
+        ComPtr<ID2D1Brush> result;
+
+        if (!m_brushCache.expired()) {
+            result = m_brushCache.lock()->findRadialGradient(qradial);
+            if (result)
+                return result;
+        }
+
+        D2D1_RADIAL_GRADIENT_BRUSH_PROPERTIES radialGradientBrushProperties;
+        ComPtr<ID2D1GradientStopCollection> gradientStopCollection;
+
+        radialGradientBrushProperties.center = to_d2d_point_2f(qradial->center());
+        radialGradientBrushProperties.gradientOriginOffset = to_d2d_point_2f(qradial->focalPoint() - qradial->center());
+        radialGradientBrushProperties.radiusX = FLOAT(qradial->radius());
+        radialGradientBrushProperties.radiusY = FLOAT(qradial->radius());
+
+        const QVector<D2D1_GRADIENT_STOP> stops = qGradientStopsToD2DStops(qradial->stops());
+
+        HRESULT hr = dc()->CreateGradientStopCollection(stops.constData(), stops.size(), &gradientStopCollection);
+        if (FAILED(hr)) {
+            qWarning("%s: Could not create gradient stop collection for radial gradient: %#lx", __FUNCTION__, hr);
+            return result;
+        }
+
+        ComPtr<ID2D1RadialGradientBrush> radial;
+        hr = dc()->CreateRadialGradientBrush(radialGradientBrushProperties, gradientStopCollection.Get(),
+                                             &radial);
+        if (FAILED(hr)) {
+            qWarning("%s: Could not create Direct2D radial gradient brush: %#lx", __FUNCTION__, hr);
+            return result;
+        }
+
+        result.Attach(radial.Detach());
+
+        if (!m_brushCache.expired())
+            m_brushCache.lock()->addRadialGradient(qradial, result);
+
+        return result;
+    }
+
     ComPtr<ID2D1Brush> to_d2d_brush(const QBrush &newBrush, bool *needsEmulation)
     {
         HRESULT hr;
@@ -624,17 +927,25 @@ public:
 
         case Qt::SolidPattern:
         {
+            const QColor color = newBrush.color();
+            if (!m_brushCache.expired()) {
+                result = m_brushCache.lock()->findSolidColorBrush(color);
+                if (result)
+                    break;
+            }
+
             ComPtr<ID2D1SolidColorBrush> solid;
 
-            hr = dc()->CreateSolidColorBrush(to_d2d_color_f(newBrush.color()), &solid);
+            hr = dc()->CreateSolidColorBrush(to_d2d_color_f(color), &solid);
             if (FAILED(hr)) {
                 qWarning("%s: Could not create solid color brush: %#lx", __FUNCTION__, hr);
                 break;
             }
 
-            hr = solid.As(&result);
-            if (FAILED(hr))
-                qWarning("%s: Could not convert solid color brush: %#lx", __FUNCTION__, hr);
+            result.Attach(solid.Detach());
+
+            if (!m_brushCache.expired())
+                m_brushCache.lock()->addSolidColorBrush(color, result);
         }
             break;
 
@@ -678,9 +989,7 @@ public:
                 break;
             }
 
-            hr = bitmapBrush.As(&result);
-            if (FAILED(hr))
-                qWarning("%s: Could not convert Direct2D bitmap brush for Qt pattern brush: %#lx", __FUNCTION__, hr);
+            result.Attach(bitmapBrush.Detach());
         }
             break;
 
@@ -688,37 +997,8 @@ public:
             if (newBrush.gradient()->spread() != QGradient::PadSpread) {
                 *needsEmulation = true;
             } else {
-                ComPtr<ID2D1LinearGradientBrush> linear;
-                const QLinearGradient *qlinear = static_cast<const QLinearGradient *>(newBrush.gradient());
-
-                D2D1_LINEAR_GRADIENT_BRUSH_PROPERTIES linearGradientBrushProperties;
-                ComPtr<ID2D1GradientStopCollection> gradientStopCollection;
-
-                linearGradientBrushProperties.startPoint = to_d2d_point_2f(qlinear->start());
-                linearGradientBrushProperties.endPoint = to_d2d_point_2f(qlinear->finalStop());
-
-                const QVector<D2D1_GRADIENT_STOP> stops = qGradientStopsToD2DStops(qlinear->stops());
-
-                hr = dc()->CreateGradientStopCollection(stops.constData(),
-                                                        UINT32(stops.size()),
-                                                        &gradientStopCollection);
-                if (FAILED(hr)) {
-                    qWarning("%s: Could not create gradient stop collection for linear gradient: %#lx", __FUNCTION__, hr);
-                    break;
-                }
-
-                hr = dc()->CreateLinearGradientBrush(linearGradientBrushProperties, gradientStopCollection.Get(),
-                                                     &linear);
-                if (FAILED(hr)) {
-                    qWarning("%s: Could not create Direct2D linear gradient brush: %#lx", __FUNCTION__, hr);
-                    break;
-                }
-
-                hr = linear.As(&result);
-                if (FAILED(hr)) {
-                    qWarning("%s: Could not convert Direct2D linear gradient brush: %#lx", __FUNCTION__, hr);
-                    break;
-                }
+                auto qlinear = static_cast<const QLinearGradient *>(newBrush.gradient());
+                result = toLinearGradinetBrush(qlinear);
             }
             break;
 
@@ -726,37 +1006,8 @@ public:
             if (newBrush.gradient()->spread() != QGradient::PadSpread) {
                 *needsEmulation = true;
             } else {
-                ComPtr<ID2D1RadialGradientBrush> radial;
-                const QRadialGradient *qradial = static_cast<const QRadialGradient *>(newBrush.gradient());
-
-                D2D1_RADIAL_GRADIENT_BRUSH_PROPERTIES radialGradientBrushProperties;
-                ComPtr<ID2D1GradientStopCollection> gradientStopCollection;
-
-                radialGradientBrushProperties.center = to_d2d_point_2f(qradial->center());
-                radialGradientBrushProperties.gradientOriginOffset = to_d2d_point_2f(qradial->focalPoint() - qradial->center());
-                radialGradientBrushProperties.radiusX = FLOAT(qradial->radius());
-                radialGradientBrushProperties.radiusY = FLOAT(qradial->radius());
-
-                const QVector<D2D1_GRADIENT_STOP> stops = qGradientStopsToD2DStops(qradial->stops());
-
-                hr = dc()->CreateGradientStopCollection(stops.constData(), stops.size(), &gradientStopCollection);
-                if (FAILED(hr)) {
-                    qWarning("%s: Could not create gradient stop collection for radial gradient: %#lx", __FUNCTION__, hr);
-                    break;
-                }
-
-                hr = dc()->CreateRadialGradientBrush(radialGradientBrushProperties, gradientStopCollection.Get(),
-                                                     &radial);
-                if (FAILED(hr)) {
-                    qWarning("%s: Could not create Direct2D radial gradient brush: %#lx", __FUNCTION__, hr);
-                    break;
-                }
-
-                radial.As(&result);
-                if (FAILED(hr)) {
-                    qWarning("%s: Could not convert Direct2D radial gradient brush: %#lx", __FUNCTION__, hr);
-                    break;
-                }
+                auto qradial = static_cast<const QRadialGradient *>(newBrush.gradient());
+                result = toRadialGradinetBrush(qradial);
             }
             break;
 
@@ -784,9 +1035,7 @@ public:
                 break;
             }
 
-            hr = bitmapBrush.As(&result);
-            if (FAILED(hr))
-                qWarning("%s: Could not convert texture brush: %#lx", __FUNCTION__, hr);
+            result.Attach(bitmapBrush.Detach());
         }
             break;
         }
@@ -797,7 +1046,7 @@ public:
         return result;
     }
 
-    ComPtr<ID2D1PathGeometry1> vectorPathToID2D1PathGeometry(const QVectorPath &path)
+    ComPtr<ID2D1PathGeometry1> vectorPathToID2D1PathGeometry(const QVectorPath &path, bool isStroke = false)
     {
         Q_Q(QWindowsDirect2DPaintEngine);
 
@@ -820,8 +1069,8 @@ public:
 
         writer.setWindingFillEnabled(path.hasWindingFill());
         writer.setAliasingEnabled(alias);
-        writer.setPositiveSlopeAdjustmentEnabled(path.shape() == QVectorPath::LinesHint
-                                                 || path.shape() == QVectorPath::PolygonHint);
+        writer.setPositiveSlopeAdjustmentEnabled(isStroke && (path.shape() == QVectorPath::LinesHint
+                                                 || path.shape() == QVectorPath::PolygonHint));
 
         const QPainterPath::ElementType *types = path.elements();
         const int count = path.elementCount();
@@ -944,7 +1193,7 @@ public:
         // Default path (no optimization)
         if (!(path.shape() == QVectorPath::LinesHint || path.shape() == QVectorPath::PolygonHint)
                 || !pen.dashBrush || q->state()->renderHints.testFlag(QPainter::HighQualityAntialiasing)) {
-            ComPtr<ID2D1Geometry> geometry = vectorPathToID2D1PathGeometry(path);
+            ComPtr<ID2D1Geometry> geometry = vectorPathToID2D1PathGeometry(path, true);
             if (!geometry) {
                 qWarning("%s: Could not convert path to d2d geometry", __FUNCTION__);
                 return;
@@ -990,7 +1239,7 @@ public:
                 dashOffset = pen.dashLength - fmod(lineLength - dashOffset, pen.dashLength);
             }
             dc()->DrawLine(to_d2d_point_2f(p1), to_d2d_point_2f(p2),
-                           brush, FLOAT(pen.qpen.widthF()), nullptr);
+                           brush, FLOAT(pen.qpen.widthF()), pen.strokeStyle.Get());
 
             if (skipJoin)
                 continue;
@@ -1024,6 +1273,181 @@ public:
         }
     }
 
+    static QString getDWriteFontPath(IDWriteFontFace *pFace)
+    {
+        UINT32 count = 0;
+        HRESULT hr = pFace->GetFiles(&count, nullptr);
+        if (count != 1)
+            return QString();
+
+        ComPtr<IDWriteFontFile> spFontFile;
+        pFace->GetFiles(&count, &spFontFile);
+        UINT32 refSize = 0;
+        wchar_t *pKey = 0;
+        hr = spFontFile->GetReferenceKey((const void **)&pKey, &refSize);
+        ComPtr<IDWriteFontFileLoader> spLoader;
+        hr = spFontFile->GetLoader(&spLoader);
+        if (!spLoader)
+            return QString();
+
+        ComPtr<IDWriteLocalFontFileLoader> spLocalLoader;
+        spLoader.CopyTo(spLocalLoader.GetAddressOf());
+        if (!spLocalLoader)
+            return QString();
+
+        UINT32 pathLen = 0;
+        hr = spLocalLoader->GetFilePathLengthFromKey(pKey, refSize, &pathLen);
+        std::wstring path(pathLen + 1, 0);
+        hr = spLocalLoader->GetFilePathFromKey(pKey, refSize, &path[0], pathLen + 1);
+        return QString::fromStdWString(path);
+    }
+
+    static bool compareFontStyle(DWRITE_FONT_STYLE dest, uint src)
+    {
+        return src == QFont::StyleNormal && dest == DWRITE_FONT_STYLE_NORMAL
+                || src > QFont::StyleNormal && dest > DWRITE_FONT_STYLE_NORMAL;
+    }
+
+    static bool compareFontWeight(DWRITE_FONT_WEIGHT dest, uint src)
+    {
+        return src == QFont::Light && dest == DWRITE_FONT_WEIGHT_LIGHT
+                || src == QFont::Normal && dest == DWRITE_FONT_WEIGHT_NORMAL
+                || src == QFont::DemiBold && dest == DWRITE_FONT_WEIGHT_DEMI_BOLD
+                || src == QFont::Bold && dest == DWRITE_FONT_WEIGHT_BOLD
+                || src == QFont::Black && dest == DWRITE_FONT_WEIGHT_BLACK;
+    }
+
+    static bool compareFontStretch(DWRITE_FONT_STRETCH dest, uint src)
+    {
+        return src == QFont::UltraCondensed && dest == DWRITE_FONT_STRETCH_ULTRA_CONDENSED
+                || src == QFont::ExtraCondensed && dest == DWRITE_FONT_STRETCH_EXTRA_CONDENSED
+                || src == QFont::Condensed && dest == DWRITE_FONT_STRETCH_CONDENSED
+                || src == QFont::SemiCondensed && dest == DWRITE_FONT_STRETCH_SEMI_CONDENSED
+                || src == QFont::Unstretched && dest == DWRITE_FONT_STRETCH_NORMAL
+                || src == QFont::SemiExpanded && dest == DWRITE_FONT_STRETCH_SEMI_EXPANDED
+                || src == QFont::Expanded && dest == DWRITE_FONT_STRETCH_EXPANDED
+                || src == QFont::ExtraExpanded && dest == DWRITE_FONT_STRETCH_EXTRA_EXPANDED
+                || src == QFont::UltraExpanded && dest == DWRITE_FONT_STRETCH_ULTRA_EXPANDED;
+    }
+
+    static bool matchDWriteFont(const QFontEngine *fontEngine, IDWriteFontFace **ppFontFace)
+    {
+        QFontDef fontDef = fontEngine->fontDef;
+        QString &fam = fontDef.family;
+        if (fam.startsWith(QLatin1Char('@')))
+            fam.remove(0, 1);
+        static const QString msyhl = QString::fromWCharArray(L"微软雅黑 Light");
+        if (fam == msyhl) {
+            // From the traversal result of DWrite, it is either DWRITE_FONT_WEIGHT_LIGHT or 290, without bold
+            if (fontDef.weight == QFont::DemiBold || fontDef.weight == QFont::Bold)
+                return false;
+
+            fam.remove(4, 6);
+            fontDef.weight = QFont::Light;
+        }
+
+        ComPtr<IDWriteFontCollection> spFontCol;
+        HRESULT hr = QWindowsDirect2DContext::instance()->dwriteFactory()->GetSystemFontCollection(&spFontCol);
+        if (!spFontCol)
+            return false;
+
+#ifdef DEBUG_FONT_INFO
+        travelSystemFonts(spFontCol.Get());
+#endif
+
+        UINT32 i = 0;
+        BOOL exsists = FALSE;
+        hr = spFontCol->FindFamilyName((const WCHAR* )fam.utf16(), &i, &exsists);
+        if (!exsists)
+            return false;
+
+        ComPtr<IDWriteFontFamily> spFontFamily;
+        hr = spFontCol->GetFontFamily(i, &spFontFamily);
+        if (FAILED(hr) || !spFontFamily)
+            return false;
+
+        // Find the font with the same name and compare the font attributes
+        UINT32 fontCnt = spFontFamily->GetFontCount();
+        for (UINT32 j = 0; j < fontCnt; ++j) {
+            ComPtr<IDWriteFont> spFont;
+            hr = spFontFamily->GetFont(j, &spFont);
+            if (FAILED(hr) || !spFont)
+                continue;
+
+            // Italic
+            if (!compareFontStyle(spFont->GetStyle(), fontDef.style))
+                continue;
+
+            // Bold
+            if (!compareFontWeight(spFont->GetWeight(), fontDef.weight))
+                continue;
+
+            if (!compareFontStretch(spFont->GetStretch(), fontDef.stretch))
+                continue;
+
+            // TODO: Others
+            // Compare the number of font primitives to ensure that they are two identical fonts
+            ComPtr<IDWriteFontFace> spFace;
+            hr = spFont->CreateFontFace(&spFace);
+#ifdef DEBUG_FONT_INFO
+            qDebug() << "font path : " << getDWriteFontPath(spFace.Get());
+#endif
+            if (SUCCEEDED(hr) && spFace->GetGlyphCount() == fontEngine->glyphCount()) {
+                *ppFontFace = spFace.Detach();
+                return true;
+            }
+        }
+        return false;
+    }
+
+#ifdef DEBUG_FONT_INFO
+    static void travelSystemFonts(IDWriteFontCollection *pFontCol)
+    {
+        static bool travelOnce = false;
+        if (travelOnce)
+            return;
+
+        qDebug() << "begin travel system font by dwrite";
+        HRESULT hr = S_OK;
+        auto allFontCnt = pFontCol->GetFontFamilyCount();
+        for (UINT32 i = 0; i < allFontCnt; ++i) {
+            ComPtr<IDWriteFontFamily> spCurrFontFamily;
+            hr = pFontCol->GetFontFamily(i, &spCurrFontFamily);
+            if (FAILED(hr) || !spCurrFontFamily)
+                return;
+
+            ComPtr<IDWriteLocalizedStrings> spStrings;
+            spCurrFontFamily->GetFamilyNames(&spStrings);
+            auto nameCnt = spStrings->GetCount();
+            for (UINT32 j = 0; j < nameCnt; ++j) {
+                UINT32 strLen = 0;
+                hr = spStrings->GetLocaleNameLength(j, &strLen);
+                std::vector<WCHAR> localName(strLen + 1, 0);
+                hr = spStrings->GetLocaleName(j, localName.data(), strLen + 1);
+                qDebug() << "font locale: " << QString::fromUtf16((const ushort *)localName.data());
+                hr = spStrings->GetStringLength(j, &strLen);
+                std::vector<WCHAR> fontName(strLen + 1, 0);
+                hr = spStrings->GetString(j, fontName.data(), strLen + 1);
+                qDebug() << "font name: " << QString::fromUtf16((const ushort *)fontName.data());
+            }
+
+            UINT32 fontCnt = spCurrFontFamily->GetFontCount();
+            for (UINT32 j = 0; j < fontCnt; ++j) {
+                ComPtr<IDWriteFont> spFont;
+                hr = spCurrFontFamily->GetFont(j, &spFont);
+                if (FAILED(hr) || !spFont)
+                    continue;
+
+                ComPtr<IDWriteFontFace> spFace;
+                hr = spFont->CreateFontFace(&spFace);
+                qDebug() << "font path: " << getDWriteFontPath(spFace.Get());
+            }
+        }
+        qDebug() << "end travel system font by dwrite";
+        travelOnce = true;
+    }
+#endif
+
     ComPtr<IDWriteFontFace> fontFaceFromFontEngine(QFontEngine *fe)
     {
         const QFontDef fontDef = fe->fontDef;
@@ -1031,29 +1455,39 @@ public:
         if (fontFace)
             return fontFace;
 
-        LOGFONT lf = QWindowsFontDatabase::fontDefToLOGFONT(fontDef, QString());
+        matchDWriteFont(fe, &fontFace);
+        if (!fontFace) {
+            LOGFONT lf = QWindowsFontDatabase::fontDefToLOGFONT(fontDef, QString());
 
-        // Get substitute name
-        static const char keyC[] = "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows NT\\CurrentVersion\\FontSubstitutes";
-        const QString familyName = QString::fromWCharArray(lf.lfFaceName);
-        const QString nameSubstitute = QSettings(QLatin1String(keyC), QSettings::NativeFormat).value(familyName, familyName).toString();
-        if (nameSubstitute != familyName) {
-            const int nameSubstituteLength = qMin(nameSubstitute.length(), LF_FACESIZE - 1);
-            memcpy(lf.lfFaceName, nameSubstitute.utf16(), size_t(nameSubstituteLength) * sizeof(wchar_t));
-            lf.lfFaceName[nameSubstituteLength] = 0;
-        }
+            // Get substitute name
+            static const char keyC[] = "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows "
+                                       "NT\\CurrentVersion\\FontSubstitutes";
+            const QString familyName = QString::fromWCharArray(lf.lfFaceName);
+            const QString nameSubstitute = QSettings(QLatin1String(keyC), QSettings::NativeFormat)
+                                                   .value(familyName, familyName)
+                                                   .toString();
+            if (nameSubstitute != familyName) {
+                const int nameSubstituteLength = qMin(nameSubstitute.length(), LF_FACESIZE - 1);
+                memcpy(lf.lfFaceName, nameSubstitute.utf16(),
+                       size_t(nameSubstituteLength) * sizeof(wchar_t));
+                lf.lfFaceName[nameSubstituteLength] = 0;
+            }
 
-        ComPtr<IDWriteFont> dwriteFont;
-        HRESULT hr = QWindowsDirect2DContext::instance()->dwriteGdiInterop()->CreateFontFromLOGFONT(&lf, &dwriteFont);
-        if (FAILED(hr)) {
-            qDebug("%s: CreateFontFromLOGFONT failed: %#lx", __FUNCTION__, hr);
-            return fontFace;
-        }
+            ComPtr<IDWriteFont> dwriteFont;
+            HRESULT hr =
+                    QWindowsDirect2DContext::instance()->dwriteGdiInterop()->CreateFontFromLOGFONT(
+                            &lf, &dwriteFont);
 
-        hr = dwriteFont->CreateFontFace(&fontFace);
-        if (FAILED(hr)) {
-            qDebug("%s: CreateFontFace failed: %#lx", __FUNCTION__, hr);
-            return fontFace;
+            if (FAILED(hr)) {
+                qDebug("%s: CreateFontFromLOGFONT failed: %#lx", __FUNCTION__, hr);
+                return fontFace;
+            }
+
+            hr = dwriteFont->CreateFontFace(&fontFace);
+            if (FAILED(hr)) {
+                qDebug("%s: CreateFontFace failed: %#lx", __FUNCTION__, hr);
+                return fontFace;
+            }
         }
 
         if (fontFace)
@@ -1061,6 +1495,55 @@ public:
 
         return fontFace;
     }
+
+private:
+    void enterComposite(D2D1_COMPOSITE_MODE cm)
+    {
+        Q_ASSERT(cm != D2D1_COMPOSITE_MODE_SOURCE_OVER && cm != D2D1_COMPOSITE_MODE_SOURCE_COPY);
+        if (m_compositeCommands != nullptr) {
+            Q_ASSERT(false);
+            return;
+        }
+
+        ID2D1DeviceContext* ctx = dc();
+        if (SUCCEEDED(ctx->CreateCommandList(&m_compositeCommands))) {
+            ctx->GetTarget(&m_savedTarget);
+            ctx->SetTarget(m_compositeCommands.Get());
+            m_compsiteMode = cm;
+        } else {
+            m_compositeCommands.Reset();
+        }
+    }
+
+    void leaveComposite()
+    {
+        if (m_compositeCommands) {
+            Q_ASSERT(m_savedTarget);
+
+            ID2D1DeviceContext *ctx = dc();
+            ctx->SetTarget(m_savedTarget.Get());
+            m_savedTarget.Reset();
+            
+            if (SUCCEEDED(m_compositeCommands->Close())) {
+                D2D1_MATRIX_3X2_F bakTrans;
+                ctx->GetTransform(&bakTrans);
+
+                ctx->SetTransform(D2D1::IdentityMatrix());
+                ctx->DrawImage(m_compositeCommands.Get(), D2D1_INTERPOLATION_MODE_LINEAR,
+                                m_compsiteMode);
+
+                ctx->SetTransform(bakTrans);
+            }
+            m_compsiteMode = D2D1_COMPOSITE_MODE_SOURCE_OVER;
+            m_compositeCommands.Reset();
+        }
+    }
+
+private:
+    ComPtr<ID2D1CommandList> m_compositeCommands;
+    ComPtr<ID2D1Image> m_savedTarget;
+    std::weak_ptr<QDirect2DBrushCache> m_brushCache;
+    D2D1_COMPOSITE_MODE m_compsiteMode = D2D1_COMPOSITE_MODE_SOURCE_OVER;
 };
 
 QWindowsDirect2DPaintEngine::QWindowsDirect2DPaintEngine(QWindowsDirect2DBitmap *bitmap, Flags flags)
@@ -1127,8 +1610,12 @@ bool QWindowsDirect2DPaintEngine::end()
     const bool emulatingComposition = d->flags.testFlag(EmulateComposition);
     d->flags &= ~QWindowsDirect2DPaintEngine::EmulateComposition;
     if (!d->fallbackImage.isNull()) {
-        if (emulatingComposition)
+        if (emulatingComposition) {
+            D2D1_PRIMITIVE_BLEND prevBlend = d->dc()->GetPrimitiveBlend();
+            d->dc()->SetPrimitiveBlend(D2D1_PRIMITIVE_BLEND_COPY);
             drawImage(d->fallbackImage.rect(), d->fallbackImage, d->fallbackImage.rect());
+            d->dc()->SetPrimitiveBlend(prevBlend);
+        }
         d->fallbackImage = QImage();
     }
 
@@ -1150,21 +1637,133 @@ QPaintEngine::Type QWindowsDirect2DPaintEngine::type() const
     return QPaintEngine::Direct2D;
 }
 
+static inline bool operator==(const QPainterClipInfo& lhs, const QPainterClipInfo& rhs)
+{
+    if (lhs.clipType == rhs.clipType
+        && lhs.operation == rhs.operation
+        && lhs.matrix == rhs.matrix) {
+        switch (lhs.clipType) {
+        case QPainterClipInfo::RegionClip:
+            return lhs.region == rhs.region;
+            break;
+        case QPainterClipInfo::PathClip:
+            return lhs.path == rhs.path;
+            break;
+        case QPainterClipInfo::RectClip:
+            return lhs.rect == rhs.rect;
+            break;
+        case QPainterClipInfo::RectFClip:
+            return lhs.rectf == rhs.rectf;
+            break;
+        }
+    }
+    return false;
+}
+
+class QDirect2DPaintEngineState : public QPainterState
+{
+public:
+    enum ClipState
+    {
+        ClipNoChange,
+        ClipCanPop,
+        ClipRedo,
+    };
+    QDirect2DPaintEngineState() = default;
+    QDirect2DPaintEngineState(const QDirect2DPaintEngineState* orig)
+        : QPainterState(orig)
+        , originalState(orig)
+    {
+
+    }
+
+    bool isCopyOf(const QDirect2DPaintEngineState *orig) const
+    {
+        return orig != nullptr && orig == this->originalState;
+    }
+
+    ClipState checkClipState(const QDirect2DPaintEngineState *newState)
+    {
+        bool oldEnabled = this->clipEnabled;
+        bool newEnabled = newState->clipEnabled;
+        auto& oldInfo = this->clipInfo;
+        auto& newInfo = newState->clipInfo;
+        if (oldEnabled == newEnabled && oldInfo.size() == newInfo.size()) {
+            if (oldInfo == newInfo)
+                return ClipNoChange;
+        }
+
+        bool canPop = false;
+        if (oldEnabled && newEnabled && oldInfo.size() > newInfo.size()) {
+            canPop = std::equal(newInfo.begin(), newInfo.end(), oldInfo.begin())
+                || std::all_of(oldInfo.begin() + newInfo.size(), oldInfo.end(),
+                                   [](auto &info) { return info.operation == Qt::IntersectClip; });
+        }
+        return canPop ? ClipCanPop : ClipRedo;
+    }
+
+private:
+    const QDirect2DPaintEngineState *originalState = nullptr;
+};
+
+QPainterState* QWindowsDirect2DPaintEngine::createState(QPainterState* orig) const
+{
+    QDirect2DPaintEngineState *s;
+    if (orig)
+        s = new QDirect2DPaintEngineState(static_cast<QDirect2DPaintEngineState *>(orig));
+    else
+        s = new QDirect2DPaintEngineState;
+    return s;
+}
+
 void QWindowsDirect2DPaintEngine::setState(QPainterState *s)
 {
     Q_D(QWindowsDirect2DPaintEngine);
 
-    QPaintEngineEx::setState(s);
-    d->clearClips();
+    auto oldState = static_cast<QDirect2DPaintEngineState *>(QPaintEngineEx::state());
+    auto newState = static_cast<QDirect2DPaintEngineState *>(s);
 
-    clipEnabledChanged();
-    penChanged();
-    brushChanged();
-    brushOriginChanged();
-    opacityChanged();
-    compositionModeChanged();
-    renderHintsChanged();
-    transformChanged();
+    QPaintEngineEx::setState(s);
+
+    if (newState == oldState || newState->isCopyOf(oldState))
+        return;
+
+    if (oldState == nullptr) {
+        penChanged();
+        brushChanged();
+        brushOriginChanged();
+        opacityChanged();
+        compositionModeChanged();
+        renderHintsChanged();
+        transformChanged();
+        d->clearClips();
+        clipEnabledChanged();
+    } else {
+        auto clipState = oldState->checkClipState(newState);
+
+        if (oldState->pen != newState->pen)
+            penChanged();
+        if (oldState->brush != newState->brush)
+            brushChanged();
+        if (oldState->brushOrigin != newState->brushOrigin)
+            brushOriginChanged();
+        if (oldState->opacity != newState->opacity)
+            opacityChanged();
+        if (oldState->composition_mode != newState->composition_mode)
+            compositionModeChanged();
+        if (oldState->renderHints != newState->renderHints)
+            renderHintsChanged();
+        if (oldState->matrix != newState->matrix)
+            transformChanged();
+
+        if (clipState == QDirect2DPaintEngineState::ClipRedo) {
+            d->clearClips();
+            clipEnabledChanged();
+        } else if (clipState == QDirect2DPaintEngineState::ClipCanPop) {
+            d->popClip(oldState->clipInfo.size() - newState->clipInfo.size());
+        }
+
+    }
 }
 
 void QWindowsDirect2DPaintEngine::draw(const QVectorPath &path)
@@ -1484,6 +2083,9 @@ void QWindowsDirect2DPaintEngine::drawPixmap(const QRectF &r,
     QWindowsDirect2DPlatformPixmap *pp = static_cast<QWindowsDirect2DPlatformPixmap *>(pm.handle());
     QWindowsDirect2DBitmap *bitmap = pp->bitmap();
 
+    if (!d->own(bitmap->bitmap()))
+        return;
+
     ensurePen();
 
     if (bitmap->bitmap() != d->bitmap->bitmap()) {
@@ -1638,6 +2240,16 @@ void QWindowsDirect2DPaintEngine::drawTextItem(const QPointF &p, const QTextItem
                     rtl);
 }
 
+bool QWindowsDirect2DPaintEngine::matchDWriteFont(const QFontEngine *fontEngine, IDWriteFontFace **ppFontFace)
+{
+    return QWindowsDirect2DPaintEnginePrivate::matchDWriteFont(fontEngine, ppFontFace);
+}
+
+QString QWindowsDirect2DPaintEngine::getDWriteFontPath(IDWriteFontFace *pFontFace)
+{
+    return QWindowsDirect2DPaintEnginePrivate::getDWriteFontPath(pFontFace);
+}
+
 void QWindowsDirect2DPaintEngine::ensureBrush()
 {
     ensureBrush(state()->brush);
@@ -1677,6 +2289,9 @@ void QWindowsDirect2DPaintEngine::rasterFill(const QVectorPath &path, const QBru
     QImage &img = d->fallbackImage;
     QPainter p;
     QPaintEngine *engine = img.paintEngine();
+
+    if (img.isNull() || !engine)    // tdr tolerance
+        return;
 
     if (engine->isExtended() && p.begin(&img)) {
         p.setRenderHints(state()->renderHints);
