@@ -594,7 +594,11 @@ void QCoreApplicationPrivate::appendApplicationPathToLibraryPaths()
     if (app_location.isEmpty())
         app_location.append(QLatin1Char('/'));
 #endif
+#if defined(Q_OS_WIN)
+    app_location = QDir(app_location).absolutePath();
+#else
     app_location = QDir(app_location).canonicalPath();
+#endif
     if (QFile::exists(app_location) && !app_libpaths->contains(app_location))
         app_libpaths->append(app_location);
 #endif
@@ -1085,7 +1089,7 @@ bool QCoreApplication::notifyInternal2(QObject *receiver, QEvent *event)
     QScopedScopeLevelCounter scopeLevelCounter(threadData);
     if (!selfRequired)
         return doNotify(receiver, event);
-    return self->notify(receiver, event);
+    return self ? self->notify(receiver, event) : false;
 }
 
 /*!
@@ -2694,17 +2698,23 @@ QStringList QCoreApplication::libraryPaths()
         QStringList *app_libpaths = new QStringList;
         coreappdata()->app_libpaths.reset(app_libpaths);
 
+#ifndef Q_OS_WIN
         QString libPathEnv = qEnvironmentVariable("QT_PLUGIN_PATH");
         if (!libPathEnv.isEmpty()) {
             QStringList paths = libPathEnv.split(QDir::listSeparator(), QString::SkipEmptyParts);
             for (QStringList::const_iterator it = paths.constBegin(); it != paths.constEnd(); ++it) {
-                QString canonicalPath = QDir(*it).canonicalPath();
-                if (!canonicalPath.isEmpty()
-                    && !app_libpaths->contains(canonicalPath)) {
-                    app_libpaths->append(canonicalPath);
+#if defined(Q_OS_WIN)
+                QString libPath = QDir(*it).absolutePath();
+#else
+                QString libPath = QDir(*it).canonicalPath();
+#endif
+                if (!libPath.isEmpty()
+                    && !app_libpaths->contains(libPath)) {
+                    app_libpaths->append(libPath);
                 }
             }
         }
+#endif
 
 #ifdef Q_OS_DARWIN
         // Check the main bundle's PlugIns directory as this is a standard location for Apple OSes.
@@ -2729,7 +2739,11 @@ QStringList QCoreApplication::libraryPaths()
         QString installPathPlugins =  QLibraryInfo::location(QLibraryInfo::PluginsPath);
         if (QFile::exists(installPathPlugins)) {
             // Make sure we convert from backslashes to slashes.
+#ifdef Q_OS_WIN
+            installPathPlugins = QDir(installPathPlugins).absolutePath();
+#else
             installPathPlugins = QDir(installPathPlugins).canonicalPath();
+#endif
             if (!app_libpaths->contains(installPathPlugins))
                 app_libpaths->append(installPathPlugins);
         }
@@ -2793,27 +2807,31 @@ void QCoreApplication::addLibraryPath(const QString &path)
     if (path.isEmpty())
         return;
 
-    QString canonicalPath = QDir(path).canonicalPath();
-    if (canonicalPath.isEmpty())
+#if defined(Q_OS_WIN)
+    QString libPath = QDir(path).absolutePath();
+#else
+    QString libPath = QDir(path).canonicalPath();
+#endif
+    if (libPath.isEmpty())
         return;
 
     QMutexLocker locker(libraryPathMutex());
 
     QStringList *libpaths = coreappdata()->manual_libpaths.data();
     if (libpaths) {
-        if (libpaths->contains(canonicalPath))
+        if (libpaths->contains(libPath))
             return;
     } else {
         // make sure that library paths are initialized
         libraryPaths();
         QStringList *app_libpaths = coreappdata()->app_libpaths.data();
-        if (app_libpaths->contains(canonicalPath))
+        if (app_libpaths->contains(libPath))
             return;
 
         coreappdata()->manual_libpaths.reset(libpaths = new QStringList(*app_libpaths));
     }
 
-    libpaths->prepend(canonicalPath);
+    libpaths->prepend(libPath);
     locker.unlock();
     QFactoryLoader::refreshAll();
 }
@@ -2832,25 +2850,29 @@ void QCoreApplication::removeLibraryPath(const QString &path)
     if (path.isEmpty())
         return;
 
-    QString canonicalPath = QDir(path).canonicalPath();
-    if (canonicalPath.isEmpty())
+#if defined(Q_OS_WIN)
+    QString libPath = QDir(path).absolutePath();
+#else
+    QString libPath = QDir(path).canonicalPath();
+#endif
+    if (libPath.isEmpty())
         return;
 
     QMutexLocker locker(libraryPathMutex());
 
     QStringList *libpaths = coreappdata()->manual_libpaths.data();
     if (libpaths) {
-        if (libpaths->removeAll(canonicalPath) == 0)
+        if (libpaths->removeAll(libPath) == 0)
             return;
     } else {
         // make sure that library paths is initialized
         libraryPaths();
         QStringList *app_libpaths = coreappdata()->app_libpaths.data();
-        if (!app_libpaths->contains(canonicalPath))
+        if (!app_libpaths->contains(libPath))
             return;
 
         coreappdata()->manual_libpaths.reset(libpaths = new QStringList(*app_libpaths));
-        libpaths->removeAll(canonicalPath);
+        libpaths->removeAll(libPath);
     }
 
     locker.unlock();

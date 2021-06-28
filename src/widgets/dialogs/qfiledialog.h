@@ -45,6 +45,9 @@
 #include <QtCore/qstring.h>
 #include <QtCore/qurl.h>
 #include <QtWidgets/qdialog.h>
+#ifdef Q_OS_MAC
+#include <QVariant>
+#endif // Q_OS_MAC
 
 QT_REQUIRE_CONFIG(filedialog);
 
@@ -81,7 +84,11 @@ public:
     enum AcceptMode { AcceptOpen, AcceptSave };
     Q_ENUM(AcceptMode)
     enum DialogLabel { LookIn, FileName, FileType, Accept, Reject };
-
+#ifdef Q_OS_MAC
+    Q_ENUM(DialogLabel)
+    enum AccessoryButton { Encrypt, SaveToCloud };
+    Q_ENUM(AccessoryButton)
+#endif // Q_OS_MAC
     enum Option
     {
         ShowDirsOnly                = 0x00000001,
@@ -174,7 +181,13 @@ public:
 
     void setLabelText(DialogLabel label, const QString &text);
     QString labelText(DialogLabel label) const;
+#ifdef Q_OS_MAC
+    void setAccessoryButtonText(AccessoryButton button, const QString &text);
+    QString accessoryButtonText(AccessoryButton button) const;
 
+    void setExtraArgument(const QVariant &v);
+    QVariant extraArgument() const;
+#endif
     void setSupportedSchemes(const QStringList &schemes);
     QStringList supportedSchemes() const;
 
@@ -204,7 +217,12 @@ Q_SIGNALS:
     void directoryUrlEntered(const QUrl &directory);
 
     void filterSelected(const QString &filter);
+#ifdef Q_OS_MAC
+public Q_SLOTS:
 
+    void onEncryptFileButtonClick();
+    void onSaveToCloudButtonClick();
+#endif // Q_OS_MAC
 public:
 
     static QString getOpenFileName(QWidget *parent = nullptr,

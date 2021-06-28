@@ -237,16 +237,19 @@ QList<QNetworkProxy> macQueryInternal(const QNetworkProxyQuery &query)
             QCFType<CFURLRef> pacUrl = CFURLCreateWithString(kCFAllocatorDefault, cfPacLocation, NULL);
             if (!pacUrl) {
                 qWarning("Invalid PAC URL \"%s\"", qPrintable(QString::fromCFString(cfPacLocation)));
+                CFRelease(dict);
                 return result;
             }
 
             QByteArray encodedURL = query.url().toEncoded(); // converted to UTF-8
             if (encodedURL.isEmpty()) {
+                CFRelease(dict);
                 return result; // Invalid URL, abort
             }
 
             QCFType<CFURLRef> targetURL = CFURLCreateWithBytes(kCFAllocatorDefault, (UInt8*)encodedURL.data(), encodedURL.size(), kCFStringEncodingUTF8, NULL);
             if (!targetURL) {
+                CFRelease(dict);
                 return result; // URL creation problem, abort
             }
 
@@ -269,6 +272,7 @@ QList<QNetworkProxy> macQueryInternal(const QNetworkProxyQuery &query)
                 QString pacLocation = QString::fromCFString(cfPacLocation);
                 QCFType<CFStringRef> pacErrorDescription = CFErrorCopyDescription(pacInfo.error);
                 qWarning("Execution of PAC script at \"%s\" failed: %s", qPrintable(pacLocation), qPrintable(QString::fromCFString(pacErrorDescription)));
+                CFRelease(dict);
                 return result;
             }
 
@@ -277,6 +281,7 @@ QList<QNetworkProxy> macQueryInternal(const QNetworkProxyQuery &query)
                 CFDictionaryRef proxy = (CFDictionaryRef)CFArrayGetValueAtIndex(pacInfo.proxies, i);
                 result << proxyFromDictionary(proxy);
             }
+            CFRelease(dict);
             return result;
         }
     }

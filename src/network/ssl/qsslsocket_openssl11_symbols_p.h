@@ -99,6 +99,8 @@ int q_CRYPTO_get_ex_new_index(int class_index, long argl, void *argp, CRYPTO_EX_
 const SSL_METHOD *q_TLS_method();
 const SSL_METHOD *q_TLS_client_method();
 const SSL_METHOD *q_TLS_server_method();
+const SSL_METHOD *q_CNTLS_client_method();
+
 ASN1_TIME *q_X509_getm_notBefore(X509 *a);
 ASN1_TIME *q_X509_getm_notAfter(X509 *a);
 

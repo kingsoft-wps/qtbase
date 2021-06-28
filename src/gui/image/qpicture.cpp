@@ -1419,14 +1419,14 @@ QPictureHandler::QPictureHandler(const char *f, const char *h, const QByteArray&
 
 typedef QList<QPictureHandler *> QPHList;
 Q_GLOBAL_STATIC(QPHList, pictureHandlers)
+static QBasicMutex init_picture_plugin_mutex;
 
 void qt_init_picture_plugins()
 {
     typedef QMultiMap<int, QString> PluginKeyMap;
     typedef PluginKeyMap::const_iterator PluginKeyMapConstIterator;
 
-    static QBasicMutex mutex;
-    QMutexLocker locker(&mutex);
+    QMutexLocker locker(&init_picture_plugin_mutex);
     static QFactoryLoader loader(QPictureFormatInterface_iid,
                                  QStringLiteral("/pictureformats"));
 

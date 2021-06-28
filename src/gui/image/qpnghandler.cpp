@@ -657,6 +657,8 @@ bool QPngHandlerPrivate::readPngImage(QImage *outImage)
     }
 
     state = ReadingEnd;
+    // show warning and use data when the end with crc errors
+    png_set_crc_action(png_ptr, PNG_CRC_WARN_USE, PNG_CRC_WARN_USE);
     png_read_end(png_ptr, end_info);
 
     readPngTexts(end_info);
@@ -1139,7 +1141,8 @@ bool QPngHandler::supportsOption(ImageOption option) const
         || option == Quality
         || option == CompressionRatio
         || option == Size
-        || option == ScaledSize;
+        || option == ScaledSize
+        || option == DotsPerMeter;
 }
 
 QVariant QPngHandler::option(ImageOption option) const
@@ -1164,6 +1167,9 @@ QVariant QPngHandler::option(ImageOption option) const
         return d->scaledSize;
     else if (option == ImageFormat)
         return d->readImageFormat();
+    else if (option == DotsPerMeter)
+        return QSizeF(png_get_x_pixels_per_meter(d->png_ptr, d->info_ptr),
+                      png_get_y_pixels_per_meter(d->png_ptr, d->info_ptr));
     return QVariant();
 }
 

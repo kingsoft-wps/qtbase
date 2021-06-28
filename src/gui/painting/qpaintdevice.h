@@ -66,7 +66,9 @@ public:
         PdmPhysicalDpiX,
         PdmPhysicalDpiY,
         PdmDevicePixelRatio,
-        PdmDevicePixelRatioScaled
+        PdmDevicePixelRatioScaled,
+        PdmPhysicalWidth,
+        PdmPhysicalHeight
     };
 
     virtual ~QPaintDevice();
@@ -85,6 +87,8 @@ public:
     int physicalDpiY() const { return metric(PdmPhysicalDpiY); }
     int devicePixelRatio() const { return metric(PdmDevicePixelRatio); }
     qreal devicePixelRatioF()  const { return metric(PdmDevicePixelRatioScaled) / devicePixelRatioFScale(); }
+    int physicalWidth() const { return metric(PdmPhysicalWidth); }
+    int physicalHeight() const { return metric(PdmPhysicalHeight); }
     int colorCount() const { return metric(PdmNumColors); }
     int depth() const { return metric(PdmDepth); }
 

@@ -837,34 +837,37 @@ QList<int> QMainWindowLayoutState::gapIndex(QWidget *widget,
                                             const QPoint &pos) const
 {
     QList<int> result;
-
+    QRect r = rect.adjusted(-40, -40, 40, 40);
+    if (r.contains(pos)) {
 #if QT_CONFIG(toolbar)
-    // is it a toolbar?
-    if (qobject_cast<QToolBar*>(widget) != 0) {
-        result = toolBarAreaLayout.gapIndex(pos);
-        if (!result.isEmpty())
-            result.prepend(0);
-        return result;
-    }
+        // is it a toolbar?
+        QToolBar *toolbar = qobject_cast<QToolBar *>(widget);
+        if (toolbar != 0) {
+            result = toolBarAreaLayout.gapIndex(pos, toolbar->isFullSize());
+            if (!result.isEmpty())
+                result.prepend(0);
+            return result;
+        }
 #endif
 
 #if QT_CONFIG(dockwidget)
-    // is it a dock widget?
-    if (qobject_cast<QDockWidget *>(widget) != 0
+        // is it a dock widget?
+        if (qobject_cast<QDockWidget *>(widget) != 0
             || qobject_cast<QDockWidgetGroupWindow *>(widget)) {
-        bool disallowTabs = false;
+            bool disallowTabs = false;
 #if QT_CONFIG(tabbar)
-        if (auto *group = qobject_cast<QDockWidgetGroupWindow *>(widget)) {
-            if (!group->tabLayoutInfo()) // Disallow to drop nested docks as a tab
-                disallowTabs = true;
-        }
+            if (auto *group = qobject_cast<QDockWidgetGroupWindow *>(widget)) {
+                if (!group->tabLayoutInfo()) // Disallow to drop nested docks as a tab
+                    disallowTabs = true;
+            }
 #endif
-        result = dockAreaLayout.gapIndex(pos, disallowTabs);
-        if (!result.isEmpty())
-            result.prepend(1);
-        return result;
-    }
+            result = dockAreaLayout.gapIndex(pos, disallowTabs);
+            if (!result.isEmpty())
+                result.prepend(1);
+            return result;
+        }
 #endif // QT_CONFIG(dockwidget)
+    }
 
     return result;
 }
@@ -1685,6 +1688,7 @@ QMainWindowTabBar::QMainWindowTabBar(QMainWindow *parent)
     : QTabBar(parent), mainWindow(parent)
 {
     setExpanding(false);
+    setObjectName(QLatin1String("QMainWindowTabBar"));
 }
 
 void QMainWindowTabBar::mouseMoveEvent(QMouseEvent *e)
@@ -1795,7 +1799,11 @@ QWidget *QMainWindowLayout::getSeparatorWidget()
     } else {
         result = new QWidget(parentWidget());
         result->setAttribute(Qt::WA_MouseNoMask, true);
+#ifdef Q_OS_MAC
+        result->setAutoFillBackground(true);
+#else
         result->setAutoFillBackground(false);
+#endif
         result->setObjectName(QLatin1String("qt_qmainwindow_extended_splitter"));
     }
     usedSeparatorWidgets.insert(result);
@@ -2062,7 +2070,7 @@ void QMainWindowLayout::revert(QLayoutItem *widgetItem)
     currentGapPos = layoutState.indexOf(widget);
     if (currentGapPos.isEmpty())
         return;
-    fixToolBarOrientation(widgetItem, currentGapPos.at(1));
+    //fixToolBarOrientation(widgetItem, currentGapPos.at(1));
     layoutState.unplug(currentGapPos);
     layoutState.fitLayout();
     currentGapRect = layoutState.itemRect(currentGapPos);
@@ -2485,7 +2493,7 @@ QLayoutItem *QMainWindowLayout::unplug(QWidget *widget, bool group)
     currentGapRect = r;
     updateGapIndicator();
 
-    fixToolBarOrientation(item, currentGapPos.at(1));
+    fixToolBarOrientation(item, 2); // 2 = top dock, ie. horizontal
 
     return item;
 }
@@ -2631,12 +2639,12 @@ void QMainWindowLayout::hover(QLayoutItem *widgetItem, const QPoint &mousePos)
 
     currentGapPos = path;
     if (path.isEmpty()) {
-        fixToolBarOrientation(widgetItem, 2); // 2 = top dock, ie. horizontal
+        //fixToolBarOrientation(widgetItem, 2); // 2 = top dock, ie. horizontal
         restore(true);
         return;
     }
 
-    fixToolBarOrientation(widgetItem, currentGapPos.at(1));
+    //fixToolBarOrientation(widgetItem, currentGapPos.at(1));
 
     QMainWindowLayoutState newState = savedState;
 

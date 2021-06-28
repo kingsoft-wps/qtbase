@@ -3,13 +3,10 @@ LIBS += -lole32 -luser32 -lwinspool -limm32 -lwinmm -loleaut32
 
 QT_FOR_CONFIG += gui
 
-qtConfig(opengl):!qtConfig(opengles2):!qtConfig(dynamicgl): LIBS *= -lopengl32
+qtConfig(opengl):!qtConfig(dynamicgl): LIBS *= -lopengl32
 
 mingw: LIBS *= -luuid
-# For the dialog helpers:
 LIBS += -lshlwapi -lshell32 -ladvapi32 -lwtsapi32
-
-QMAKE_USE_PRIVATE += d3d9/nolink
 
 DEFINES *= QT_NO_CAST_FROM_ASCII QT_NO_FOREACH
 
@@ -33,7 +30,9 @@ SOURCES += \
     $$PWD/qwindowsservices.cpp \
     $$PWD/qwindowsnativeinterface.cpp \
     $$PWD/qwindowsopengltester.cpp \
-    $$PWD/qwin10helpers.cpp
+    $$PWD/qwin10helpers.cpp \
+    $$PWD/qwindowdragdrophelper.cpp \
+    $$PWD/qwindowsdescription.cpp
 
 HEADERS += \
     $$PWD/qwindowscombase.h \
@@ -58,24 +57,17 @@ HEADERS += \
     $$PWD/qwindowsnativeinterface.h \
     $$PWD/qwindowsopengltester.h \
     $$PWD/qwindowsthreadpoolrunner.h \
-    $$PWD/qwin10helpers.h
+    $$PWD/qwin10helpers.h \
+    $$PWD/qwindowdragdrophelper.h \
+    $$PWD/qwindowsdescription.h
 
 INCLUDEPATH += $$PWD
 
 qtConfig(opengl): HEADERS += $$PWD/qwindowsopenglcontext.h
 
-qtConfig(opengles2) {
-    SOURCES += $$PWD/qwindowseglcontext.cpp
-    HEADERS += $$PWD/qwindowseglcontext.h
-} else: qtConfig(opengl) {
+qtConfig(opengl) {
     SOURCES += $$PWD/qwindowsglcontext.cpp
     HEADERS += $$PWD/qwindowsglcontext.h
-}
-
-# Dynamic GL needs both WGL and EGL
-qtConfig(dynamicgl) {
-    SOURCES += $$PWD/qwindowseglcontext.cpp
-    HEADERS += $$PWD/qwindowseglcontext.h
 }
 
 qtConfig(systemtrayicon) {
@@ -114,11 +106,3 @@ qtConfig(imageformat_png):RESOURCES += $$PWD/cursors.qrc
 RESOURCES += $$PWD/openglblacklists.qrc
 
 qtConfig(accessibility): include($$PWD/uiautomation/uiautomation.pri)
-
-qtConfig(combined-angle-lib) {
-    DEFINES *= LIBEGL_NAME=$${LIBQTANGLE_NAME}
-    DEFINES *= LIBGLESV2_NAME=$${LIBQTANGLE_NAME}
-} else {
-    DEFINES *= LIBEGL_NAME=$${LIBEGL_NAME}
-    DEFINES *= LIBGLESV2_NAME=$${LIBGLESV2_NAME}
-}

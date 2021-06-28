@@ -57,11 +57,9 @@
 #include "qssl_p.h"
 #include "qsslsocket_openssl_symbols_p.h"
 
-#ifdef Q_OS_WIN
-# include <private/qsystemlibrary_p.h>
-#elif QT_CONFIG(library)
-# include <QtCore/qlibrary.h>
-#endif
+#include <QtCore/qlibrary.h>
+#include <QtCore/qdir.h>
+
 #include <QtCore/qmutex.h>
 #if QT_CONFIG(thread)
 #include <private/qmutexpool_p.h>
@@ -178,6 +176,8 @@ DEFINEFUNC2(unsigned long, SSL_set_options, SSL *ssl, ssl, unsigned long op, op,
 DEFINEFUNC(const SSL_METHOD *, TLS_method, DUMMYARG, DUMMYARG, return nullptr, return)
 DEFINEFUNC(const SSL_METHOD *, TLS_client_method, DUMMYARG, DUMMYARG, return nullptr, return)
 DEFINEFUNC(const SSL_METHOD *, TLS_server_method, DUMMYARG, DUMMYARG, return nullptr, return)
+DEFINEFUNC(const SSL_METHOD *, CNTLS_client_method, DUMMYARG, DUMMYARG, return nullptr, return)
+
 DEFINEFUNC(ASN1_TIME *, X509_getm_notBefore, X509 *a, a, return nullptr, return)
 DEFINEFUNC(ASN1_TIME *, X509_getm_notAfter, X509 *a, a, return nullptr, return)
 DEFINEFUNC(long, X509_get_version, X509 *a, a, return -1, return)
@@ -748,19 +748,25 @@ static QStringList findAllLibCrypto()
 # endif
 
 #ifdef Q_OS_WIN
-static bool tryToLoadOpenSslWin32Library(QLatin1String ssleay32LibName, QLatin1String libeay32LibName, QPair<QSystemLibrary*, QSystemLibrary*> &pair)
+extern QString qModuleDirPath();
+static bool tryToLoadOpenSslWin32Library(QLatin1String ssleay32LibName,
+                                         QLatin1String libeay32LibName,
+                                         QPair<QLibrary *, QLibrary *> &pair)
 {
     pair.first = 0;
     pair.second = 0;
 
-    QSystemLibrary *ssleay32 = new QSystemLibrary(ssleay32LibName);
-    if (!ssleay32->load(false)) {
+	QDir dir(qModuleDirPath());
+    QString path = dir.absoluteFilePath(ssleay32LibName);
+    QLibrary *ssleay32 = new QLibrary(path);
+    if (!ssleay32->load()) {
         delete ssleay32;
         return FALSE;
     }
 
-    QSystemLibrary *libeay32 = new QSystemLibrary(libeay32LibName);
-    if (!libeay32->load(false)) {
+    path = dir.absoluteFilePath(libeay32LibName);
+    QLibrary *libeay32 = new QLibrary(path);
+    if (!libeay32->load()) {
         delete ssleay32;
         delete libeay32;
         return FALSE;
@@ -771,9 +777,9 @@ static bool tryToLoadOpenSslWin32Library(QLatin1String ssleay32LibName, QLatin1S
     return TRUE;
 }
 
-static QPair<QSystemLibrary*, QSystemLibrary*> loadOpenSslWin32()
+static QPair<QLibrary *, QLibrary *> loadOpenSslWin32()
 {
-    QPair<QSystemLibrary*,QSystemLibrary*> pair;
+    QPair<QLibrary *, QLibrary *> pair;
     pair.first = 0;
     pair.second = 0;
 
@@ -983,7 +989,7 @@ bool q_resolveOpenSslSymbols()
     triedToResolveSymbols = true;
 
 #ifdef Q_OS_WIN
-    QPair<QSystemLibrary *, QSystemLibrary *> libs = loadOpenSslWin32();
+    QPair<QLibrary *, QLibrary *> libs = loadOpenSslWin32();
 #else
     QPair<QLibrary *, QLibrary *> libs = loadOpenSsl();
 #endif
@@ -1021,6 +1027,7 @@ bool q_resolveOpenSslSymbols()
     RESOLVEFUNC(TLS_method)
     RESOLVEFUNC(TLS_client_method)
     RESOLVEFUNC(TLS_server_method)
+    RESOLVEFUNC(CNTLS_client_method)
     RESOLVEFUNC(X509_STORE_CTX_get0_chain)
     RESOLVEFUNC(X509_getm_notBefore)
     RESOLVEFUNC(X509_getm_notAfter)

@@ -110,6 +110,7 @@ class Q_WIDGETS_EXPORT QPanGesture : public QGesture
     Q_PROPERTY(QPointF offset READ offset WRITE setOffset)
     Q_PROPERTY(QPointF delta READ delta STORED false)
     Q_PROPERTY(qreal acceleration READ acceleration WRITE setAcceleration)
+    Q_PROPERTY(uint timeStamp READ timeStamp WRITE setTimeStamp)
     Q_PRIVATE_PROPERTY(QPanGesture::d_func(), qreal horizontalVelocity READ horizontalVelocity WRITE setHorizontalVelocity)
     Q_PRIVATE_PROPERTY(QPanGesture::d_func(), qreal verticalVelocity READ verticalVelocity WRITE setVerticalVelocity)
 
@@ -121,10 +122,12 @@ public:
     QPointF offset() const;
     QPointF delta() const;
     qreal acceleration() const;
+    uint timeStamp() const;
 
     void setLastOffset(const QPointF &value);
     void setOffset(const QPointF &value);
     void setAcceleration(qreal value);
+    void setTimeStamp(uint value);
 
     friend class QPanGestureRecognizer;
     friend class QWinNativePanGestureRecognizer;

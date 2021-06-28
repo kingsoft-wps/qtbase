@@ -539,7 +539,7 @@ public:
     bool hasPalette() const { return pal != 0; }
     bool hasBackground() const { return bg != 0 && (!bg->pixmap.isNull() || bg->brush.style() != Qt::NoBrush); }
     bool hasGradientBackground() const { return bg && bg->brush.style() >= Qt::LinearGradientPattern
-                                                   && bg->brush.style() <= Qt::ConicalGradientPattern; }
+                                                   && bg->brush.style() <= Qt::PathGradientPattern; }
 
     bool hasNativeBorder() const {
         return bd == 0
@@ -1589,6 +1589,12 @@ private:
 QVector<QCss::StyleRule> QStyleSheetStyle::styleRules(const QObject *obj) const
 {
     QHash<const QObject *, QVector<StyleRule> >::const_iterator cacheIt = styleSheetCaches->styleRulesCache.constFind(obj);
+#ifdef Q_OS_MAC
+	if (obj && QStringLiteral("QScrollBar") == QString::fromUtf8(obj->metaObject()->className()))
+    {
+        cacheIt = styleSheetCaches->styleRulesCache.constEnd();
+    }
+#endif
     if (cacheIt != styleSheetCaches->styleRulesCache.constEnd())
         return cacheIt.value();
 
@@ -1790,6 +1796,12 @@ QRenderRule QStyleSheetStyle::renderRule(const QObject *obj, int element, quint6
     qt_check_if_internal_object(&obj, &element);
     QHash<quint64, QRenderRule> &cache = styleSheetCaches->renderRulesCache[obj][element];
     QHash<quint64, QRenderRule>::const_iterator cacheIt = cache.constFind(state);
+#ifdef Q_OS_MAC
+    if (obj && QStringLiteral("QScrollBar") == QString::fromUtf8(obj->metaObject()->className()))
+    {
+        cacheIt = cache.constEnd();
+    }
+#endif
     if (cacheIt != cache.constEnd())
         return cacheIt.value();
 
@@ -2751,6 +2763,9 @@ QStyleSheetStyle::QStyleSheetStyle(QStyle *base)
     ++numinstances;
     if (numinstances == 1) {
         styleSheetCaches = new QStyleSheetStyleCaches;
+    }
+    if (base) {
+        QObject::connect(base, SIGNAL(destroyed(QObject*)), this, SLOT(baseDestroyed(QObject*)));
     }
 }
 
@@ -6144,6 +6159,13 @@ QPixmap QStyleSheetStyle::loadPixmap(const QString &fileName, const QObject *con
     QPixmap pixmap(resolvedFileName);
     pixmap.setDevicePixelRatio(sourceDevicePixelRatio);
     return pixmap;
+}
+
+void QStyleSheetStyle::baseDestroyed(QObject *obj)
+{
+    if (base == obj) {
+        base = nullptr;
+    }
 }
 
 QT_END_NAMESPACE

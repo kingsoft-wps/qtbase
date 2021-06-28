@@ -95,6 +95,7 @@ QGestureRecognizer::Result QPanGestureRecognizer::recognize(QGesture *state,
         QTouchEvent::TouchPoint p = ev->touchPoints().at(0);
         d->lastOffset = d->offset = QPointF();
         d->pointCount = m_pointCount;
+        d->timeStamp = ev->timestamp();
         break;
     }
     case QEvent::TouchEnd: {
@@ -103,6 +104,7 @@ QGestureRecognizer::Result QPanGestureRecognizer::recognize(QGesture *state,
             if (ev->touchPoints().size() == d->pointCount) {
                 d->lastOffset = d->offset;
                 d->offset = panOffset(ev->touchPoints(), d->pointCount);
+                d->timeStamp = ev->timestamp();
             }
             result = QGestureRecognizer::FinishGesture;
         } else {
@@ -115,6 +117,7 @@ QGestureRecognizer::Result QPanGestureRecognizer::recognize(QGesture *state,
         if (ev->touchPoints().size() >= d->pointCount) {
             d->lastOffset = d->offset;
             d->offset = panOffset(ev->touchPoints(), d->pointCount);
+            d->timeStamp = ev->timestamp();
             if (d->offset.x() > 10  || d->offset.y() > 10 ||
                 d->offset.x() < -10 || d->offset.y() < -10) {
                 q->setHotSpot(ev->touchPoints().first().startScreenPos());

@@ -110,6 +110,7 @@ public:
 
     QSsl::SslProtocol protocol;
     QSslSocket::PeerVerifyMode peerVerifyMode;
+    QString verificationPeerName;
     int peerVerifyDepth;
     bool allowRootCertOnDemandLoading;
     bool peerSessionShared;

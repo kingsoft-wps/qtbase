@@ -44,6 +44,8 @@
 #include "qwindowsdirect2dhelpers.h"
 #include "qwindowsdirect2dplatformpixmap.h"
 
+#include <QtGui/qguiapplication.h>
+
 #include <d3d11.h>
 #include <d2d1_1.h>
 #include <dxgi1_2.h>
@@ -52,14 +54,19 @@ using Microsoft::WRL::ComPtr;
 
 QT_BEGIN_NAMESPACE
 
-QWindowsDirect2DWindow::QWindowsDirect2DWindow(QWindow *window, const QWindowsWindowData &data)
+void enableDirect2DBrushCache(ID2D1DeviceContext*);
+void cleanDirect2DBrushCache(ID2D1DeviceContext*);
+void clearDirect2DBrushCache(ID2D1DeviceContext*);
+
+QWindowsDirect2DWindow::QWindowsDirect2DWindow(QWindow *window, const QWindowsWindowData &data, bool directRenderingEnable)
     : QWindowsWindow(window, data)
-    , m_directRendering(!(data.flags & Qt::FramelessWindowHint && window->format().hasAlpha()))
+    , m_isTranslucent(data.flags & Qt::FramelessWindowHint && window->format().hasAlpha())
+    , m_directRenderingEnabled(directRenderingEnable)
 {
     if (window->type() == Qt::Desktop)
         return; // No further handling for Qt::Desktop
 
-    if (m_directRendering)
+    if (isDirectRendering())
         setupSwapChain();
 
     HRESULT hr = QWindowsDirect2DContext::instance()->d2dDevice()->CreateDeviceContext(
@@ -67,21 +74,55 @@ QWindowsDirect2DWindow::QWindowsDirect2DWindow(QWindow *window, const QWindowsWi
                 m_deviceContext.GetAddressOf());
     if (FAILED(hr))
         qWarning("%s: Couldn't create Direct2D Device context: %#lx", __FUNCTION__, hr);
+    if (!this->window()->property("_q_platform_Direct2DDisableBrushCache").toBool())
+        enableDirect2DBrushCache(m_deviceContext.Get());
 }
 
 QWindowsDirect2DWindow::~QWindowsDirect2DWindow()
 {
+    if (!this->window()->property("_q_platform_Direct2DDisableBrushCache").toBool())
+        cleanDirect2DBrushCache(m_deviceContext.Get());
+}
+
+void QWindowsDirect2DWindow::updateDirectRendering(Qt::WindowFlags flags, const QSurfaceFormat& format)
+{
+    m_isTranslucent = (flags & Qt::FramelessWindowHint && format.hasAlpha());
+
+    if (!isDirectRendering())
+        m_swapChain.Reset(); // No need for the swap chain; release from memory
+    else if (!m_swapChain)
+        setupSwapChain();
+}
+
+
+bool QWindowsDirect2DWindow::isDirectRendering() const
+{
+    return m_directRenderingEnabled && !m_isTranslucent;
 }
 
 void QWindowsDirect2DWindow::setWindowFlags(Qt::WindowFlags flags)
 {
-    m_directRendering = !(flags & Qt::FramelessWindowHint && window()->format().hasAlpha());
-    if (!m_directRendering)
-        m_swapChain.Reset(); // No need for the swap chain; release from memory
-    else if (!m_swapChain)
-        setupSwapChain();
+    updateDirectRendering(flags, window()->format());
 
     QWindowsWindow::setWindowFlags(flags);
+}
+
+void QWindowsDirect2DWindow::setFormat(const QSurfaceFormat& format)
+{
+    updateDirectRendering(windowFlags(), format);
+
+    QWindowsWindow::setFormat(format);
+}
+
+bool QWindowsDirect2DWindow::isPixmapAvaliable() const
+{
+    return m_pixmap && !m_pixmap->isNull();
+}
+
+
+bool QWindowsDirect2DWindow::isTranslucent() const
+{
+    return m_isTranslucent;
 }
 
 QPixmap *QWindowsDirect2DWindow::pixmap()
@@ -91,10 +132,25 @@ QPixmap *QWindowsDirect2DWindow::pixmap()
     return m_pixmap.data();
 }
 
+
+QWindowsDirect2DBitmap* QWindowsDirect2DWindow::bitmap() const
+{
+    Q_ASSERT(m_bitmap);
+    return m_bitmap.data();
+}
+
 void QWindowsDirect2DWindow::flush(QWindowsDirect2DBitmap *bitmap, const QRegion &region, const QPoint &offset)
 {
+    if (!bitmap)
+        return;
+
+    if (!m_directRenderingEnabled) {
+        qWarning("QWindowsDirect2DWindow::flush is not expected to call when direct rendering is disabled");
+        return;
+    }
+
     QSize size;
-    if (m_directRendering) {
+    if (!m_isTranslucent) {
         DXGI_SWAP_CHAIN_DESC1 desc;
         HRESULT hr = m_swapChain->GetDesc1(&desc);
         QRect geom = geometry();
@@ -145,8 +201,16 @@ void QWindowsDirect2DWindow::flush(QWindowsDirect2DBitmap *bitmap, const QRegion
 
 void QWindowsDirect2DWindow::present(const QRegion &region)
 {
-    if (m_directRendering) {
-        m_swapChain->Present(0, 0);
+    if (!m_directRenderingEnabled) {
+        qWarning("QWindowsDirect2DWindow::present is not expected to call when direct rendering is disabled");
+        return;
+    }
+
+    if (!m_isTranslucent) {
+        HRESULT hr = m_swapChain->Present(0, 0);
+        if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
+            QGuiApplication::postEvent(QGuiApplication::instance(),
+                                       new QEvent(QEvent::GpuDeviceLost), Qt::HighEventPriority);
         return;
     }
 
@@ -176,7 +240,7 @@ void QWindowsDirect2DWindow::present(const QRegion &region)
     if (!UpdateLayeredWindowIndirect(handle(), &info))
         qErrnoWarning(int(GetLastError()), "Failed to update the layered window");
 
-    hr = dxgiSurface->ReleaseDC(nullptr);
+    hr = dxgiSurface->ReleaseDC(&RECT{0, 0, 0, 0});
     if (FAILED(hr))
         qErrnoWarning(hr, "Failed to release the DC for presentation");
 }
@@ -199,6 +263,11 @@ void QWindowsDirect2DWindow::setupSwapChain()
                 nullptr,                                          // [in]   IDXGIOutput *pRestrictToOutput
                 m_swapChain.ReleaseAndGetAddressOf());            // [out]  IDXGISwapChain1 **ppSwapChain
 
+    if (!QWindowsDirect2DContext::instance()->messageHookEnabled()) {
+        QWindowsDirect2DContext::instance()->dxgiFactory()->MakeWindowAssociation(
+            handle(), DXGI_MWA_NO_WINDOW_CHANGES | DXGI_MWA_NO_ALT_ENTER);
+    }
+
     if (FAILED(hr))
         qWarning("%s: Could not create swap chain: %#lx", __FUNCTION__, hr);
 
@@ -219,8 +288,40 @@ void QWindowsDirect2DWindow::resizeSwapChain(const QSize &size)
                                             UINT(size.width()), UINT(size.height()),
                                             DXGI_FORMAT_UNKNOWN,
                                             0);
-    if (FAILED(hr))
+    if (FAILED(hr)) {
         qWarning("%s: Could not resize swap chain: %#lx", __FUNCTION__, hr);
+        if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
+            QGuiApplication::postEvent(QGuiApplication::instance(),
+                                       new QEvent(QEvent::GpuDeviceLost),
+                                       Qt::HighEventPriority);
+    }
+}
+
+void QWindowsDirect2DWindow::resetDeviceDependentResources()
+{
+    m_bitmap.reset();
+    m_pixmap.reset();
+
+    if (isDirectRendering())
+    {
+        Microsoft::WRL::ComPtr<IDXGISwapChain1> swapChain;
+        m_swapChain.Swap(swapChain);
+        setupSwapChain();
+    }
+
+    {
+        Microsoft::WRL::ComPtr<ID2D1DeviceContext> devContext;
+        m_deviceContext.Swap(devContext);
+        HRESULT hr = QWindowsDirect2DContext::instance()->d2dDevice()->CreateDeviceContext(
+                D2D1_DEVICE_CONTEXT_OPTIONS_NONE, m_deviceContext.GetAddressOf());
+        if (FAILED(hr))
+            qWarning("%s: Couldn't create Direct2D Device context: %#lx", __FUNCTION__, hr);
+    }
+
+    if (!this->window()->property("_q_platform_Direct2DDisableBrushCache").toBool())
+        clearDirect2DBrushCache(m_deviceContext.Get());
+
+    setupBitmap();
 }
 
 QSharedPointer<QWindowsDirect2DBitmap> QWindowsDirect2DWindow::copyBackBuffer() const
@@ -268,12 +369,13 @@ void QWindowsDirect2DWindow::setupBitmap()
     if (!m_deviceContext)
         return;
 
-    if (m_directRendering && !m_swapChain)
+    bool directRendering = isDirectRendering();
+    if (directRendering && !m_swapChain)
         return;
 
     HRESULT hr;
     ComPtr<IDXGISurface1> backBufferSurface;
-    if (m_directRendering) {
+    if (directRendering) {
         hr = m_swapChain->GetBuffer(0, IID_PPV_ARGS(&backBufferSurface));
         if (FAILED(hr)) {
             qWarning("%s: Could not query backbuffer for DXGI Surface: %#lx", __FUNCTION__, hr);
@@ -308,7 +410,7 @@ void QWindowsDirect2DWindow::setupBitmap()
     m_bitmap.reset(new QWindowsDirect2DBitmap(backBufferBitmap.Get(), m_deviceContext.Get()));
 
     QWindowsDirect2DPaintEngine::Flags flags = QWindowsDirect2DPaintEngine::NoFlag;
-    if (!m_directRendering)
+    if (!directRendering && m_isTranslucent)
         flags |= QWindowsDirect2DPaintEngine::TranslucentTopLevelWindow;
     QWindowsDirect2DPlatformPixmap *pp = new QWindowsDirect2DPlatformPixmap(QPlatformPixmap::PixmapType,
                                                                             flags,

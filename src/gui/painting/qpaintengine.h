@@ -72,6 +72,14 @@ public:
         Dummy = 0xffffffff
     };
     Q_DECLARE_FLAGS(RenderFlags, RenderFlag)
+
+    enum CustomRenderOperateFlag {
+        UseColorFontDefaultColor = 0x01,
+        UseColorFontCustomColor  = 0x02,
+        UseDrawGlyphs            = 0x10
+    };
+    Q_DECLARE_FLAGS(CustomRenderOperateFlags, CustomRenderOperateFlag)
+
     qreal descent() const;
     qreal ascent() const;
     qreal width() const;
@@ -79,6 +87,7 @@ public:
     RenderFlags renderFlags() const;
     QString text() const;
     QFont font() const;
+    CustomRenderOperateFlags customRenderOprFlags() const;
 };
 Q_DECLARE_TYPEINFO(QTextItem, Q_PRIMITIVE_TYPE);
 
@@ -88,25 +97,26 @@ class Q_GUI_EXPORT QPaintEngine
     Q_DECLARE_PRIVATE(QPaintEngine)
 public:
     enum PaintEngineFeature {
-        PrimitiveTransform          = 0x00000001, // Can transform primitives brushes
-        PatternTransform            = 0x00000002, // Can transform pattern brushes
-        PixmapTransform             = 0x00000004, // Can transform pixmaps
-        PatternBrush                = 0x00000008, // Can fill with pixmaps and standard patterns
-        LinearGradientFill          = 0x00000010, // Can fill gradient areas
-        RadialGradientFill          = 0x00000020, // Can render radial gradients
-        ConicalGradientFill         = 0x00000040, // Can render conical gradients
-        AlphaBlend                  = 0x00000080, // Can do source over alpha blend
-        PorterDuff                  = 0x00000100, // Can do general porter duff compositions
-        PainterPaths                = 0x00000200, // Can fill, outline and clip paths
-        Antialiasing                = 0x00000400, // Can antialias lines
-        BrushStroke                 = 0x00000800, // Can render brush based pens
-        ConstantOpacity             = 0x00001000, // Can render at constant opacity
-        MaskedBrush                 = 0x00002000, // Can fill with textures that has an alpha channel or mask
-        PerspectiveTransform        = 0x00004000, // Can do perspective transformations
-        BlendModes                  = 0x00008000, // Can do extended Porter&Duff composition
+        PrimitiveTransform = 0x00000001, // Can transform primitives brushes
+        PatternTransform = 0x00000002, // Can transform pattern brushes
+        PixmapTransform = 0x00000004, // Can transform pixmaps
+        PatternBrush = 0x00000008, // Can fill with pixmaps and standard patterns
+        LinearGradientFill = 0x00000010, // Can fill gradient areas
+        RadialGradientFill = 0x00000020, // Can render radial gradients
+        ConicalGradientFill = 0x00000040, // Can render conical gradients
+        AlphaBlend = 0x00000080, // Can do source over alpha blend
+        PorterDuff = 0x00000100, // Can do general porter duff compositions
+        PainterPaths = 0x00000200, // Can fill, outline and clip paths
+        Antialiasing = 0x00000400, // Can antialias lines
+        BrushStroke = 0x00000800, // Can render brush based pens
+        ConstantOpacity = 0x00001000, // Can render at constant opacity
+        MaskedBrush = 0x00002000, // Can fill with textures that has an alpha channel or mask
+        PerspectiveTransform = 0x00004000, // Can do perspective transformations
+        BlendModes = 0x00008000, // Can do extended Porter&Duff composition
         ObjectBoundingModeGradients = 0x00010000, // Can do object bounding mode gradients
-        RasterOpModes               = 0x00020000, // Can do logical raster operations
-        PaintOutsidePaintEvent      = 0x20000000, // Engine is capable of painting outside paint events
+        RasterOpModes = 0x00020000, // Can do logical raster operations
+        PathGradientFill = 0x00040000, // Can render path gradients
+        PaintOutsidePaintEvent = 0x20000000, // Engine is capable of painting outside paint events
         /*                          0x10000000, // Used for emulating
                                     QGradient::StretchToDevice,
                                     defined in qpainter.cpp
@@ -114,26 +124,26 @@ public:
                                     0x40000000, // Used internally for emulating opaque backgrounds
         */
 
-        AllFeatures               = 0xffffffff  // For convenience
+        AllFeatures = 0xffffffff // For convenience
     };
     Q_DECLARE_FLAGS(PaintEngineFeatures, PaintEngineFeature)
 
     enum DirtyFlag {
-        DirtyPen                = 0x0001,
-        DirtyBrush              = 0x0002,
-        DirtyBrushOrigin        = 0x0004,
-        DirtyFont               = 0x0008,
-        DirtyBackground         = 0x0010,
-        DirtyBackgroundMode     = 0x0020,
-        DirtyTransform          = 0x0040,
-        DirtyClipRegion         = 0x0080,
-        DirtyClipPath           = 0x0100,
-        DirtyHints              = 0x0200,
-        DirtyCompositionMode    = 0x0400,
-        DirtyClipEnabled        = 0x0800,
-        DirtyOpacity            = 0x1000,
+        DirtyPen = 0x0001,
+        DirtyBrush = 0x0002,
+        DirtyBrushOrigin = 0x0004,
+        DirtyFont = 0x0008,
+        DirtyBackground = 0x0010,
+        DirtyBackgroundMode = 0x0020,
+        DirtyTransform = 0x0040,
+        DirtyClipRegion = 0x0080,
+        DirtyClipPath = 0x0100,
+        DirtyHints = 0x0200,
+        DirtyCompositionMode = 0x0400,
+        DirtyClipEnabled = 0x0800,
+        DirtyOpacity = 0x1000,
 
-        AllDirty                = 0xffff
+        AllDirty = 0xffff
     };
     Q_DECLARE_FLAGS(DirtyFlags, DirtyFlag)
 
@@ -144,7 +154,7 @@ public:
         PolylineMode
     };
 
-    explicit QPaintEngine(PaintEngineFeatures features=PaintEngineFeatures());
+    explicit QPaintEngine(PaintEngineFeatures features = PaintEngineFeatures());
     virtual ~QPaintEngine();
 
     bool isActive() const { return active; }
@@ -177,6 +187,8 @@ public:
     virtual void drawTiledPixmap(const QRectF &r, const QPixmap &pixmap, const QPointF &s);
     virtual void drawImage(const QRectF &r, const QImage &pm, const QRectF &sr,
                            Qt::ImageConversionFlags flags = Qt::AutoColor);
+    virtual void drawImage(const QRectF &, const QImage &, const QRectF &, const QImageEffects *,
+                           Qt::ImageConversionFlags flags = Qt::AutoColor);
 
     void setPaintDevice(QPaintDevice *device);
     QPaintDevice *paintDevice() const;
@@ -195,7 +207,7 @@ public:
         Windows,
         QuickDraw, CoreGraphics, MacPrinter,
         QWindowSystem,
-        PostScript,   // ### Qt 6: Remove, update documentation
+        PostScript, // ### Qt 6: Remove, update documentation
         OpenGL,
         Picture,
         SVG,
@@ -208,7 +220,7 @@ public:
         Blitter,
         Direct2D,
 
-        User = 50,    // first user type id
+        User = 50, // first user type id
         MaxUser = 100 // last user type id
     };
     virtual Type type() const = 0;
@@ -227,7 +239,7 @@ public:
     inline bool isExtended() const { return extended; }
 
 protected:
-    QPaintEngine(QPaintEnginePrivate &data, PaintEngineFeatures devcaps=PaintEngineFeatures());
+    QPaintEngine(QPaintEnginePrivate &data, PaintEngineFeatures devcaps = PaintEngineFeatures());
 
     QPaintEngineState *state;
     PaintEngineFeatures gccaps;

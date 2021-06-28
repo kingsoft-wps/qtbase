@@ -102,6 +102,7 @@ class QGradient;
 class QRasterBuffer;
 class QClipData;
 class QRasterPaintEngineState;
+class QImageEffectsPrivate;
 
 typedef QT_FT_SpanFunc ProcessSpans;
 typedef void (*BitmapBlitFunc)(QRasterBuffer *rasterBuffer,
@@ -172,6 +173,10 @@ typedef void (QT_FASTCALL *CompositionFunction64)(QRgba64 *Q_DECL_RESTRICT dest,
 typedef void (QT_FASTCALL *CompositionFunctionSolid)(uint *dest, int length, uint color, uint const_alpha);
 typedef void (QT_FASTCALL *CompositionFunctionSolid64)(QRgba64 *dest, int length, QRgba64 color, uint const_alpha);
 
+// 64-bit versions can be nullptr
+int Q_GUI_EXPORT qRegisterCustomComposition(CompositionFunction, CompositionFunction64,
+                                            CompositionFunctionSolid, CompositionFunctionSolid64);
+
 struct LinearGradientValues
 {
     qreal dx;
@@ -202,6 +207,7 @@ typedef const QRgba64* (QT_FASTCALL *SourceFetchProc64)(QRgba64 *buffer, const O
 struct Operator
 {
     QPainter::CompositionMode mode;
+    bool interpolated;
     DestFetchProc destFetch;
     DestStoreProc destStore;
     SourceFetchProc srcFetch;
@@ -262,6 +268,13 @@ struct QConicalGradientData
     qreal angle;
 };
 
+class path_gradient_span_gen;
+struct QPathGradientData
+{    
+   path_gradient_span_gen *pSpanGenerotor;
+   bool ownGenerator;
+};
+
 struct QGradientData
 {
     QGradient::Spread spread;
@@ -270,6 +283,7 @@ struct QGradientData
         QLinearGradientData linear;
         QRadialGradientData radial;
         QConicalGradientData conical;
+        QPathGradientData path;
     };
 
 #define GRADIENT_STOPTABLE_SIZE 1024
@@ -278,6 +292,7 @@ struct QGradientData
     const QRgba64 *colorTable64; //[GRADIENT_STOPTABLE_SIZE];
     const QRgb *colorTable32; //[GRADIENT_STOPTABLE_SIZE];
 
+    int const_alpha = 256;
     uint alphaColor : 1;
 };
 
@@ -303,12 +318,18 @@ struct QTextureData
     };
     Type type;
     int const_alpha;
+
+    // for TextureWrapModeExpand brush
+    qreal offsetLeft;
+    qreal offsetRight;
+    qreal offsetTop;
+    qreal offsetBottom;
 };
 
 struct QSpanData
 {
-    QSpanData() : tempImage(0) {}
-    ~QSpanData() { delete tempImage; }
+    QSpanData() : tempImage(0), effects(nullptr) {}
+    ~QSpanData();
 
     QRasterBuffer *rasterBuffer;
     ProcessSpans blend;
@@ -318,18 +339,26 @@ struct QSpanData
     AlphaRGBBlitFunc alphaRGBBlit;
     RectFillFunc fillRect;
     qreal m11, m12, m13, m21, m22, m23, m33, dx, dy;   // inverse xform matrix
+    qreal scale_w, scale_h; // screen to image scale
     const QClipData *clip;
+    QImageEffectsPrivate *effects; 
+    bool has_effect_ownership;
     enum Type {
         None,
         Solid,
         LinearGradient,
         RadialGradient,
         ConicalGradient,
+        PathGradient,
         Texture
     } type : 8;
     int txop : 8;
     int fast_matrix : 1;
-    bool bilinear;
+    enum InterpolationMode {
+        NearestNeighbor,
+        Bilinear,
+        Cubic,
+    } interpolate : 3;
     QImage *tempImage;
     union {
         QSolidData solid;
@@ -345,7 +374,9 @@ struct QSpanData
 
     void init(QRasterBuffer *rb, const QRasterPaintEngine *pe);
     void setup(const QBrush &brush, int alpha, QPainter::CompositionMode compositionMode);
-    void setupMatrix(const QTransform &matrix, int bilinear);
+    void setup(const QBrush &brush, int alpha, QPainter::CompositionMode compositionMode,
+               const QTransform &m, QTransform &trans);
+    void setupMatrix(const QTransform &matrix, InterpolationMode interpolate);
     void initTexture(const QImage *image, int alpha, QTextureData::Type = QTextureData::Plain, const QRect &sourceRect = QRect());
     void adjustSpanMethods();
 };

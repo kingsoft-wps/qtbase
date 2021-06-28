@@ -127,11 +127,13 @@ public:
     QRectF fullRect(Unit units) const;
     QRect fullRectPoints() const;
     QRect fullRectPixels(int resolution) const;
+    QRect fullRectPixels(const QSize &resolution) const;
 
     QRectF paintRect() const;
     QRectF paintRect(Unit units) const;
     QRect paintRectPoints() const;
     QRect paintRectPixels(int resolution) const;
+    QRect paintRectPixels(const QSize &resolution) const;
 
 private:
     friend class QPageLayoutPrivate;

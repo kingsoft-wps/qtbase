@@ -83,6 +83,15 @@ QSize QIconEngine::actualSize(const QSize &size, QIcon::Mode /*mode*/, QIcon::St
     return size;
 }
 
+bool QIconEngine::isPixmapCache(const QSize& /*size*/, QIcon::Mode /*mode*/, QIcon::State /*state*/) const
+{
+    return false;
+}
+
+void QIconEngine::setPolicy(const bool& /*isMultiSize*/, const bool& /*isCacheBuf*/, const Qt::AspectRatioMode& /*mode*/)
+{
+}
+
 /*!
     \since 5.6
     Constructs the icon engine.
@@ -146,6 +155,19 @@ void QIconEngine::addFile(const QString &/*fileName*/, const QSize &/*size*/, QI
 {
 }
 
+QStringList QIconEngine::styleClassList(QIcon::Mode mode, QIcon::State state) const
+{
+    return QStringList();
+}
+
+void QIconEngine::setStyleClass(const QString &/*xmlClass*/, const QString &/*property*/,
+                                  const QVariant &/*value*/, QIcon::Mode /*mode*/, QIcon::State /*state*/)
+{
+}
+
+void QIconEngine::clearStyleClass(QIcon::Mode /*mode*/, QIcon::State /*state*/) 
+{
+}
 
 /*!
     \enum QIconEngine::IconEngineHook
@@ -301,6 +323,10 @@ bool QIconEngine::read(QDataStream &)
 bool QIconEngine::write(QDataStream &) const
 {
     return false;
+}
+
+void QIconEngine::resetDeviceDependentResources()
+{
 }
 
 /*!

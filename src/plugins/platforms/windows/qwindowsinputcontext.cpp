@@ -48,17 +48,45 @@
 #include <QtCore/qrect.h>
 #include <QtCore/qtextboundaryfinder.h>
 #include <QtCore/qoperatingsystemversion.h>
+#include <QtCore/qscopedvaluerollback.h>
 
 #include <QtGui/qevent.h>
 #include <QtGui/qtextformat.h>
 #include <QtGui/qpalette.h>
 #include <QtGui/qguiapplication.h>
-
+#include <QtGui/private/qguiapplication_p.h>
 #include <private/qhighdpiscaling_p.h>
 
 #include <algorithm>
+#include "immdev.h"
 
 QT_BEGIN_NAMESPACE
+
+static void debugImcInfo(HWND hwnd)
+{
+    HIMC himc = ImmGetContext(hwnd);
+    if (!himc)
+        return;
+
+    INPUTCONTEXT *lpIMC = ImmLockIMC(himc);
+    if (lpIMC) {
+        if (lpIMC->hCompStr) {
+            LPBYTE cdata = (LPBYTE)ImmLockIMCC(lpIMC->hCompStr);
+            LPCOMPOSITIONSTRING cs = (LPCOMPOSITIONSTRING)cdata;
+            if (cs->dwCompStrLen) {
+                LPWSTR cpstr = (LPWSTR) & (cdata[cs->dwCompStrOffset]);
+                qCDebug(lcQpaInputMethods) << '>' << __FUNCTION__ << " CompStr=" << cpstr;
+            }
+            if (cs->dwResultStrLen) {
+                LPWSTR rtstr = (LPWSTR) & (cdata[cs->dwResultStrOffset]);
+                qCDebug(lcQpaInputMethods) << '>' << __FUNCTION__ << " ResultStr=" << rtstr;
+            }
+            ImmUnlockIMCC(lpIMC->hCompStr);
+        }
+        ImmUnlockIMC(himc);
+    }
+    ImmReleaseContext(hwnd, himc);
+}
 
 static inline QByteArray debugComposition(int lParam)
 {
@@ -80,16 +108,20 @@ static inline QByteArray debugComposition(int lParam)
     return str;
 }
 
-// Cancel current IME composition.
-static inline void imeNotifyCancelComposition(HWND hwnd)
+// Cancel or Complete current IME composition.
+static inline void imeNotifyComposition(HWND hwnd, bool bComplete)
 {
     if (!hwnd) {
         qWarning() << __FUNCTION__ << "called with" << hwnd;
         return;
     }
     const HIMC himc = ImmGetContext(hwnd);
-    ImmNotifyIME(himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0);
-    ImmReleaseContext(hwnd, himc);
+    if (himc) {
+        if (bComplete)
+            ImmNotifyIME(himc, NI_COMPOSITIONSTR, CPS_COMPLETE, 0);
+        ImmNotifyIME(himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0);
+        ImmReleaseContext(hwnd, himc);
+    }
 }
 
 static inline LCID languageIdFromLocaleId(LCID localeId)
@@ -100,6 +132,32 @@ static inline LCID languageIdFromLocaleId(LCID localeId)
 static inline LCID currentInputLanguageId()
 {
     return languageIdFromLocaleId(reinterpret_cast<quintptr>(GetKeyboardLayout(0)));
+}
+
+static void updateIMECursorRect(QObject* w, bool caretCreated, HIMC himc)
+{
+    QRect rc = QGuiApplicationPrivate::instance()->objectImQuery(Qt::ImCursorRectangle, w, reinterpret_cast<WId>(::GetFocus())).toRect();
+
+    COMPOSITIONFORM cf = { 0 };
+    cf.dwStyle = CFS_FORCE_POSITION;
+    cf.ptCurrentPos.x = rc.x();
+    cf.ptCurrentPos.y = rc.y();
+
+    CANDIDATEFORM candf;
+    candf.dwIndex = 0;
+    candf.dwStyle = CFS_EXCLUDE;
+    candf.ptCurrentPos.x = rc.x();
+    candf.ptCurrentPos.y = rc.y() + rc.height();
+    candf.rcArea.left = rc.x();
+    candf.rcArea.top = rc.y();
+    candf.rcArea.right = rc.x() + rc.width();
+    candf.rcArea.bottom = rc.y() + rc.height();
+
+    if (caretCreated)
+        ::SetCaretPos(rc.x(), rc.y());
+
+    ImmSetCompositionWindow(himc, &cf);
+    ImmSetCandidateWindow(himc, &candf);
 }
 
 Q_CORE_EXPORT QLocale qt_localeFromLCID(LCID id); // from qlocale_win.cpp
@@ -194,24 +252,34 @@ bool QWindowsInputContext::hasCapability(Capability capability) const
 }
 
 /*!
-    \brief Cancels a composition.
+    \brief Cancels or Complete a composition.
 */
-
-void QWindowsInputContext::reset()
+void QWindowsInputContext::reset(bool bCancel)
 {
-    QPlatformInputContext::reset();
-    if (!m_compositionContext.hwnd)
+    QPlatformInputContext::reset(bCancel);
+    if (!m_compositionPopupContext.hwnd && !m_compositionContext.hwnd)
         return;
-    qCDebug(lcQpaInputMethods) << __FUNCTION__;
-    if (m_compositionContext.isComposing && !m_compositionContext.focusObject.isNull()) {
-        QInputMethodEvent event;
-        if (!m_compositionContext.composition.isEmpty())
-            event.setCommitString(m_compositionContext.composition);
-        QCoreApplication::sendEvent(m_compositionContext.focusObject, &event);
-        endContextComposition();
+
+    CompositionContext compositionContext;
+    if (m_compositionPopupContext.hwnd) {
+        compositionContext = m_compositionPopupContext;
+        donePopupContext();
+    } else {
+        compositionContext = m_compositionContext;
+        doneContext();
     }
-    imeNotifyCancelComposition(m_compositionContext.hwnd);
-    doneContext();
+
+    qCDebug(lcQpaInputMethods) << __FUNCTION__;
+    bool bComplete = !bCancel && !compositionContext.composition.isEmpty();
+    QScopedValueRollback<bool> completeGuard(m_completeRecursionGuard, bComplete);
+    imeNotifyComposition(compositionContext.hwnd, bComplete);
+    if (compositionContext.isComposing && !compositionContext.focusObject.isNull()) {
+        QInputMethodEvent event;
+        if (!compositionContext.composition.isEmpty() 
+            && (1 != compositionContext.composition.length() || QLatin1Char(' ') != compositionContext.composition.at(0)))
+            event.setCommitString(compositionContext.composition);
+        QCoreApplication::sendEvent(compositionContext.focusObject, &event);
+    }
 }
 
 void QWindowsInputContext::setFocusObject(QObject *)
@@ -219,8 +287,8 @@ void QWindowsInputContext::setFocusObject(QObject *)
     // ### fixme: On Windows 8.1, it has been observed that the Input context
     // remains active when this happens resulting in a lock-up. Consecutive
     // key events still have VK_PROCESSKEY set and are thus ignored.
-    if (m_compositionContext.isComposing)
-        reset();
+    if (m_compositionContext.isComposing || m_compositionPopupContext.isComposing)
+        reset(true);
     updateEnabled();
 }
 
@@ -249,8 +317,11 @@ bool QWindowsInputContext::isInputPanelVisible() const
     if (inputMethodAccepted()) {
         if (QWindow *window = QGuiApplication::focusWindow()) {
             if (QWindowsWindow *platformWindow = QWindowsWindow::windowsWindowOf(window)) {
-                if (HIMC himc = ImmGetContext(platformWindow->handle()))
-                    return ImmGetOpenStatus(himc);
+                if (HIMC himc = ImmGetContext(platformWindow->handle())) {
+                    bool bOpen = ImmGetOpenStatus(himc);
+                    ImmReleaseContext(platformWindow->handle(), himc);
+                    return bOpen;
+                }
             }
         }
     }
@@ -270,11 +341,7 @@ void QWindowsInputContext::showInputPanel()
     if (!platformWindow)
         return;
 
-    // Create an invisible 2x2 caret, which will be kept at the microfocus position.
-    // It is important for triggering the on-screen keyboard in touch-screen devices,
-    // for some Chinese input methods, and for Magnifier's "follow keyboard" feature.
-    if (!m_caretCreated && m_transparentBitmap)
-        m_caretCreated = CreateCaret(platformWindow->handle(), m_transparentBitmap, 0, 0);
+    ensureCaret(platformWindow->handle());
 
     // For some reason, the on-screen keyboard is only triggered on the Surface
     // with Windows 10 if the Windows IME is (re)enabled _after_ the caret is shown.
@@ -300,6 +367,62 @@ void QWindowsInputContext::hideInputPanel()
         DestroyCaret();
         m_caretCreated = false;
     }
+}
+
+void QWindowsInputContext::ensureCaret(HWND hwnd)
+{
+    // Create an invisible 2x2 caret, which will be kept at the microfocus position.
+    // It is important for triggering the on-screen keyboard in touch-screen devices,
+    // for some Chinese input methods, and for Magnifier's "follow keyboard" feature.
+    if (!m_caretCreated && m_transparentBitmap)
+        m_caretCreated = CreateCaret(hwnd, m_transparentBitmap, 0, 0);
+}
+
+void QWindowsInputContext::updateEnable(QWindow *pWindow)
+{
+    if (!pWindow)
+        return;
+    if (QWindowsWindow *platformWindow = QWindowsWindow::windowsWindowOf(pWindow)) {
+        const bool accepted = inputMethodAccepted();
+        if (QWindowsContext::verbose > 1)
+            qCDebug(lcQpaInputMethods) << __FUNCTION__ << platformWindow->window() << "accepted=" << accepted;
+        QWindowsInputContext::setWindowsImeEnabled(platformWindow, accepted);
+    }
+}
+
+void QWindowsInputContext::updateFocusEnable()
+{
+    HWND focusHwnd = GetFocus();
+    QWindow *window = QWindowsContext::instance()->findWindow(focusHwnd);
+    if (focusHwnd && window) {
+        const bool accepted = inputMethodAccepted();
+        if (accepted) {
+            // Re-enable Windows IME by associating default context.
+            ImmAssociateContextEx(focusHwnd, nullptr, IACE_DEFAULT);
+        } else {
+            // Disable Windows IME by associating 0 context.
+            ImmAssociateContext(focusHwnd, nullptr);
+        }
+    }
+
+#ifdef _DEBUG
+    if (QWindow *fw = QGuiApplication::focusWindow()) {
+        HWND fwHwnd = QWindowsWindow::handleOf(fw);
+        qCDebug(lcQpaInputMethods) << __FUNCTION__ << window << (focusHwnd == fwHwnd);
+    };
+#endif
+}
+
+void QWindowsInputContext::closeCandidateWindow()
+{
+    if (!m_compositionContext.hwndCandidate)
+        return;
+    SendMessage(m_compositionContext.hwndCandidate, WM_IME_ENDCOMPOSITION, 0, 0);
+}
+
+void QWindowsInputContext::setCandidateWindow(HWND hwnd)
+{
+    m_compositionContext.hwndCandidate = hwnd;
 }
 
 void QWindowsInputContext::updateEnabled()
@@ -396,7 +519,7 @@ void QWindowsInputContext::invokeAction(QInputMethod::Action action, int cursorP
 
     qCDebug(lcQpaInputMethods) << __FUNCTION__ << cursorPosition << action;
     if (cursorPosition < 0 || cursorPosition > m_compositionContext.composition.size())
-        reset();
+        reset(true);
 
     // Magic code that notifies Japanese IME about the cursor
     // position.
@@ -463,6 +586,12 @@ static inline QTextFormat standardFormat(StandardFormat format)
 
 bool QWindowsInputContext::startComposition(HWND hwnd)
 {
+    if (QGuiApplicationPrivate::instance()->popupActive()) {
+        auto popupFocus = QGuiApplicationPrivate::instance()->popupFocusEditableWidget();
+        if (popupFocus.first && popupFocus.second) {
+            return startCompositionPopup(popupFocus.first, reinterpret_cast<HWND>(popupFocus.second));
+        }
+    }
     QObject *fo = QGuiApplication::focusObject();
     if (!fo)
         return false;
@@ -471,9 +600,22 @@ bool QWindowsInputContext::startComposition(HWND hwnd)
     if (!window)
         return false;
     qCDebug(lcQpaInputMethods) << __FUNCTION__ << fo << window << "language=" << m_languageId;
-    if (!fo || QWindowsWindow::handleOf(window) != hwnd)
-        return false;
-    initContext(hwnd, fo);
+
+    HWND focusHwnd = QWindowsWindow::handleOf(window);
+    if (focusHwnd != hwnd) {
+        if (::GetFocus() != hwnd)
+            return false;
+
+        QWindow* inWnd = QWindowsContext::instance()->findWindow(hwnd);
+        if (!inWnd)
+            return false;
+
+        const QVariant propNotFocusWindow = inWnd->property("_q_platform_NotFocusWindow");
+        if (!propNotFocusWindow.isValid() || !propNotFocusWindow.toBool())
+            return false;
+    }
+
+    initContext(focusHwnd, fo);
     startContextComposition();
     return true;
 }
@@ -487,6 +629,8 @@ void QWindowsInputContext::startContextComposition()
     m_compositionContext.isComposing = true;
     m_compositionContext.composition.clear();
     m_compositionContext.position = 0;
+
+    ensureCaret(m_compositionContext.hwnd);
     cursorRectChanged(); // position cursor initially.
     update(Qt::ImQueryAll);
 }
@@ -531,6 +675,17 @@ static inline QList<QInputMethodEvent::Attribute>
 
 bool QWindowsInputContext::composition(HWND hwnd, LPARAM lParamIn)
 {
+    // We have to prevent from calling ::DefWindowProc() because we do not want
+    // for the IMM (Input Method Manager) to send WM_IME_CHAR messages when completing.
+    if (m_completeRecursionGuard || m_endCompositionRecursionGuard)
+        return true;
+
+    if (QGuiApplicationPrivate::instance()->popupActive()) {
+        auto popupFocus = QGuiApplicationPrivate::instance()->popupFocusEditableWidget();
+        if (popupFocus.first && popupFocus.second) {
+            return compositionPopup(popupFocus.first, lParamIn);
+        }
+    }
     const int lParam = int(lParamIn);
     qCDebug(lcQpaInputMethods) << '>' << __FUNCTION__ << m_compositionContext.focusObject
         << debugComposition(lParam) << " composing=" << m_compositionContext.isComposing;
@@ -549,6 +704,8 @@ bool QWindowsInputContext::composition(HWND hwnd, LPARAM lParamIn)
         int selStart, selLength;
         m_compositionContext.composition = getCompositionString(himc, GCS_COMPSTR);
         m_compositionContext.position = ImmGetCompositionString(himc, GCS_CURSORPOS, nullptr, 0);
+        if (m_compositionContext.position > m_compositionContext.composition.length())
+            m_compositionContext.position = m_compositionContext.composition.length();
         getCompositionStringConvertedRange(himc, &selStart, &selLength);
         if ((lParam & CS_INSERTCHAR) && (lParam & CS_NOMOVECARET)) {
             // make Korean work correctly. Hope this is correct for all IMEs
@@ -583,6 +740,13 @@ bool QWindowsInputContext::composition(HWND hwnd, LPARAM lParamIn)
 
 bool QWindowsInputContext::endComposition(HWND hwnd)
 {
+    if (QGuiApplicationPrivate::instance()->popupActive()) {
+        auto popupFocus = QGuiApplicationPrivate::instance()->popupFocusEditableWidget();
+        if (popupFocus.first && popupFocus.second) {
+            return endCompositionPopup(popupFocus.first);
+        }
+    }
+
     qCDebug(lcQpaInputMethods) << __FUNCTION__ << m_endCompositionRecursionGuard << hwnd;
     // Googles Pinyin Input Method likes to call endComposition again
     // when we call notifyIME with CPS_CANCEL, so protect ourselves
@@ -596,20 +760,19 @@ bool QWindowsInputContext::endComposition(HWND hwnd)
     // for example the text being cleared when pressing CTRL+A
     if (m_locale.language() == QLocale::Korean
         && QGuiApplication::queryKeyboardModifiers().testFlag(Qt::ControlModifier)) {
-        reset();
+        reset(true);
         return true;
     }
 
-    m_endCompositionRecursionGuard = true;
+    QScopedValueRollback<bool> recursionGuard(m_endCompositionRecursionGuard, true);
 
-    imeNotifyCancelComposition(m_compositionContext.hwnd);
+    imeNotifyComposition(m_compositionContext.hwnd, false);
     if (m_compositionContext.isComposing) {
         QInputMethodEvent event;
         QCoreApplication::sendEvent(m_compositionContext.focusObject, &event);
     }
     doneContext();
 
-    m_endCompositionRecursionGuard = false;
     return true;
 }
 
@@ -730,6 +893,128 @@ int QWindowsInputContext::reconvertString(RECONVERTSTRING *reconv)
     std::copy(surroundingText.utf16(), surroundingText.utf16() + surroundingText.size(),
               QT_MAKE_UNCHECKED_ARRAY_ITERATOR(pastReconv));
     return memSize;
+}
+
+bool QWindowsInputContext::startCompositionPopup(QObject* o, HWND hwnd)
+{
+    if (m_compositionPopupContext.focusObject != o && m_compositionPopupContext.focusObject)
+        endCompositionPopup(m_compositionPopupContext.focusObject);
+
+    const bool createCaret = m_compositionPopupContext.focusObject != o;
+
+    donePopupContext();
+    m_compositionPopupContext.focusObject = o;
+    m_compositionPopupContext.isComposing = true;
+    m_compositionPopupContext.hwnd = hwnd;
+    if (createCaret)
+    {
+        m_caretPopupCreated = ::CreateCaret(hwnd, NULL, 1, 1);
+        ::HideCaret(hwnd);
+    }
+
+    HIMC himc = ImmGetContext(hwnd);
+    if (!himc)
+        return true;
+
+    updateIMECursorRect(o, m_caretPopupCreated, himc);
+
+    ::ImmReleaseContext(hwnd, himc);
+
+    return true;
+}
+
+bool QWindowsInputContext::compositionPopup(QObject* o, LPARAM lParam)
+{
+    if (m_compositionPopupContext.focusObject != o)
+        return false;
+
+    HWND hwnd = m_compositionPopupContext.hwnd;
+    HIMC himc = ImmGetContext(hwnd);
+    if (!himc)
+        return true;
+
+    QInputMethodEvent e;
+    if (lParam & (GCS_COMPSTR | GCS_COMPATTR | GCS_CURSORPOS))
+    {
+        if (!m_compositionPopupContext.isComposing)
+            startCompositionPopup(o, m_compositionPopupContext.hwnd);
+
+        m_compositionPopupContext.composition = getCompositionString(himc, GCS_COMPSTR);
+        m_compositionPopupContext.position = ::ImmGetCompositionStringW(himc, GCS_CURSORPOS, nullptr, 0);
+        if (m_compositionPopupContext.position > m_compositionPopupContext.composition.length())
+            m_compositionPopupContext.position = m_compositionPopupContext.composition.length();
+
+        int selStart = 0;
+        int selLength = 0;
+        getCompositionStringConvertedRange(himc, &selStart, &selLength);
+
+        if ((lParam & CS_INSERTCHAR) && (lParam & CS_NOMOVECARET))
+        {
+            selStart = 0;
+            selLength = m_compositionPopupContext.composition.length();
+        }
+        if (selLength == 0)
+            selStart = 0;
+
+        e = QInputMethodEvent(m_compositionPopupContext.composition,
+            intermediateMarkup(m_compositionPopupContext.position,
+                m_compositionPopupContext.composition.length(),
+                selStart, selLength));
+    }
+
+    if (lParam & GCS_RESULTSTR)
+    {
+        e.setCommitString(getCompositionString(himc, GCS_RESULTSTR));
+        if (!(lParam & GCS_DELTASTART))
+            endCompositionPopup(o);
+    }
+
+    QCoreApplication::sendEvent(o, &e);
+
+    updateIMECursorRect(o, m_caretPopupCreated, himc);
+    ::ImmReleaseContext(hwnd, himc);
+
+    return true;
+}
+
+bool QWindowsInputContext::endCompositionPopup(QObject* o)
+{
+    if (!m_compositionPopupContext.isComposing || m_compositionPopupContext.focusObject != o || m_endCompositionRecursionGuard)
+        return true;
+
+    QScopedValueRollback<bool> recursionGuard(m_endCompositionRecursionGuard, true);
+
+    if (m_caretPopupCreated) {
+        ::DestroyCaret();
+        m_caretPopupCreated = false;
+    }
+
+    const bool isComposing = m_compositionPopupContext.isComposing;
+    const HWND hwnd = m_compositionPopupContext.hwnd;
+    donePopupContext();
+
+    if (HIMC himc = ImmGetContext(hwnd))
+    {
+        ::ImmNotifyIME(himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0);
+        ::ImmReleaseContext(hwnd, himc);
+    }
+
+    if (isComposing)
+    {
+        QInputMethodEvent e;
+        QCoreApplication::sendEvent(o, &e);
+    }
+
+    return true;
+}
+
+void QWindowsInputContext::donePopupContext()
+{
+    m_compositionPopupContext.hwnd = nullptr;
+    m_compositionPopupContext.composition.clear();
+    m_compositionPopupContext.position = 0;
+    m_compositionPopupContext.isComposing = false;
+    m_compositionPopupContext.focusObject = nullptr;
 }
 
 QT_END_NAMESPACE

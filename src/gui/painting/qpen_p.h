@@ -52,6 +52,7 @@
 //
 
 #include <QtCore/qglobal.h>
+#include <qcustomlineanchor.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -68,9 +69,33 @@ public:
     mutable QVector<qreal> dashPattern;
     qreal dashOffset;
     qreal miterLimit;
+    QVector<qreal> compoundArray;
+    Qt::PenAnchorStyle startAnchorStyle;
+    QCustomLineAnchor startAnchor;
+    Qt::PenAnchorStyle endAnchorStyle;
+    QCustomLineAnchor endAnchor;
+    Qt::PenAlignment alignment;
+    Qt::PenCapStyle startCap;
+    Qt::PenCapStyle endCap;
+    Qt::PenCapStyle dashCap;
     uint cosmetic : 1;
     uint defaultWidth : 1; // default-constructed width? used for cosmetic pen compatibility
+    bool bDrawCustomTextBold;
 };
+
+inline bool qpen_is_complex(const QPen &pen)
+{
+    auto ptr = const_cast<QPen &>(pen).data_ptr();
+    return (ptr->alignment != Qt::PenAlignmentCenter
+        || ptr->startAnchorStyle != Qt::SquareAnchor
+        || ptr->endAnchorStyle != Qt::SquareAnchor
+        || ptr->startCap > Qt::RoundCap
+        || ptr->endCap > Qt::RoundCap
+        || ptr->dashCap >= Qt::RoundCap
+        || ptr->startCap != ptr->endCap
+        || ptr->startCap != ptr->dashCap
+        || !ptr->compoundArray.isEmpty());
+}
 
 QT_END_NAMESPACE
 

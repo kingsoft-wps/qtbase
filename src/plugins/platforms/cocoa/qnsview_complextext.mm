@@ -62,7 +62,7 @@
 
 - (void)unmarkText
 {
-    if (!m_composingText.isEmpty()) {
+    if (!m_composingText.isEmpty() && m_platformWindow) {
         if (QObject *fo = m_platformWindow->window()->focusObject()) {
             QInputMethodQueryEvent queryEvent(Qt::ImEnabled);
             if (QCoreApplication::sendEvent(fo, &queryEvent)) {
@@ -110,7 +110,10 @@
             commitString = QString::fromCFString(reinterpret_cast<CFStringRef>(aString));
         };
     }
-    if (QObject *fo = m_platformWindow->window()->focusObject()) {
+    if (m_platformWindow) {
+        QWindow *window = [self topLevelWindow];
+        QObject *fo = window->focusObject();
+	
         QInputMethodQueryEvent queryEvent(Qt::ImEnabled);
         if (QCoreApplication::sendEvent(fo, &queryEvent)) {
             if (queryEvent.value(Qt::ImEnabled).toBool()) {
@@ -178,7 +181,11 @@
 
     m_composingText = preeditString;
 
-    if (QObject *fo = m_platformWindow->window()->focusObject()) {
+    if (!m_platformWindow)
+        return;
+    QWindow *window = [self topLevelWindow];
+
+    if (QObject *fo = window->focusObject()) {
         m_composingFocusObject = fo;
         QInputMethodQueryEvent queryEvent(Qt::ImEnabled);
         if (QCoreApplication::sendEvent(fo, &queryEvent)) {
@@ -200,7 +207,10 @@
 - (NSAttributedString *)attributedSubstringForProposedRange:(NSRange)aRange actualRange:(NSRangePointer)actualRange
 {
     Q_UNUSED(actualRange)
-    QObject *fo = m_platformWindow->window()->focusObject();
+    if (!m_platformWindow)
+        return nil;
+    QObject *fo = [self topLevelWindow]->focusObject();
+
     if (!fo)
         return nil;
     QInputMethodQueryEvent queryEvent(Qt::ImEnabled | Qt::ImCurrentSelection);
@@ -234,8 +244,11 @@
 - (NSRange)selectedRange
 {
     NSRange selectedRange = {0, 0};
+    if (!m_platformWindow)
+        return selectedRange;
 
-    QObject *fo = m_platformWindow->window()->focusObject();
+    QObject *fo = [self topLevelWindow]->focusObject();
+
     if (!fo)
         return selectedRange;
     QInputMethodQueryEvent queryEvent(Qt::ImEnabled | Qt::ImCurrentSelection);
@@ -258,7 +271,15 @@
     Q_UNUSED(aRange)
     Q_UNUSED(actualRange)
 
-    QObject *fo = m_platformWindow->window()->focusObject();
+    if (!m_platformWindow)
+        return NSZeroRect;
+    
+    QWindow *window = [self topLevelWindow];
+    if (!window)
+        return NSZeroRect;
+
+    QObject *fo = window->focusObject();
+
     if (!fo)
         return NSZeroRect;
 
@@ -270,7 +291,10 @@
 
     // The returned rect is always based on the internal cursor.
     QRect mr = qApp->inputMethod()->cursorRectangle().toRect();
-    mr.moveBottomLeft(m_platformWindow->window()->mapToGlobal(mr.bottomLeft()));
+
+    // Modified to the topmost window to prevent the pre-input position from being wrong
+    //mr.moveBottomLeft(m_platformWindow->window()->mapToGlobal(mr.bottomLeft()));
+    mr.moveBottomLeft(window->mapToGlobal(mr.bottomLeft()));
     return QCocoaScreen::mapToNative(mr);
 }
 
@@ -286,10 +310,11 @@
     if (!m_platformWindow)
         return nil;
 
-    if (m_platformWindow->window() != QGuiApplication::focusWindow())
+    QWindow *window = [self topLevelWindow];
+    if (window != QGuiApplication::focusWindow())
         return nil;
 
-    QObject *fo = m_platformWindow->window()->focusObject();
+    QObject *fo = window->focusObject();
     if (!fo)
         return nil;
 

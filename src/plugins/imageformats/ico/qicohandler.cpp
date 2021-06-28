@@ -181,6 +181,10 @@ static bool writeBMPInfoHeader(QIODevice *iodev, const BMP_INFOHDR &header)
     return false;
 }
 
+static bool isValidCurFile(const ICONDIR& iconDir)
+{
+    return iconDir.idType == 2 && iconDir.idCount > 0;
+}
 
 ICOReader::ICOReader(QIODevice * iodevice)
 : iod(iodevice)
@@ -210,10 +214,10 @@ bool ICOReader::canRead(QIODevice *iodev)
                 readBytes += ICONDIRENTRY_SIZE;
                 // ICO format does not have a magic identifier, so we read 6 different values, which will hopefully be enough to identify the file.
                 if (   ikonDir.idReserved == 0
-                    && (ikonDir.idType == 1 || ikonDir.idType == 2)
+                    && (ikonDir.idType == 1 || isValidCurFile(ikonDir))
                     && ikonDir.idEntries[0].bReserved == 0
-                    && (ikonDir.idEntries[0].wPlanes <= 1 || ikonDir.idType == 2)
-                    && (ikonDir.idEntries[0].wBitCount <= 32 || ikonDir.idType == 2)     // Bits per pixel
+                    && (ikonDir.idEntries[0].wPlanes <= 1 || isValidCurFile(ikonDir))
+                    && (ikonDir.idEntries[0].wBitCount <= 32 || isValidCurFile(ikonDir))     // Bits per pixel
                     && ikonDir.idEntries[0].dwBytesInRes >= 40  // Must be over 40, since sizeof (infoheader) == 40
                     ) {
                     isProbablyICO = true;
@@ -274,7 +278,8 @@ bool ICOReader::readHeader()
     if (iod && !headerRead) {
         startpos = iod->pos();
         if (readIconDir(iod, &iconDir)) {
-            if (iconDir.idReserved == 0 && (iconDir.idType == 1 || iconDir.idType == 2))
+            if (iconDir.idReserved == 0 
+                && (iconDir.idType == 1 || isValidCurFile(iconDir)))
             headerRead = true;
         }
     }

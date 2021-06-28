@@ -81,7 +81,7 @@ extern CompositionFunction qt_functionForMode_SSE2[];
 extern CompositionFunctionSolid qt_functionForModeSolid_SSE2[];
 #endif // __SSE2__
 
-static const int numCompositionFunctions = 38;
+static const int numCompositionFunctions = 39;
 
 QT_END_NAMESPACE
 

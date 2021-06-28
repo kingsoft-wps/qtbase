@@ -91,6 +91,8 @@ public:
 #endif
     void handleStateChanges(xkb_state_component changedComponents);
 
+    xcb_keycode_t keysymToKeycode(xcb_keysym_t keysym);
+
 protected:
     void handleKeyEvent(xcb_window_t sourceWindow, QEvent::Type type, xcb_keycode_t code,
                         quint16 state, xcb_timestamp_t time, bool fromSendEvent);

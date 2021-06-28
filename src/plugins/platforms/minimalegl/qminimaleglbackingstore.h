@@ -55,7 +55,7 @@ public:
 
     QPaintDevice *paintDevice() override;
 
-    void beginPaint(const QRegion &) override;
+    bool beginPaint(const QRegion &) override;
     void endPaint() override;
 
     void flush(QWindow *window, const QRegion &region, const QPoint &offset) override;

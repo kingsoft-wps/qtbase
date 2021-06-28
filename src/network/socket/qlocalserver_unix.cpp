@@ -43,6 +43,9 @@
 #include "qlocalsocket_p.h"
 #include "qnet_unix_p.h"
 #include "qtemporarydir.h"
+#ifdef Q_OS_MAC
+#include "qstandardpaths.h"
+#endif
 
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -57,17 +60,30 @@
 
 QT_BEGIN_NAMESPACE
 
+#ifdef Q_OS_MAC
+inline QString getDomainSocketPath()
+{
+    return ".";
+}
+#endif
 void QLocalServerPrivate::init()
 {
 }
 
 bool QLocalServerPrivate::removeServer(const QString &name)
 {
+#ifdef Q_OS_MAC
+	WorkDirHelper helper(QStandardPaths::writableLocation(QStandardPaths::HomeLocation));
+#endif
     QString fileName;
     if (name.startsWith(QLatin1Char('/'))) {
         fileName = name;
     } else {
+#ifdef Q_OS_MAC
+        fileName = QDir::cleanPath(getDomainSocketPath());
+#else
         fileName = QDir::cleanPath(QDir::tempPath());
+#endif // Q_OS_MAC     
         fileName += QLatin1Char('/') + name;
     }
     if (QFile::exists(fileName))
@@ -80,11 +96,18 @@ bool QLocalServerPrivate::listen(const QString &requestedServerName)
 {
     Q_Q(QLocalServer);
 
+#ifdef Q_OS_MAC
+	WorkDirHelper helper(QStandardPaths::writableLocation(QStandardPaths::HomeLocation));
+#endif
     // determine the full server path
     if (requestedServerName.startsWith(QLatin1Char('/'))) {
         fullServerName = requestedServerName;
     } else {
+#ifdef Q_OS_MAC
+        fullServerName = QDir::cleanPath(getDomainSocketPath());
+#else
         fullServerName = QDir::cleanPath(QDir::tempPath());
+#endif // Q_OS_MAC
         fullServerName += QLatin1Char('/') + requestedServerName;
     }
     serverName = requestedServerName;

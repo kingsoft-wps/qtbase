@@ -70,6 +70,10 @@ public:
     virtual QPlatformOffscreenSurface *createPlatformOffscreenSurface(QOffscreenSurface *surface) const = 0;
 
     virtual QXcbNativeInterfaceHandler *nativeInterfaceHandler() const  { return nullptr; }
+
+#ifdef Q_OS_LINUX
+    virtual int testColorSapce() const { return  -1;}
+#endif
 };
 
 QT_END_NAMESPACE

@@ -42,7 +42,7 @@
 
 #include <QtCore/qobject.h>
 #include <QtCore/qeventloop.h>
-
+#include <QtCore/qabstractnativeeventfilter.h>
 QT_BEGIN_NAMESPACE
 
 class QAbstractNativeEventFilter;
@@ -111,6 +111,8 @@ public:
     void installNativeEventFilter(QAbstractNativeEventFilter *filterObj);
     void removeNativeEventFilter(QAbstractNativeEventFilter *filterObj);
     bool filterNativeEvent(const QByteArray &eventType, void *message, long *result);
+    bool filterNativeEvent(bool checkInputMsg, const QAbstractNativeEventFilter::AllowNativeEventFilterFlag& flag,
+                            const QByteArray &eventType, void *message, long *result);
 #if QT_DEPRECATED_SINCE(5, 0)
     QT_DEPRECATED bool filterEvent(void *message)
     { return filterNativeEvent("", message, nullptr); }

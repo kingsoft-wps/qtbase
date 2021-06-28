@@ -577,6 +577,17 @@ static QSize qt_convertPointsToPixels(const QSize &size, int resolution)
     return QSize(qRound(size.width() / multiplier), qRound(size.height() / multiplier));
 }
 
+static QSize qt_convertPointsToPixels(const QSize &size, const QSize &resolution)
+{
+    if (!size.isValid() || resolution.isEmpty())
+        return QSize();
+    const int res_x = resolution.width();
+    const int res_y = resolution.height();
+    const qreal multiplier_x = qt_pixelMultiplier(res_x);
+    const qreal multiplier_y = qt_pixelMultiplier(res_y);
+    return QSize(qRound(size.width() / multiplier_x), qRound(size.height() / multiplier_y));
+}
+
 static QSizeF qt_convertPointsToUnits(const QSize &size, QPageSize::Unit units)
 {
     if (!size.isValid())
@@ -733,6 +744,7 @@ public:
 
     QSizeF size(QPageSize::Unit units) const;
     QSize sizePixels(int resolution) const;
+    QSize sizePixels(const QSize &resolution) const;
 
 private:
     friend class QPageSize;
@@ -900,7 +912,12 @@ QSizeF QPageSizePrivate::size(QPageSize::Unit units) const
 
 QSize QPageSizePrivate::sizePixels(int resolution) const
 {
-    return qt_convertPointsToPixels(m_pointSize, resolution);;
+    return qt_convertPointsToPixels(m_pointSize, resolution);
+}
+
+QSize QPageSizePrivate::sizePixels(const QSize &resolution) const
+{
+    return qt_convertPointsToPixels(m_pointSize, resolution);
 }
 
 
@@ -1431,6 +1448,11 @@ QSize QPageSize::sizePoints() const
 */
 
 QSize QPageSize::sizePixels(int resolution) const
+{
+    return isValid() ? d->sizePixels(resolution) : QSize();
+}
+
+QSize QPageSize::sizePixels(const QSize &resolution) const
 {
     return isValid() ? d->sizePixels(resolution) : QSize();
 }

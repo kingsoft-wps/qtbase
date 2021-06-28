@@ -95,10 +95,9 @@ QCocoaInputContext::~QCocoaInputContext()
 /*!
     \brief Cancels a composition.
 */
-
-void QCocoaInputContext::reset()
+void QCocoaInputContext::reset(bool bCancel)
 {
-    QPlatformInputContext::reset();
+    QPlatformInputContext::reset(bCancel);
 
     if (!mWindow)
         return;

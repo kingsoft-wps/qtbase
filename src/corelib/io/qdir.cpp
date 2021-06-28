@@ -2139,6 +2139,17 @@ QString QDir::rootPath()
 */
 bool QDir::match(const QStringList &filters, const QString &fileName)
 {
+#ifdef __arm64__
+	for (QStringList::ConstIterator sit = filters.constBegin(); sit != filters.constEnd(); ++sit) {
+		// Insensitive exact match
+		// (see Notes for QRegExp Users in QRegularExpression's documentation)
+		QRegExp rx(*sit);
+		rx.setPatternSyntax(QRegExp::Wildcard);
+		rx.setCaseSensitivity(Qt::CaseInsensitive);
+		if (-1 != rx.indexIn(fileName))
+			return true;
+	}
+#else
     for (QStringList::ConstIterator sit = filters.constBegin(); sit != filters.constEnd(); ++sit) {
         // Insensitive exact match
         // (see Notes for QRegExp Users in QRegularExpression's documentation)
@@ -2147,6 +2158,7 @@ bool QDir::match(const QStringList &filters, const QString &fileName)
         if (rx.match(fileName).hasMatch())
             return true;
     }
+#endif
     return false;
 }
 

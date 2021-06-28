@@ -98,6 +98,8 @@ Q_FORWARD_DECLARE_OBJC_CLASS(QT_MANGLE_NAMESPACE(QCocoaNSMenuItem));
 - (void)setReflectionDelegate:(NSObject<NSApplicationDelegate> *)oldDelegate;
 - (void)removeAppleEventHandlers;
 - (bool)inLaunch;
+- (id)validRequestorForSendType:(NSString*)sendType returnType:(NSString*)returnType;
+- (BOOL)readSelectionFromPasteboard:(NSPasteboard *)pboard;
 @end
 
 @interface QT_MANGLE_NAMESPACE(QCocoaApplicationDelegate) (MenuAPI)

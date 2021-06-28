@@ -935,10 +935,20 @@ QString QDate::toString(QStringView format) const
     return QLocale::system().toString(*this, format); // QLocale::c() ### Qt6
 }
 
+QString QDate::toStringEx(QStringView format) const
+{
+    return QLocale::c().toString(*this, format);
+}
+
 #if QT_STRINGVIEW_LEVEL < 2
 QString QDate::toString(const QString &format) const
 {
     return toString(qToStringViewIgnoringNull(format));
+}
+
+QString QDate::toStringEx(const QString &format) const
+{
+    return toStringEx(qToStringViewIgnoringNull(format));
 }
 #endif
 
@@ -1703,10 +1713,20 @@ QString QTime::toString(QStringView format) const
     return QLocale::system().toString(*this, format); // QLocale::c() ### Qt6
 }
 
+QString QTime::toStringEx(QStringView format) const
+{
+    return QLocale::c().toString(*this, format);
+}
+
 #if QT_STRINGVIEW_VERSION < 2
 QString QTime::toString(const QString &format) const
 {
     return toString(qToStringViewIgnoringNull(format));
+}
+
+QString QTime::toStringEx(const QString &format) const
+{
+    return toStringEx(qToStringViewIgnoringNull(format));
 }
 #endif
 
@@ -1795,7 +1815,10 @@ int QTime::secsTo(const QTime &t) const
 QTime QTime::addMSecs(int ms) const
 {
     QTime t;
-    if (isValid()) {
+#ifndef Q_OS_MAC
+    if (isValid())
+#endif
+    {
         if (ms < 0) {
             // %,/ not well-defined for -ve, so always work with +ve.
             int negdays = (MSECS_PER_DAY - ms) / MSECS_PER_DAY;
@@ -4016,10 +4039,20 @@ QString QDateTime::toString(QStringView format) const
     return QLocale::system().toString(*this, format); // QLocale::c() ### Qt6
 }
 
+QString QDateTime::toStringEx(QStringView format) const
+{
+    return QLocale::c().toString(*this, format);
+}
+
 #if QT_STRINGVIEW_LEVEL < 2
 QString QDateTime::toString(const QString &format) const
 {
     return toString(qToStringViewIgnoringNull(format));
+}
+
+QString QDateTime::toStringEx(const QString &format) const
+{
+    return toStringEx(qToStringViewIgnoringNull(format));
 }
 #endif
 

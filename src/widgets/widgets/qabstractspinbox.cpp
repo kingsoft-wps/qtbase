@@ -1838,7 +1838,6 @@ void QAbstractSpinBoxPrivate::setRange(const QVariant &min, const QVariant &max)
     minimum = min;
     maximum = (variantCompare(min, max) < 0 ? max : min);
     cachedSizeHint = QSize();
-    cachedMinimumSizeHint = QSize(); // minimumSizeHint cares about min/max
 
     reset();
     if (!(bound(value) == value)) {

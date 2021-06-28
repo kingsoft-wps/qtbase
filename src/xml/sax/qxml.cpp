@@ -2529,11 +2529,28 @@ QXmlSimpleReaderPrivate::QXmlSimpleReaderPrivate(QXmlSimpleReader *reader)
     useNamespacePrefixes = false;
     reportWhitespaceCharData = true;
     reportEntities = false;
+    isUseBlankSpace = false;
 }
 
 QXmlSimpleReaderPrivate::~QXmlSimpleReaderPrivate()
 {
     delete parseStack;
+}
+
+bool QXmlSimpleReaderPrivate::checkSpace(const QString &str)
+{
+    int spaceNum = 0;
+    for (int i = 0; i < str.size(); ++i) {
+        if (str[i].isSpace()) {
+            if (str[i] == (ushort)' ')
+                ++spaceNum;
+        } else {
+            return false;
+        }
+    }
+    if (getUseBlankSpace() && spaceNum == str.size()) // All is blank space
+        return false;
+    return true;
 }
 
 void QXmlSimpleReaderPrivate::initIncrementalParsing()
@@ -3249,6 +3266,12 @@ bool QXmlSimpleReader::parseContinue()
     d->initData();
     int state = d->parseStack->pop().state;
     return d->parseBeginOrContinue(state, true);
+}
+
+void QXmlSimpleReader::setUseBlankSpace(bool flag)
+{
+    Q_D(QXmlSimpleReader);
+    d->setUseBlankSpace(flag);
 }
 
 /*
@@ -4084,7 +4107,7 @@ bool QXmlSimpleReaderPrivate::parseContent()
                 // call the handler for CharData
                 if (contentHnd) {
                     if (contentCharDataRead) {
-                        if (reportWhitespaceCharData || !string().simplified().isEmpty()) {
+                        if (reportWhitespaceCharData || !checkSpace(string())) {
                             if (!contentHnd->characters(string())) {
                                 reportParseError(contentHnd->errorString());
                                 return false;

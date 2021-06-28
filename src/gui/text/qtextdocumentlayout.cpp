@@ -399,7 +399,7 @@ static bool operator<(const QCheckPoint &checkPoint, int pos)
 static void fillBackground(QPainter *p, const QRectF &rect, QBrush brush, const QPointF &origin, const QRectF &gradientRect = QRectF())
 {
     p->save();
-    if (brush.style() >= Qt::LinearGradientPattern && brush.style() <= Qt::ConicalGradientPattern) {
+    if (brush.style() >= Qt::LinearGradientPattern && brush.style() <= Qt::PathGradientPattern) {
         if (!gradientRect.isNull()) {
             QTransform m;
             m.translate(gradientRect.left(), gradientRect.top());
@@ -3100,7 +3100,7 @@ int QTextDocumentLayout::dynamicPageCount() const
 {
     Q_D(const QTextDocumentLayout);
     const QSizeF pgSize = d->document->pageSize();
-    if (pgSize.height() < 0)
+    if (pgSize.height() <= 0)
         return 1;
     return qCeil(dynamicDocumentSize().height() / pgSize.height());
 }

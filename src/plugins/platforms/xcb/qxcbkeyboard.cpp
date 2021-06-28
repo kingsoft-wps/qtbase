@@ -882,6 +882,22 @@ void QXcbKeyboard::handleStateChanges(xkb_state_component changedComponents)
         qCDebug(lcQpaKeyboard, "TODO: Support KeyboardLayoutChange on QPA (QTBUG-27681)");
 }
 
+xcb_keycode_t QXcbKeyboard::keysymToKeycode(xcb_keysym_t keysym)
+{
+    xcb_keycode_t result = 0;
+    if (!m_key_symbols)
+        return result;
+
+    auto keycode = xcb_key_symbols_get_keycode(m_key_symbols, keysym);
+    if (keycode)
+    {
+        result = *keycode;
+        free(keycode);
+    }
+
+    return result;
+}
+
 xkb_mod_mask_t QXcbKeyboard::xkbModMask(quint16 state)
 {
     xkb_mod_mask_t xkb_mask = 0;

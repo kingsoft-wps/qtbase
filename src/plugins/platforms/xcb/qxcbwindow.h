@@ -77,6 +77,7 @@ public:
     QXcbWindow(QWindow *window);
     ~QXcbWindow();
 
+	virtual bool isMapGlobalRT() const { return true; };
     void setGeometry(const QRect &rect) override;
 
     QMargins frameMargins() const override;

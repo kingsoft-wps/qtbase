@@ -338,8 +338,13 @@ QSize QComboBoxPrivate::recomputeSizeHint(QSize &sh) const
         if (&sh == &sizeHint || minimumContentsLength == 0) {
             switch (sizeAdjustPolicy) {
             case QComboBox::AdjustToContents:
-            case QComboBox::AdjustToContentsOnFirstShow:
-                if (count == 0) {
+            case QComboBox::AdjustToContentsOnFirstShow: {
+                bool use7xsize = (0 == count);
+                if (!use7xsize){
+                    const QVariant varUse7XSize = q->property("_q_use7xsize");
+                    use7xsize = (varUse7XSize.isValid() && varUse7XSize.toBool());
+                }
+                if (use7xsize) {
                     sh.rwidth() = 7 * fm.horizontalAdvance(QLatin1Char('x'));
                 } else {
                     for (int i = 0; i < count; ++i) {
@@ -350,6 +355,7 @@ QSize QComboBoxPrivate::recomputeSizeHint(QSize &sh) const
                             sh.setWidth(qMax(sh.width(), fm.boundingRect(q->itemText(i)).width()));
                         }
                     }
+                }
                 }
                 break;
             case QComboBox::AdjustToMinimumContentsLength:
@@ -803,8 +809,12 @@ void QComboBoxPrivateContainer::mouseReleaseEvent(QMouseEvent *e)
 {
     Q_UNUSED(e);
     if (!blockMouseReleaseTimer.isActive()){
+#ifdef Q_OS_MAC
+        // ignore
+#else
         combo->hidePopup();
         emit resetButton();
+#endif // Q_OS_MAC
     }
 }
 
@@ -2740,9 +2750,14 @@ void QComboBox::showPopup()
 
         // Position vertically so the curently selected item lines up
         // with the combo box.
+#ifdef Q_OS_MAC
+        // Fixed the problem that the position of the pop-up box of comcobox is wrong
+        listRect.moveTop(above.y() + opt.rect.height());
+#else
         const QRect currentItemRect = view()->visualRect(view()->currentIndex());
         const int offset = listRect.top() - currentItemRect.top();
         listRect.moveTop(above.y() + offset - listRect.top());
+#endif // Q_OS_MAC
 
         // Clamp the listRect height and vertical position so we don't expand outside the
         // available screen geometry.This may override the vertical position, but it is more
@@ -2769,7 +2784,7 @@ void QComboBox::showPopup()
     }
 
     if (qApp) {
-        QGuiApplication::inputMethod()->reset();
+        QGuiApplication::inputMethod()->reset(false);
     }
 
     QScrollBar *sb = view()->horizontalScrollBar();

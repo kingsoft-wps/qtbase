@@ -104,6 +104,9 @@ class QWidgetData
 {
 public:
     WId winid;
+#ifdef Q_OS_MAC
+    WId windowid;
+#endif // Q_OS_MAC
     uint widget_attributes;
     Qt::WindowFlags window_flags;
     uint window_state : 4;
@@ -217,6 +220,9 @@ public:
     int devType() const override;
 
     WId winId() const;
+#ifdef Q_OS_MAC
+    WId windowId() const;
+#endif
     void createWinId(); // internal, going away
     inline WId internalWinId() const { return data->winid; }
     WId effectiveWinId() const;
@@ -224,6 +230,10 @@ public:
     // GUI style setting
     QStyle *style() const;
     void setStyle(QStyle *);
+#ifdef Q_OS_MAC
+    // set style to all child qwidgets and future child
+    void setRecursiveStyle(QStyle *);
+#endif // Q_OS_MAC
     // Widget types and states
 
     bool isTopLevel() const;
@@ -357,6 +367,18 @@ public:
     void ungrabGesture(Qt::GestureType type);
 #endif
 
+#ifdef Q_OS_MAC
+    // Customize window barTitle attributes on mac
+    void setWindowTitlebarAppearsTransparent(bool);
+    void setWindowBackgroundColor(const QColor &clr);
+    void setWindowTitleTextColor(const QColor &clr);
+    void setWindowTitlebarHide(bool);
+    // Set whether to show all
+    void setWindowContentViewFullSize(bool);
+    void moveNSWindowNoRedraw(const QPoint& pt);
+    // Switch form full screen state
+    void toggleFullScreen();
+#endif
 public Q_SLOTS:
     void setWindowTitle(const QString &);
 #ifndef QT_NO_STYLE_STYLESHEET
@@ -421,6 +443,7 @@ public:
     void clearFocus();
 
     void setFocus(Qt::FocusReason reason);
+    void setFocus(Qt::FocusReason reason, bool syncNative);
     Qt::FocusPolicy focusPolicy() const;
     void setFocusPolicy(Qt::FocusPolicy policy);
     bool hasFocus() const;
@@ -540,12 +563,19 @@ public:
     // Misc. functions
 
     QWidget *focusWidget() const;
+#ifdef Q_OS_MAC
+    // Force clear the selected window pointer (use with caution)
+    void clearFocusWidget();
+#endif
     QWidget *nextInFocusChain() const;
     QWidget *previousInFocusChain() const;
 
     // drag and drop
     bool acceptDrops() const;
     void setAcceptDrops(bool on);
+
+    bool acceptEnforcedDrops() const;
+    void setAcceptEnforcedDrops(bool on);
 
 #ifndef QT_NO_ACTION
     //actions
@@ -599,6 +629,8 @@ public:
     static QWidget *createWindowContainer(QWindow *window, QWidget *parent=nullptr, Qt::WindowFlags flags=Qt::WindowFlags());
 
     friend class QDesktopScreenWidget;
+
+    virtual void resetDeviceDependentResources();
 
 Q_SIGNALS:
     void windowTitleChanged(const QString &title);

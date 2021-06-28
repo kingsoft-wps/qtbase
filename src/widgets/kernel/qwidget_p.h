@@ -192,6 +192,7 @@ struct QTLWExtra {
     uint sizeAdjusted : 1;
     uint inTopLevelResize : 1;
     uint embedded : 1;
+    uint inSyncBackingStore : 1;
 
     // *************************** Platform specific values (bit fields first) **********
 #if 0 /* Used to be included in Qt4 for Q_WS_X11 */ // <----------------------------------------------------------- X11
@@ -242,6 +243,9 @@ struct QWExtra {
     QCursor *curs;
 #endif
     QPointer<QStyle> style;
+#ifdef Q_OS_MAC
+    QPointer<QStyle> recursiveStyle;
+#endif // Q_OS_MAC
     QPointer<QWidget> focus_proxy;
 
     // Implicit pointers (shared_empty/shared_null).
@@ -472,6 +476,7 @@ public:
     void showChildren(bool spontaneous);
     void hideChildren(bool spontaneous);
     void setParent_sys(QWidget *parent, Qt::WindowFlags);
+    void reparentChildren();
     void scroll_sys(int dx, int dy);
     void scroll_sys(int dx, int dy, const QRect &r);
     void deactivateWidgetCleanup();
@@ -504,6 +509,18 @@ public:
     void setWindowIconText_helper(const QString &cap);
     void setWindowTitle_sys(const QString &cap);
     void setWindowFilePath_sys(const QString &filePath);
+#ifdef Q_OS_MAC
+    // Customize window barTitle attributes on mac
+    void setWindowTitlebarAppearsTransparent_sys(bool);
+    void setWindowBackgroundColor_sys(const QColor &clr);
+    void setWindowTitleTextColor_sys(const QColor &clr);
+    // Whether to hide the top titlebar
+    void setWindowTitlebarHide_sys(bool);
+    // Set whether to show all
+    void setWindowContentViewFullSize_sys(bool);
+    // Switch form full screen state
+    void toggleFullScreen_sys();
+#endif
 
 #ifndef QT_NO_CURSOR
     void setCursor_sys(const QCursor &cursor);
@@ -632,6 +649,7 @@ public:
     }
 
     void setWSGeometry();
+    void updateWSGeometry();
 
     inline QPoint mapToWS(const QPoint &p) const
     { return p - data.wrect.topLeft(); }
@@ -781,6 +799,7 @@ public:
 #endif
     uint childrenHiddenByWState : 1;
     uint childrenShownByExpose : 1;
+    uint withinCreateWinId : 1;
 
     // *************************** Platform specific ************************************
 #if defined(Q_OS_WIN)

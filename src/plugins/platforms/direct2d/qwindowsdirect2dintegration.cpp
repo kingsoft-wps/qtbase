@@ -63,15 +63,24 @@ public:
     QWindowsDirect2DEventDispatcher(QObject *parent = nullptr)
         : QWindowsGuiEventDispatcher(parent)
     {
-        uninstallMessageHook(); // ### Workaround for QTBUG-42428
+        // Bug 433414
+        // uninstallMessageHook(); // ### Workaround for QTBUG-42428
     }
 };
 
 class QWindowsDirect2DIntegrationPrivate
 {
 public:
+    QWindowsDirect2DIntegrationPrivate(const QStringList &paramList)
+        : m_d2dContext(paramList)
+    {
+        if (paramList.contains(QStringLiteral("nodirectrendering")))
+            m_directRenderingEnabled = false;
+    }
+
     QWindowsDirect2DNativeInterface m_nativeInterface;
     QWindowsDirect2DContext m_d2dContext;
+    bool m_directRenderingEnabled = true;
 };
 
 static QVersionNumber systemD2DVersion()
@@ -163,7 +172,7 @@ QWindowsDirect2DIntegration::~QWindowsDirect2DIntegration()
 
 QWindowsWindow *QWindowsDirect2DIntegration::createPlatformWindowHelper(QWindow *window, const QWindowsWindowData &data) const
 {
-    return new QWindowsDirect2DWindow(window, data);
+    return new QWindowsDirect2DWindow(window, data, d->m_directRenderingEnabled);
 }
 
  QPlatformNativeInterface *QWindowsDirect2DIntegration::nativeInterface() const
@@ -185,7 +194,10 @@ QPlatformPixmap *QWindowsDirect2DIntegration::createPlatformPixmap(QPlatformPixm
 
 QPlatformBackingStore *QWindowsDirect2DIntegration::createPlatformBackingStore(QWindow *window) const
 {
-    return new QWindowsDirect2DBackingStore(window);
+    if (d->m_directRenderingEnabled)
+        return new QWindowsDirect2DBackingStore(window);
+    else
+        return new QWindowsDirect2DBackingStoreNoPresenting(window);
 }
 
 QAbstractEventDispatcher *QWindowsDirect2DIntegration::createEventDispatcher() const
@@ -200,7 +212,7 @@ QWindowsDirect2DContext *QWindowsDirect2DIntegration::direct2DContext() const
 
 QWindowsDirect2DIntegration::QWindowsDirect2DIntegration(const QStringList &paramList)
     : QWindowsIntegration(paramList)
-    , d(new QWindowsDirect2DIntegrationPrivate)
+    , d(new QWindowsDirect2DIntegrationPrivate(paramList))
 {
 }
 

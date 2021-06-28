@@ -61,7 +61,7 @@ public:
     void flush(QWindow *window, const QRegion &region, const QPoint &offset) override;
     void resize(const QSize &size, const QRegion &r) override;
     bool scroll(const QRegion &area, int dx, int dy) override;
-    void beginPaint(const QRegion &) override;
+    bool beginPaint(const QRegion &) override;
 
     HDC getDC() const;
 

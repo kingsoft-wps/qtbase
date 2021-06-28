@@ -565,4 +565,15 @@ QPlatformVulkanInstance *QXcbIntegration::createPlatformVulkanInstance(QVulkanIn
 }
 #endif
 
+#ifdef Q_OS_LINUX
+int QXcbIntegration::testColorSapce() const
+{
+    QXcbGlIntegration *glIntegration = defaultConnection()->glIntegration();
+    if (glIntegration)
+        return glIntegration->testColorSapce();
+    else
+        return QPlatformIntegration::testColorSapce();
+}
+#endif
+
 QT_END_NAMESPACE

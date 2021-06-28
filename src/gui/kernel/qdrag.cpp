@@ -107,6 +107,15 @@ QT_BEGIN_NAMESPACE
 /*!
     Constructs a new drag object for the widget specified by \a dragSource.
 */
+
+#ifdef Q_OS_WIN
+struct cDROPDESCRIPTION {
+    bool bUseDropDescription = false;
+    QString dropdescriptioninsert;
+    QString dropdescriptiontext;
+} dropdescrition;
+#endif
+
 QDrag::QDrag(QObject *dragSource)
     : QObject(*new QDragPrivate, dragSource)
 {
@@ -398,6 +407,38 @@ void QDrag::cancel()
     if (QPlatformDrag *platformDrag = QGuiApplicationPrivate::platformIntegration()->drag())
         platformDrag->cancelDrag();
 }
+
+#ifdef Q_OS_WIN
+/*static*/ bool QDrag::getUseDropDescription()
+{
+    return dropdescrition.bUseDropDescription;
+}
+
+/*static*/ void QDrag::setUseDropDescription(bool useDropDescription)
+{
+    dropdescrition.bUseDropDescription = useDropDescription;
+}
+
+/*static*/ QString QDrag::getDropDescriptionInsert()
+{
+    return dropdescrition.dropdescriptioninsert;
+}
+
+/*static*/ void QDrag::setDropDescriptionInsert(QString insertText)
+{
+    dropdescrition.dropdescriptioninsert = insertText;
+}
+
+/*static*/ QString QDrag::getDropDescriptionText()
+{
+    return dropdescrition.dropdescriptiontext;
+}
+
+/*static*/ void QDrag::setDropDescriptionText(QString text)
+{
+    dropdescrition.dropdescriptiontext = text;
+}
+#endif
 
 /*!
     \fn void QDrag::actionChanged(Qt::DropAction action)

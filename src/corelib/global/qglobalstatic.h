@@ -92,6 +92,35 @@ enum GuardValues {
         } holder;                                               \
         return &holder.value;                                   \
     }
+#elif defined(Q_OS_WIN)
+QT_END_NAMESPACE
+#include <thread>
+#include <chrono>
+QT_BEGIN_NAMESPACE
+
+#define Q_GLOBAL_STATIC_INTERNAL(ARGS)                                                             \
+    Q_DECL_HIDDEN inline Type *innerFunction()                                                     \
+    {                                                                                              \
+        static Type *d;                                                                            \
+        if (Q_LIKELY(guard.load() == QtGlobalStatic::Initialized)) {                               \
+            return d;                                                                              \
+        } else if (Q_UNLIKELY(guard.testAndSetAcquire(QtGlobalStatic::Uninitialized,               \
+                                                      QtGlobalStatic::Initializing))) {            \
+            d = new Type ARGS;                                                                     \
+            static struct Cleanup {                                                                \
+                ~Cleanup() {                                                                       \
+                    delete d;                                                                      \
+                    guard.store(QtGlobalStatic::Destroyed);                                        \
+                }                                                                                  \
+            } cleanup;                                                                             \
+            guard.storeRelease(QtGlobalStatic::Initialized);                                       \
+        } else {                                                                                   \
+            std::chrono::milliseconds ms(1);                                                       \
+            while (guard.loadAcquire() == QtGlobalStatic::Initializing)                            \
+                std::this_thread::sleep_for(ms);                                                   \
+        }                                                                                          \
+        return d;                                                                                  \
+    }
 #else
 // We don't know if this compiler supports thread-safe global statics
 // so use our own locked implementation

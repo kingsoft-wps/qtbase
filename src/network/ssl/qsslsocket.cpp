@@ -943,6 +943,7 @@ void QSslSocket::setSslConfiguration(const QSslConfiguration &configuration)
     d->configuration.dhParams = configuration.diffieHellmanParameters();
     d->configuration.caCertificates = configuration.caCertificates();
     d->configuration.peerVerifyDepth = configuration.peerVerifyDepth();
+    d->configuration.verificationPeerName = configuration.verificationPeerName();
     d->configuration.peerVerifyMode = configuration.peerVerifyMode();
     d->configuration.protocol = configuration.protocol();
     d->configuration.backendConfig = configuration.backendConfiguration();
@@ -2318,6 +2319,7 @@ void QSslConfigurationPrivate::deepCopyDefaultConfiguration(QSslConfigurationPri
     ptr->protocol = global->protocol;
     ptr->peerVerifyMode = global->peerVerifyMode;
     ptr->peerVerifyDepth = global->peerVerifyDepth;
+    ptr->verificationPeerName = global->verificationPeerName;
     ptr->sslOptions = global->sslOptions;
     ptr->ellipticCurves = global->ellipticCurves;
     ptr->backendConfig = global->backendConfig;

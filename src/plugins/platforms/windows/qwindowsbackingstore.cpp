@@ -47,10 +47,10 @@
 #include <private/qhighdpiscaling_p.h>
 #include <private/qimage_p.h>
 
+#include <QtCore/qsettings.h>
 #include <QtCore/qdebug.h>
 
 QT_BEGIN_NAMESPACE
-
 /*!
     \class QWindowsBackingStore
     \brief Backing store for windows.
@@ -95,21 +95,26 @@ void QWindowsBackingStore::flush(QWindow *window, const QRegion &region,
         QPoint frameOffset(QHighDpi::toNativePixels(QPoint(window->frameMargins().left(), window->frameMargins().top()),
                                                     static_cast<const QWindow *>(nullptr)));
         QRect dirtyRect = br.translated(offset + frameOffset);
-
+        if (dirtyRect.x() < 0) dirtyRect.moveLeft(0);
+        if (dirtyRect.y() < 0) dirtyRect.moveTop(0);
         SIZE size = {r.width(), r.height()};
         POINT ptDst = {r.x(), r.y()};
         POINT ptSrc = {0, 0};
-        BLENDFUNCTION blend = {AC_SRC_OVER, 0, BYTE(qRound(255.0 * rw->opacity())), AC_SRC_ALPHA};
-        RECT dirty = {dirtyRect.x(), dirtyRect.y(),
-                      dirtyRect.x() + dirtyRect.width(), dirtyRect.y() + dirtyRect.height()};
-        UPDATELAYEREDWINDOWINFO info = {sizeof(info), nullptr, &ptDst, &size,
-                                        m_image->hdc(), &ptSrc, 0, &blend, ULW_ALPHA, &dirty};
-        const BOOL result = UpdateLayeredWindowIndirect(rw->handle(), &info);
-        if (!result)
-            qErrnoWarning("UpdateLayeredWindowIndirect failed for ptDst=(%d, %d),"
-                          " size=(%dx%d), dirty=(%dx%d %d, %d)", r.x(), r.y(),
-                          r.width(), r.height(), dirtyRect.width(), dirtyRect.height(),
-                          dirtyRect.x(), dirtyRect.y());
+        BLENDFUNCTION blend = { AC_SRC_OVER, 0, BYTE(qRound(255.0 * rw->opacity())), AC_SRC_ALPHA };
+        if (QWindowsContext::user32dll.updateLayeredWindowIndirect) {
+            RECT dirty = { dirtyRect.x(), dirtyRect.y(),
+                          dirtyRect.x() + dirtyRect.width(), dirtyRect.y() + dirtyRect.height() };
+            UPDATELAYEREDWINDOWINFO info = { sizeof(info), nullptr, &ptDst, &size,
+                                            m_image->hdc(), &ptSrc, 0, &blend, ULW_ALPHA, &dirty };
+            const BOOL result = QWindowsContext::user32dll.updateLayeredWindowIndirect(rw->handle(), &info);
+            if (!result)
+                qErrnoWarning("UpdateLayeredWindowIndirect failed for ptDst=(%d, %d),"
+                              " size=(%dx%d), dirty=(%dx%d %d, %d)", r.x(), r.y(),
+                              r.width(), r.height(), dirtyRect.width(), dirtyRect.height(),
+                              dirtyRect.x(), dirtyRect.y());
+        } else {
+            QWindowsContext::user32dll.updateLayeredWindow(rw->handle(), NULL, &ptDst, &size, m_image->hdc(), &ptSrc, 0, &blend, ULW_ALPHA);
+        }
     } else {
         const HDC dc = rw->getDC();
         if (!dc) {
@@ -148,7 +153,8 @@ void QWindowsBackingStore::resize(const QSize &size, const QRegion &region)
 #endif
         QImage::Format format = window()->format().hasAlpha() ?
                     QImage::Format_ARGB32_Premultiplied : QWindowsNativeImage::systemFormat();
-
+        if (QImage::Format_RGB16 == format)
+            format = QImage::Format_RGB32;
         // The backingstore composition (enabling render-to-texture widgets)
         // punches holes in the backingstores using the alpha channel. Hence
         // the need for a true alpha format.
@@ -190,7 +196,7 @@ bool QWindowsBackingStore::scroll(const QRegion &area, int dx, int dy)
     return true;
 }
 
-void QWindowsBackingStore::beginPaint(const QRegion &region)
+bool QWindowsBackingStore::beginPaint(const QRegion &region)
 {
     if (QWindowsContext::verbose > 1)
         qCDebug(lcQpaBackingStore) <<__FUNCTION__ << region;
@@ -202,6 +208,8 @@ void QWindowsBackingStore::beginPaint(const QRegion &region)
         for (const QRect &r : region)
             p.fillRect(r, blank);
     }
+
+    return true;
 }
 
 HDC QWindowsBackingStore::getDC() const

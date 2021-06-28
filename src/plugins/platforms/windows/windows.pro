@@ -8,7 +8,7 @@ QT += \
 qtConfig(accessibility): QT += accessibility_support-private
 qtConfig(vulkan): QT += vulkan_support-private
 
-LIBS += -lgdi32 -ldwmapi
+LIBS += -lgdi32
 
 include(windows.pri)
 

@@ -126,6 +126,7 @@ public:
     virtual void drawImage(const QRectF &r, const QImage &pm, const QRectF &sr,
                            Qt::ImageConversionFlags flags = Qt::AutoColor) override = 0;
     virtual void drawImage(const QPointF &pos, const QImage &image);
+    using QPaintEngine::drawImage;
 
     virtual void drawTiledPixmap(const QRectF &r, const QPixmap &pixmap, const QPointF &s) override;
 

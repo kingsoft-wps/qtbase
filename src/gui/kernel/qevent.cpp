@@ -5367,6 +5367,30 @@ Qt::ApplicationState QApplicationStateChangeEvent::applicationState() const
     return m_applicationState;
 }
 
+QModalEvent::QModalEvent(Type type, QWindow *w) 
+	: QEvent(type), w(w) {
+}
+
+QWindow *QModalEvent::widgetWindow()
+{
+    return w;
+}
+
+/*!
+    Constructs a WindowsWindowGeometryChanged event with the new and old window geometry, \a
+    geometry and \a oldGeometry respectively.
+*/
+QWindowsWindowGeometryChangedEvent::QWindowsWindowGeometryChangedEvent(const QRect &geo,
+                                                                       const QRect &oldGeo)
+    : QEvent(QEvent::WindowsWindowGeometryChanged), g(geo), oldg(oldGeo)
+{
+}
+
+/*!
+    internal
+*/
+QWindowsWindowGeometryChangedEvent::~QWindowsWindowGeometryChangedEvent() {}
+
 /*!
     \class QPointingDeviceUniqueId
     \since 5.8

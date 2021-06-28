@@ -42,16 +42,31 @@
 #include "qdeadlinetimer_p.h"
 #include <qt_windows.h>
 
+typedef ULONGLONG (WINAPI *PtrGetTickCount64)(void);
+#if defined(Q_OS_WINRT)
+    static const PtrGetTickCount64 ptrGetTickCount64 = &GetTickCount64;
+#else
+    static PtrGetTickCount64 ptrGetTickCount64 = 0;
+#endif
+
 QT_BEGIN_NAMESPACE
 
 // Result of QueryPerformanceFrequency, 0 indicates that the high resolution timer is unavailable
 static quint64 counterFrequency = 0;
 
-static void resolveCounterFrequency()
+static void resolveLibs()
 {
     static bool done = false;
     if (done)
         return;
+
+#if !defined(Q_OS_WINRT)
+    // try to get GetTickCount64 from the system
+    HMODULE kernel32 = GetModuleHandleW(L"kernel32");
+    if (!kernel32)
+        return;
+    ptrGetTickCount64 = (PtrGetTickCount64)GetProcAddress(kernel32, "GetTickCount64");
+#endif // !Q_OS_WINRT
 
     // Retrieve the number of high-resolution performance counter ticks per second
     LARGE_INTEGER frequency;
@@ -80,7 +95,7 @@ static inline qint64 ticksToNanoseconds(qint64 ticks)
 
 static quint64 getTickCount()
 {
-    resolveCounterFrequency();
+    resolveLibs();
 
     // This avoids a division by zero and disables the high performance counter if it's not available
     if (counterFrequency > 0) {
@@ -93,7 +108,21 @@ static quint64 getTickCount()
         return counter.QuadPart;
     }
 
+#ifndef Q_OS_WINRT
+    if (ptrGetTickCount64)
+        return ptrGetTickCount64();
+
+    static quint32 highdword = 0;
+    static quint32 lastval = 0;
+    quint32 val = GetTickCount();
+    if (val < lastval)
+        ++highdword;
+    lastval = val;
+    return val | (quint64(highdword) << 32);
+#else // !Q_OS_WINRT
+    // ptrGetTickCount64 is always set on WinRT but GetTickCount is not available
     return GetTickCount64();
+#endif // Q_OS_WINRT
 }
 
 quint64 qt_msectime()
@@ -103,7 +132,7 @@ quint64 qt_msectime()
 
 QElapsedTimer::ClockType QElapsedTimer::clockType() Q_DECL_NOTHROW
 {
-    resolveCounterFrequency();
+    resolveLibs();
 
     return counterFrequency > 0 ? PerformanceCounter : TickCounter;
 }

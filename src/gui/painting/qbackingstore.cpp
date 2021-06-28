@@ -135,7 +135,11 @@ void QBackingStore::beginPaint(const QRegion &region)
         resize(size());
 
     QPlatformBackingStore *platformBackingStore = handle();
-    platformBackingStore->beginPaint(QHighDpi::toNativeLocalRegion(region, d_ptr->window));
+    if (!platformBackingStore->beginPaint(QHighDpi::toNativeLocalRegion(region, d_ptr->window))) {
+        QGuiApplication::postEvent(QGuiApplication::instance(), new QEvent(QEvent::GpuResourceUnrecoverable),
+                                   Qt::HighEventPriority);
+        return;
+    }
 
     // When QtGui is applying a high-dpi scale factor the backing store
     // creates a "large" backing store image. This image needs to be
@@ -190,7 +194,7 @@ QPaintDevice *QBackingStore::paintDevice()
 */
 void QBackingStore::endPaint()
 {
-    if (paintDevice()->paintingActive())
+    if (paintDevice() && paintDevice()->paintingActive())
         qWarning("QBackingStore::endPaint() called with active painter; did you forget to destroy it or call QPainter::end() on it?");
 
     handle()->endPaint();

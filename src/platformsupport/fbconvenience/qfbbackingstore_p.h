@@ -77,7 +77,7 @@ public:
     void lock();
     void unlock();
 
-    void beginPaint(const QRegion &) override;
+    bool beginPaint(const QRegion &) override;
     void endPaint() override;
 
 protected:

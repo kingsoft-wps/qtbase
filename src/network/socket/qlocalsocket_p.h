@@ -73,6 +73,9 @@ QT_REQUIRE_CONFIG(localserver);
 #   include <errno.h>
 #endif
 
+#ifdef Q_OS_MAC
+#include <unistd.h>
+#endif
 QT_BEGIN_NAMESPACE
 
 #if !defined(Q_OS_WIN) || defined(QT_LOCALSOCKET_TCP)
@@ -160,6 +163,27 @@ public:
     QLocalSocket::LocalSocketState state;
 };
 
+#ifdef Q_OS_MAC
+class WorkDirHelper
+{
+	QString from;
+
+public:
+	WorkDirHelper(const QString& to)
+	{
+		char pwd[256] = {0};
+		getcwd(pwd, 256);
+		from = QString::fromUtf8(pwd);
+
+		chdir(to.toUtf8().constData());
+	}
+
+	~WorkDirHelper()
+	{
+		chdir(from.toUtf8().constData());
+	}
+};
+#endif
 QT_END_NAMESPACE
 
 #endif // QLOCALSOCKET_P_H

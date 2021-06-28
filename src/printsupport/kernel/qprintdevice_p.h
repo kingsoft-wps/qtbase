@@ -95,7 +95,7 @@ public:
 
     QPrint::DeviceState state() const;
 
-    bool isValidPageLayout(const QPageLayout &layout, int resolution) const;
+    bool isValidPageLayout(const QPageLayout &layout, const QSize &resolution) const;
 
     bool supportsMultipleCopies() const;
     bool supportsCollateCopies() const;
@@ -114,7 +114,7 @@ public:
     QSize minimumPhysicalPageSize() const;
     QSize maximumPhysicalPageSize() const;
 
-    QMarginsF printableMargins(const QPageSize &pageSize, QPageLayout::Orientation orientation, int resolution) const;
+    QMarginsF printableMargins(const QPageSize &pageSize, QPageLayout::Orientation orientation, const QSize &resolution) const;
 
     int defaultResolution() const;
     QList<int> supportedResolutions() const;

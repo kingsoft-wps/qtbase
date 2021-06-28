@@ -539,7 +539,14 @@ public:
 
     Q_REQUIRED_RESULT QString repeated(int times) const;
 
-    const ushort *utf16() const;
+    Q_DECL_DEPRECATED const ushort *utf16() const;
+#if defined(Q_COMPILER_UNICODE_STRINGS)
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED   // "'QString::utf16': was declared deprecated"
+    inline const char16_t *c_str16() const
+    { return reinterpret_cast<const char16_t *>(utf16()); }
+QT_WARNING_POP
+#endif
 
 #if defined(Q_COMPILER_REF_QUALIFIERS) && !defined(QT_COMPILING_QSTRING_COMPAT_CPP) && !defined(Q_CLANG_QDOC)
     Q_REQUIRED_RESULT QByteArray toLatin1() const &
@@ -1043,6 +1050,7 @@ class Q_CORE_EXPORT QCharRef {
         : s(str),i(idx) {}
     friend class QString;
 public:
+    QCharRef(const QCharRef &) = default;
 
     // most QChar operations repeated here
 
@@ -1396,8 +1404,11 @@ inline QString QString::fromStdWString(const std::wstring &s)
 inline QString QString::fromStdU16String(const std::u16string &s)
 { return fromUtf16(s.data(), int(s.size())); }
 
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED   // "'QString::utf16': was declared deprecated"
 inline std::u16string QString::toStdU16String() const
 { return std::u16string(reinterpret_cast<const char16_t*>(utf16()), length()); }
+QT_WARNING_POP
 
 inline QString QString::fromStdU32String(const std::u32string &s)
 { return fromUcs4(s.data(), int(s.size())); }

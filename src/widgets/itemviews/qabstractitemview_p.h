@@ -124,9 +124,11 @@ public:
 
     void startAutoScroll()
     {   // ### it would be nice to make this into a style hint one day
-        int scrollInterval = (verticalScrollMode == QAbstractItemView::ScrollPerItem) ? 150 : 50;
-        autoScrollTimer.start(scrollInterval, q_func());
-        autoScrollCount = 0;
+        if (!autoScrollTimer.isActive()) {
+            int scrollInterval = (verticalScrollMode == QAbstractItemView::ScrollPerItem) ? 150 : 50;
+            autoScrollTimer.start(scrollInterval, q_func());
+            autoScrollCount = 0;
+        }
     }
     void stopAutoScroll() { autoScrollTimer.stop(); autoScrollCount = 0;}
 

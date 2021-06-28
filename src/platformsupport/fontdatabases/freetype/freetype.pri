@@ -7,3 +7,6 @@ SOURCES += \
         $$PWD/qfontengine_ft.cpp
 
 QMAKE_USE_PRIVATE += freetype
+qtConfig(harfbuzz) {
+    QMAKE_USE_PRIVATE += harfbuzz
+}

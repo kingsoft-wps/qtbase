@@ -943,6 +943,13 @@ bool QProcessPrivate::startDetached(qint64 *pid)
         qt_safe_close(startedPipe[0]);
         qt_safe_close(pidPipe[0]);
 
+        int fdlimit = sysconf(_SC_OPEN_MAX);
+        for (int i = STDERR_FILENO + 1; i < fdlimit; ++i)
+        {
+            if (i != startedPipe[1] && i != pidPipe[1])
+                qt_safe_close(i);
+        }
+            
         pid_t doubleForkPid = fork();
         if (doubleForkPid == 0) {
             qt_safe_close(pidPipe[1]);

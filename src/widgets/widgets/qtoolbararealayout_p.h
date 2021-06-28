@@ -73,14 +73,14 @@ public:
         : widgetItem(item), pos(0), size(-1), preferredSize(-1), gap(false) {}
 
     bool skip() const;
-    QSize minimumSize() const;
-    QSize sizeHint() const;
+    QSize minimumSize(Qt::Orientation o, int size) const;
+    QSize sizeHint(Qt::Orientation o, int size) const;
     QSize realSizeHint() const;
 
     void resize(Qt::Orientation o, int newSize)
     {
-        newSize = qMax(pick(o, minimumSize()), newSize);
-        int sizeh = pick(o, sizeHint());
+        newSize = qMax(pick(o, minimumSize(o, newSize)), newSize);
+        int sizeh = pick(o, sizeHint(o, newSize));
         if (newSize == sizeh) {
             preferredSize = -1;
             size = sizeh;
@@ -91,8 +91,8 @@ public:
 
     void extendSize(Qt::Orientation o, int extent)
     {
-        int newSize = qMax(pick(o, minimumSize()), (preferredSize > 0 ? preferredSize : pick(o, sizeHint())) + extent);
-        int sizeh = pick(o, sizeHint());
+        int newSize = qMax(pick(o, minimumSize(o, -1)), (preferredSize > 0 ? preferredSize : pick(o, sizeHint(o, -1))) + extent);
+        int sizeh = pick(o, sizeHint(o, newSize));
         if (newSize == sizeh) {
             preferredSize = -1;
             size = sizeh;
@@ -101,6 +101,11 @@ public:
         }
     }
 
+private:
+    QSize dockToolBarSizeHint(Qt::Orientation o, int size = -1) const;
+    QSize dockToolBarMinimumSize(Qt::Orientation o, int size) const;
+
+public:
     QLayoutItem *widgetItem;
     int pos;
     int size;
@@ -115,11 +120,12 @@ public:
     QToolBarAreaLayoutLine() {} // for QVector, don't use
     QToolBarAreaLayoutLine(Qt::Orientation orientation);
 
-    QSize sizeHint() const;
-    QSize minimumSize() const;
+    QSize sizeHint(int size) const;
+    QSize minimumSize(int size) const;
 
     void fitLayout();
     bool skip() const;
+    bool fullSize() const;
 
     QRect rect;
     Qt::Orientation o;
@@ -145,11 +151,12 @@ public:
     void removeToolBarBreak(QToolBar *before);
     void moveToolBar(QToolBar *toolbar, int pos);
 
-    QList<int> gapIndex(const QPoint &pos, int *maxDistance) const;
+    QList<int> gapIndex(const QPoint &pos, bool bFullSize, int *maxDistance) const;
     bool insertGap(const QList<int> &path, QLayoutItem *item);
     void clear();
     QRect itemRect(const QList<int> &path) const;
-    int distance(const QPoint &pos) const;
+    int distance(const QPoint &pos, bool &inner) const;
+    int posAtRect(const QPoint &pos, const QRect &rect) const;
 
     QVector<QToolBarAreaLayoutLine> lines;
     QRect rect;
@@ -202,7 +209,7 @@ public:
     void getStyleOptionInfo(QStyleOptionToolBar *option, QToolBar *toolBar) const;
 
     QList<int> indexOf(QWidget *toolBar) const;
-    QList<int> gapIndex(const QPoint &pos) const;
+    QList<int> gapIndex(const QPoint &pos, bool bFullSize) const;
     QList<int> currentGapIndex() const;
     bool insertGap(const QList<int> &path, QLayoutItem *item);
     void remove(const QList<int> &path);

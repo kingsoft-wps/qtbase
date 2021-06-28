@@ -76,10 +76,11 @@ void QMinimalEglBackingStore::flush(QWindow *window, const QRegion &region, cons
     m_context->swapBuffers(window);
 }
 
-void QMinimalEglBackingStore::beginPaint(const QRegion &)
+bool QMinimalEglBackingStore::beginPaint(const QRegion &)
 {
     m_context->makeCurrent(window());
     m_device = new QOpenGLPaintDevice(window()->size());
+    return true;
 }
 
 void QMinimalEglBackingStore::endPaint()

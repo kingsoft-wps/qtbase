@@ -44,6 +44,7 @@
 
 #include <private/qdrawingprimitive_sse2_p.h>
 #include <private/qpaintengine_raster_p.h>
+#include <private/qimageeffects_p.h>
 
 QT_BEGIN_NAMESPACE
 

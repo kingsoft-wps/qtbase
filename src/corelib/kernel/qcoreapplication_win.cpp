@@ -66,7 +66,7 @@ QT_BEGIN_NAMESPACE
 
 int appCmdShow = 0;
 
-Q_CORE_EXPORT QString qAppFileName()                // get application file name
+QString _qAppFileName(HMODULE hInstance) // get application file name
 {
     /*
       GetModuleFileName() returns the length of the module name, when it has
@@ -91,10 +91,31 @@ Q_CORE_EXPORT QString qAppFileName()                // get application file name
     do {
         size += MAX_PATH;
         space.resize(int(size));
-        v = GetModuleFileName(NULL, space.data(), DWORD(space.size()));
+        v = GetModuleFileName(hInstance, space.data(), DWORD(space.size()));
     } while (Q_UNLIKELY(v >= size));
 
     return QString::fromWCharArray(space.data(), v);
+}
+
+QString _qModuleDirPath()
+{
+    HMODULE hThisModule = NULL;
+    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
+                                   | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           (LPCWSTR)_qModuleDirPath, &hThisModule)) {
+        QString fileName = _qAppFileName(hThisModule);
+        return QFileInfo(fileName).path();
+    }
+    return QString();
+}
+
+Q_CORE_EXPORT QString qAppFileName() {
+    return _qAppFileName(NULL);
+}
+
+Q_CORE_EXPORT QString qModuleDirPath()
+{
+    return _qModuleDirPath();
 }
 
 QString QCoreApplicationPrivate::appName() const

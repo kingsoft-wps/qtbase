@@ -481,7 +481,31 @@ bool QAbstractEventDispatcher::filterNativeEvent(const QByteArray &eventType, vo
             QAbstractNativeEventFilter *filter = d->eventFilters.at(i);
             if (!filter)
                 continue;
-            if (filter->nativeEventFilter(eventType, message, result))
+
+            long ldummy = 0;
+            if (filter->nativeEventFilter(eventType, message, nullptr == result ? &ldummy : result))
+                return true;
+        }
+    }
+    return false;
+}
+
+
+bool QAbstractEventDispatcher::filterNativeEvent(bool checkInputMsg, const QAbstractNativeEventFilter::AllowNativeEventFilterFlag& flag,
+                                                const QByteArray& eventType, void* message, long* result)
+{
+    Q_D(QAbstractEventDispatcher);
+    if (!d->eventFilters.isEmpty()) {
+        // Raise the loopLevel so that deleteLater() calls in or triggered
+        // by event_filter() will be processed from the main event loop.
+        QScopedScopeLevelCounter scopeLevelCounter(d->threadData);
+        for (int i = 0; i < d->eventFilters.size(); ++i) {
+            QAbstractNativeEventFilter *filter = d->eventFilters.at(i);
+            if (!filter || !filter->allowNativeEventFilter(flag, checkInputMsg))
+                continue;
+
+            long ldummy = 0;
+            if (filter->nativeEventFilter(eventType, message, nullptr == result ? &ldummy : result))
                 return true;
         }
     }

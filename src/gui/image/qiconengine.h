@@ -56,14 +56,23 @@ public:
     virtual void paint(QPainter *painter, const QRect &rect, QIcon::Mode mode, QIcon::State state) = 0;
     virtual QSize actualSize(const QSize &size, QIcon::Mode mode, QIcon::State state);
     virtual QPixmap pixmap(const QSize &size, QIcon::Mode mode, QIcon::State state);
-
+    virtual bool isPixmapCache(const QSize& size, QIcon::Mode mode = QIcon::Normal, QIcon::State state = QIcon::Off) const;
+    virtual void setPolicy(const bool& isMultiSize, const bool& isCacheBuf, const Qt::AspectRatioMode&);
     virtual void addPixmap(const QPixmap &pixmap, QIcon::Mode mode, QIcon::State state);
     virtual void addFile(const QString &fileName, const QSize &size, QIcon::Mode mode, QIcon::State state);
+    virtual QStringList styleClassList(QIcon::Mode mode = QIcon::Normal,
+                                       QIcon::State state = QIcon::Off) const;
+    virtual void setStyleClass(const QString &xmlClass, const QString &property,
+                               const QVariant &value, QIcon::Mode mode = QIcon::Normal,
+                               QIcon::State state = QIcon::Off);
+    virtual void clearStyleClass(QIcon::Mode mode = QIcon::Normal, QIcon::State state = QIcon::Off);
 
     virtual QString key() const;
     virtual QIconEngine *clone() const = 0;
     virtual bool read(QDataStream &in);
     virtual bool write(QDataStream &out) const;
+
+    virtual void resetDeviceDependentResources();
 
     enum IconEngineHook { AvailableSizesHook = 1, IconNameHook, IsNullHook, ScaledPixmapHook };
 

@@ -242,6 +242,11 @@ QPushButton::QPushButton(QWidget *parent)
     : QAbstractButton(*new QPushButtonPrivate, parent)
 {
     Q_D(QPushButton);
+#ifdef Q_OS_MAC
+    // Modify QpushButton properties to avoid incomplete display
+    setMinimumHeight(25);
+    setAttribute(Qt::WA_LayoutUsesWidgetRect);
+#endif
     d->init();
 }
 
@@ -254,6 +259,11 @@ QPushButton::QPushButton(const QString &text, QWidget *parent)
     : QPushButton(parent)
 {
     setText(text);
+#ifdef Q_OS_MAC
+    // Modify QpushButton properties to avoid incomplete display
+    setMinimumHeight(25);
+    setAttribute(Qt::WA_LayoutUsesWidgetRect);
+#endif
 }
 
 
@@ -269,6 +279,11 @@ QPushButton::QPushButton(const QIcon& icon, const QString &text, QWidget *parent
 {
     setText(text);
     setIcon(icon);
+#ifdef Q_OS_MAC
+    // Modify QpushButton properties to avoid incomplete display
+    setMinimumHeight(25);
+    setAttribute(Qt::WA_LayoutUsesWidgetRect);
+#endif
 }
 
 /*! \internal
@@ -277,6 +292,11 @@ QPushButton::QPushButton(QPushButtonPrivate &dd, QWidget *parent)
     : QAbstractButton(dd, parent)
 {
     Q_D(QPushButton);
+#ifdef Q_OS_MAC
+    // Modify QpushButton properties to avoid incomplete display
+    setMinimumHeight(25);
+    setAttribute(Qt::WA_LayoutUsesWidgetRect);
+#endif
     d->init();
 }
 
@@ -420,6 +440,11 @@ QSize QPushButton::sizeHint() const
     QSize sz = fm.size(Qt::TextShowMnemonic, s);
     if(!empty || !w)
         w += sz.width();
+#ifdef Q_OS_MAC
+    // Because there will be a width of almost 8 pixels on the left and right sides of the QPushButton on the mac side, it needs to be considered when calculating the width
+    if (!empty)
+        w += 8 * 2;
+#endif
     if(!empty || !h)
         h = qMax(h, sz.height());
     opt.rect.setSize(QSize(w, h)); // PM_MenuButtonIndicator depends on the height
@@ -533,16 +558,38 @@ void QPushButton::setMenu(QMenu* menu)
         connect(this, SIGNAL(pressed()), this, SLOT(_q_popupPressed()), Qt::UniqueConnection);
     }
     if (d->menu)
+    {
         removeAction(d->menu->menuAction());
+#ifdef Q_OS_MAC
+        d->menu->disconnect(d->menu, SIGNAL(aboutToHide()), this, SLOT(onHideMenu()));
+#endif
+    }
+
     d->menu = menu;
-    if (d->menu)
+    if (d->menu)    
+	{
         addAction(d->menu->menuAction());
+#ifdef Q_OS_MAC
+        connect(d->menu, SIGNAL(aboutToHide()), this, SLOT(onHideMenu()));
+#endif
+    }
 
     d->resetLayoutItemMargins();
     d->sizeHint = QSize();
     update();
     updateGeometry();
 }
+
+#ifdef Q_OS_MAC
+void QPushButton::onHideMenu()
+{
+    if (this->testAttribute(Qt::WA_UnderMouse))
+    {
+        this->setAttribute(Qt::WA_UnderMouse, false);
+        this->update();
+    }
+}
+#endif // Q_OS_MAC
 
 /*!
     Returns the button's associated popup menu or 0 if no popup menu

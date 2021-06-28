@@ -138,6 +138,10 @@ public:
     bool hasHeightForWidth() const override;
     int heightForWidth(int) const override;
     QSizePolicy::ControlTypes controlTypes() const override;
+
+protected:
+    QSize layoutItemSize(const QSize &size) const;
+
 protected:
     QWidget *wid;
 };

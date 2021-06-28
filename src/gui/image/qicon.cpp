@@ -144,11 +144,26 @@ static qreal qt_effective_device_pixel_ratio(QWindow *window = 0)
 }
 
 QIconPrivate::QIconPrivate(QIconEngine *e)
-    : engine(e), ref(1),
+    : engine(e), recoverInfo(nullptr), ref(1),
       serialNum(nextSerialNumCounter()),
     detach_no(0),
     is_mask(false)
 {
+}
+
+void QIconPrivate::resetRecoverInfo()
+{
+    if (recoverInfo) {
+        delete recoverInfo;
+        recoverInfo = nullptr;
+    }
+}
+
+void QIconPrivate::resetRecoverInfo(const QString &fileName, const QSize &size, QIcon::Mode mode, QIcon::State state)
+{
+    if (recoverInfo)
+        delete recoverInfo;
+    recoverInfo = new QIconRecoverInfo(fileName, size, mode, state);
 }
 
 /*! \internal
@@ -546,6 +561,18 @@ QFactoryLoader *qt_iconEngineFactoryLoader()
     return loader();
 }
 
+static QIconEngine *iconEngineFromSuffix(const QString &fileName, const QString &suffix)
+{
+    if (!suffix.isEmpty()) {
+        const int index = loader()->indexOf(suffix);
+        if (index != -1) {
+            if (QIconEnginePlugin *factory = qobject_cast<QIconEnginePlugin*>(loader()->instance(index))) {
+                return factory->create(fileName);
+            }
+        }
+    }
+    return nullptr;
+}
 
 /*!
   \class QIcon
@@ -726,6 +753,28 @@ QIcon::QIcon(const QString &fileName)
 QIcon::QIcon(QIconEngine *engine)
     :d(new QIconPrivate(engine))
 {
+}
+
+QIcon::QIcon(const QString &suffix, const bool& isMultiSize, const bool& isCacheBuf, const Qt::AspectRatioMode& ratioMode)
+    : d(0)
+{
+    if (suffix.isEmpty())
+        return;
+
+    if (!d) {
+#if !defined (QT_NO_LIBRARY) && !defined(QT_NO_SETTINGS)
+        if (!suffix.isEmpty()) {
+            if (QIconEngine *engine = iconEngineFromSuffix("", suffix)) {
+                d = new QIconPrivate(engine);
+                d->engine->setPolicy(isMultiSize, isCacheBuf, ratioMode);
+            }
+        }
+#endif
+        // ...then fall back to the default engine
+        if (!d) {
+            d = new QIconPrivate(new QPixmapIconEngine);
+        }
+    }
 }
 
 /*!
@@ -930,6 +979,21 @@ QSize QIcon::actualSize(QWindow *window, const QSize &size, Mode mode, State sta
     return actualSize / d->pixmapDevicePixelRatio(devicePixelRatio, size, actualSize);
 }
 
+bool QIcon::isPixmapCache(const QSize& size, Mode mode, State state) const
+{
+    if (!d || !d->engine)
+        return false;
+    QIconEngine *engine = static_cast<QIconEngine*>(d->engine);
+    return engine->isPixmapCache(size, mode, state);
+}
+
+void QIcon::setPolicy(const bool& isMultiSize, const bool& isCacheBuf, const Qt::AspectRatioMode& mode)
+{
+    if (!d || !d->engine)
+        return;
+    d->engine->setPolicy(isMultiSize, isCacheBuf, mode);
+}
+
 /*!
     Uses the \a painter to paint the icon with specified \a alignment,
     required \a mode, and \a state into the rectangle \a rect.
@@ -1029,19 +1093,6 @@ void QIcon::addPixmap(const QPixmap &pixmap, Mode mode, State state)
     d->engine->addPixmap(pixmap, mode, state);
 }
 
-static QIconEngine *iconEngineFromSuffix(const QString &fileName, const QString &suffix)
-{
-    if (!suffix.isEmpty()) {
-        const int index = loader()->indexOf(suffix);
-        if (index != -1) {
-            if (QIconEnginePlugin *factory = qobject_cast<QIconEnginePlugin*>(loader()->instance(index))) {
-                return factory->create(fileName);
-            }
-        }
-    }
-    return nullptr;
-}
-
 /*!  Adds an image from the file with the given \a fileName to the
      icon, as a specialization for \a size, \a mode and \a state. The
      file will be loaded on demand. Note: custom icon engines are free
@@ -1080,9 +1131,10 @@ void QIcon::addFile(const QString &fileName, const QSize &size, Mode mode, State
     if (!d) {
 
         QFileInfo info(fileName);
-        QIconEngine *engine = iconEngineFromSuffix(fileName, info.suffix());
+        const QString suffix = info.suffix();
+        QIconEngine *engine = iconEngineFromSuffix(fileName, suffix);
 #if QT_CONFIG(mimetype)
-        if (!engine)
+        if (!engine && suffix.isEmpty())
             engine = iconEngineFromSuffix(fileName, QMimeDatabase().mimeTypeForFile(info).preferredSuffix());
 #endif // mimetype
         d = new QIconPrivate(engine ? engine : new QPixmapIconEngine);
@@ -1094,6 +1146,26 @@ void QIcon::addFile(const QString &fileName, const QSize &size, Mode mode, State
     QString atNxFileName = qt_findAtNxFile(fileName, qApp->devicePixelRatio());
     if (atNxFileName != fileName)
         d->engine->addFile(atNxFileName, size, mode, state);
+
+    d->resetRecoverInfo(fileName, size, mode, state);
+}
+
+void QIcon::recover()
+{
+    if (!d)
+        return;
+    QIconPrivate::QIconRecoverInfo *recoverInfo = d->getRecoverInfo();
+    if (recoverInfo) {
+        QString fileName = recoverInfo->fileName;
+        QSize size = recoverInfo->size;
+        QIcon::Mode mode = recoverInfo->mode;
+        QIcon::State state = recoverInfo->state;
+        detach();
+        addFile(fileName, size, mode, state);
+    }
+    if (d && d->engine) {
+        d->engine->resetDeviceDependentResources();
+    }
 }
 
 /*!
@@ -1375,6 +1447,31 @@ bool QIcon::isMask() const
     if (!d)
         return false;
     return d->is_mask;
+}
+
+QStringList QIcon::styleClassList(Mode mode, State state) const
+{
+    if (!d || !d->engine)
+        return QStringList();
+    QIconEngine *engine = static_cast<QIconEngine *>(d->engine);
+    return engine->styleClassList(mode, state);
+}
+
+void QIcon::setStyleClass(const QString &xmlClass, const QString &property, const QVariant &value,
+                          Mode mode, State state)
+{
+    if (!d || !d->engine)
+        return;
+    QIconEngine *engine = static_cast<QIconEngine *>(d->engine);
+    engine->setStyleClass(xmlClass, property, value, mode, state);
+}
+
+void QIcon::clearStyleClass(Mode mode, State state)
+{
+    if (!d || !d->engine)
+        return;
+    QIconEngine *engine = static_cast<QIconEngine *>(d->engine);
+    engine->clearStyleClass(mode, state);
 }
 
 /*****************************************************************************

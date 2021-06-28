@@ -350,7 +350,7 @@ private:
         return string.toLatin1();
     }
 #endif
-private:
+public:
     static QString fromEncodedComponent_helper(const QByteArray &ba);
 
 public:

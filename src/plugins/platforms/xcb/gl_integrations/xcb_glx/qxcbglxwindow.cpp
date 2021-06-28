@@ -84,4 +84,11 @@ const xcb_visualtype_t *QXcbGlxWindow::createVisual()
     return xcb_visualtype;
 }
 
+#ifdef Q_OS_LINUX
+int QXcbGlxWindow::testColorSapce()
+{
+    return qglx_testColorSapce();
+}
+#endif
+
 QT_END_NAMESPACE

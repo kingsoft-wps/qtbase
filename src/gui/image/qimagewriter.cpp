@@ -180,18 +180,22 @@ static QImageIOHandler *createWriteHandlerHelper(QIODevice *device,
     }
 #endif // QT_NO_IMAGEFORMATPLUGIN
 
+    bool forceUseBuiltInHandler = false;
     // check if any built-in handlers can write the image
     if (!handler && !testFormat.isEmpty()) {
         if (false) {
 #ifndef QT_NO_IMAGEFORMAT_PNG
         } else if (testFormat == "png") {
             handler = new QPngHandler;
+            forceUseBuiltInHandler = true;
 #endif
 #ifndef QT_NO_IMAGEFORMAT_BMP
         } else if (testFormat == "bmp") {
             handler = new QBmpHandler;
+            forceUseBuiltInHandler = true;
         } else if (testFormat == "dib") {
             handler = new QBmpHandler(QBmpHandler::DibFormat);
+            forceUseBuiltInHandler = true;
 #endif
 #ifndef QT_NO_IMAGEFORMAT_XPM
         } else if (testFormat == "xpm") {
@@ -212,7 +216,7 @@ static QImageIOHandler *createWriteHandlerHelper(QIODevice *device,
     }
 
 #ifndef QT_NO_IMAGEFORMATPLUGIN
-    if (!testFormat.isEmpty()) {
+    if (!testFormat.isEmpty() && (nullptr == handler || !forceUseBuiltInHandler)) {
         const int keyCount = keyMap.size();
         for (int i = 0; i < keyCount; ++i) {
             QImageIOPlugin *plugin = qobject_cast<QImageIOPlugin *>(l->instance(i));

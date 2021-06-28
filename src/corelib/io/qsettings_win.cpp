@@ -466,6 +466,7 @@ QWinSettingsPrivate::QWinSettingsPrivate(QString rPath, REGSAM access)
         keyLength = 3;
         keyName = HKEY_USERS;
     } else {
+        regList.append(RegistryKey(HKEY_LOCAL_MACHINE, rPath, false, access));
         return;
     }
 

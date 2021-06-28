@@ -97,7 +97,7 @@ void QFbBackingStore::unlock()
     mImageMutex.unlock();
 }
 
-void QFbBackingStore::beginPaint(const QRegion &region)
+bool QFbBackingStore::beginPaint(const QRegion &region)
 {
     lock();
 
@@ -107,6 +107,8 @@ void QFbBackingStore::beginPaint(const QRegion &region)
         for (const QRect &r : region)
             p.fillRect(r, Qt::transparent);
     }
+
+    return true;
 }
 
 void QFbBackingStore::endPaint()

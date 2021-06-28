@@ -41,6 +41,7 @@
 #define QWINDOWSDIRECT2DCONTEXT_H
 
 #include <QtCore/qscopedpointer.h>
+#include <QtPlatformHeaders/qwindowsdirect2dfunctions.h>
 
 struct ID3D11Device;
 struct ID2D1Device;
@@ -58,10 +59,11 @@ class QWindowsDirect2DContext
     Q_DECLARE_PRIVATE( QWindowsDirect2DContext )
 
 public:
-    QWindowsDirect2DContext();
+    QWindowsDirect2DContext(const QStringList &paramList);
     ~QWindowsDirect2DContext();
 
     bool init();
+    void resetHardwareResources();
 
     static QWindowsDirect2DContext *instance();
 
@@ -72,6 +74,13 @@ public:
     ID3D11DeviceContext *d3dDeviceContext() const;
     IDWriteFactory *dwriteFactory() const;
     IDWriteGdiInterop *dwriteGdiInterop() const;
+
+    float dpiForSystem() const;
+    bool messageHookEnabled() const;
+
+    static QWindowsDirect2DFunctions::DeviceType preferredDeviceTypeStatic();
+    static QWindowsDirect2DFunctions::DeviceType currentDeviceTypeStatic();
+    static QWindowsDirect2DFunctions::Direct2DContext contextStatic();
 
 private:
     QScopedPointer<QWindowsDirect2DContextPrivate> d_ptr;

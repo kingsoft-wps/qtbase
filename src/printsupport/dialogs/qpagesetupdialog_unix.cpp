@@ -405,7 +405,8 @@ void QPageSetupWidget::setPrinter(QPrinter *printer, QPrintDevice *printDevice,
 
     if (printDevice) {
         const QPageSize pageSize = printDevice->defaultPageSize();
-        const QMarginsF printable = printDevice->printableMargins(pageSize, m_pageLayout.orientation(), m_printer->resolution());
+        const int res = m_printer->resolution();
+        const QMarginsF printable = printDevice->printableMargins(pageSize, m_pageLayout.orientation(), QSize(res, res));
         m_pageLayout.setPageSize(pageSize, qt_convertMargins(printable, QPageLayout::Point, m_pageLayout.units()));
     }
 
@@ -627,7 +628,8 @@ void QPageSetupWidget::pageSizeChanged()
     if (m_blockSignals)
         return;
 
-    const QMarginsF printable = m_printDevice ? m_printDevice->printableMargins(pageSize, m_pageLayout.orientation(), m_printer->resolution())
+    const int res = m_printer->resolution();
+    const QMarginsF printable = m_printDevice ? m_printDevice->printableMargins(pageSize, m_pageLayout.orientation(), QSize(res, res))
                                               : QMarginsF();
     m_pageLayout.setPageSize(pageSize, qt_convertMargins(printable, QPageLayout::Point, m_pageLayout.units()));
     m_pagePreview->setPageLayout(m_pageLayout);

@@ -107,7 +107,7 @@ bool QPlatformPrintDevice::isRemote() const
     return m_isRemote;
 }
 
-bool QPlatformPrintDevice::isValidPageLayout(const QPageLayout &layout, int resolution) const
+bool QPlatformPrintDevice::isValidPageLayout(const QPageLayout &layout, const QSize &resolution) const
 {
     // Check the page size is supported
     if (!supportedPageSize(layout.pageSize()).isValid())
@@ -259,7 +259,7 @@ QSize QPlatformPrintDevice::maximumPhysicalPageSize() const
 
 QMarginsF QPlatformPrintDevice::printableMargins(const QPageSize &pageSize,
                                                  QPageLayout::Orientation orientation,
-                                                 int resolution) const
+                                                 const QSize &resolution) const
 {
     Q_UNUSED(pageSize)
     Q_UNUSED(orientation)

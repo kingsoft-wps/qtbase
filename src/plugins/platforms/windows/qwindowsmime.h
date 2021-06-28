@@ -61,6 +61,8 @@ public:
     // for converting from Qt
     virtual bool canConvertFromMime(const FORMATETC &formatetc, const QMimeData *mimeData) const = 0;
     virtual bool convertFromMime(const FORMATETC &formatetc, const QMimeData *mimeData, STGMEDIUM * pmedium) const = 0;
+    virtual bool canConvertHereFromMime(const FORMATETC &formatetc, const QMimeData *mimeData) const = 0;
+    virtual bool convertHereFromMime(const FORMATETC &formatetc, const QMimeData *mimeData, STGMEDIUM * pmedium) const = 0;
     virtual QVector<FORMATETC> formatsForMime(const QString &mimeType, const QMimeData *mimeData) const = 0;
 
     // for converting to Qt
@@ -69,6 +71,9 @@ public:
     virtual QString mimeForFormat(const FORMATETC &formatetc) const = 0;
 
     static int registerMimeType(const QString &mime);
+    static void addLastExcludeMimeType(const QString &mime);
+    static void unregisterInternalTextMime();
+    static void unregisterInternalHtmlMime();
 };
 
 class QWindowsMimeConverter
@@ -81,6 +86,7 @@ public:
     QWindowsMime *converterToMime(const QString &mimeType, IDataObject *pDataObj) const;
     QStringList allMimesForFormats(IDataObject *pDataObj) const;
     QWindowsMime *converterFromMime(const FORMATETC &formatetc, const QMimeData *mimeData) const;
+    QWindowsMime *converterHereFromMime(const FORMATETC &formatetc, const QMimeData *mimeData) const;
     QVector<FORMATETC> allFormatsForMime(const QMimeData *mimeData) const;
 
     // Convenience.
@@ -89,7 +95,9 @@ public:
 
     void registerMime(QWindowsMime *mime);
     void unregisterMime(QWindowsMime *mime) { m_mimes.removeOne(mime); }
-
+    void unregisterInternalTextMime();
+    void unregisterInternalHtmlMime();
+    void addLastExcludeMimeType(const QString &mime);
     static QString clipboardFormatName(int cf);
 
 private:

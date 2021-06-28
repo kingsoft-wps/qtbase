@@ -205,10 +205,121 @@ static QSize screenCursorSize(const QPlatformScreen *screen = nullptr)
     return primaryScreenCursorSize;
 }
 
-#if !QT_CONFIG(imageformat_png)
-
 static inline QSize standardCursorSize() { return QSize(32, 32); }
 
+static HCURSOR createBitmapCursorFromData(const QSize &screenCursorSize,
+    // The cursor size the bitmap is targeted for
+    const QSize &bitmapTargetCursorSize,
+    // The actual size of the bitmap data
+    int bitmapSize, const uchar *bits,
+    const uchar *maskBits)
+{
+    QBitmap rawImage = QBitmap::fromData(QSize(bitmapSize, bitmapSize), bits);
+    QBitmap rawMaskImage = QBitmap::fromData(QSize(bitmapSize, bitmapSize), maskBits);
+    const qreal factor = qreal(screenCursorSize.width()) / qreal(bitmapTargetCursorSize.width());
+    if (16 == bitmapSize) {
+        if (factor > 1.4) {
+            rawImage = rawImage.scaled(QSize(32, 32));
+            rawMaskImage = rawMaskImage.scaled(QSize(32, 32));
+        }
+    }
+    else if (32 == bitmapSize) {
+        if (factor > 1.4 && factor <= 1.7) {
+            rawImage = rawImage.scaled(QSize(48, 48));
+            rawMaskImage = rawMaskImage.scaled(QSize(48, 48));
+        }
+        else if (factor > 1.7) {
+            rawImage = rawImage.scaled(QSize(64, 64));
+            rawMaskImage = rawMaskImage.scaled(QSize(64, 64));
+        }
+    }
+    return createBitmapCursor(rawImage.toImage().convertToFormat(QImage::Format_Mono),
+        rawMaskImage.toImage().convertToFormat(QImage::Format_Mono));
+}
+
+HCURSOR QWindowsCursor::createBitmapCursorFromShapeData(Qt::CursorShape cursorShape, const QPlatformScreen* screen /*= nullptr*/)
+{
+    // Non-standard Windows cursors are created from bitmaps
+    static const uchar vsplit_bits[] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x80, 0x00, 0x00, 0x00, 0xc0, 0x01, 0x00, 0x00, 0xe0, 0x03, 0x00,
+        0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00,
+        0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0xff, 0x7f, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x7f, 0x00,
+        0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00,
+        0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0xe0, 0x03, 0x00,
+        0x00, 0xc0, 0x01, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+    static const uchar vsplitm_bits[] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00,
+        0x00, 0xc0, 0x01, 0x00, 0x00, 0xe0, 0x03, 0x00, 0x00, 0xf0, 0x07, 0x00,
+        0x00, 0xf8, 0x0f, 0x00, 0x00, 0xc0, 0x01, 0x00, 0x00, 0xc0, 0x01, 0x00,
+        0x00, 0xc0, 0x01, 0x00, 0x80, 0xff, 0xff, 0x00, 0x80, 0xff, 0xff, 0x00,
+        0x80, 0xff, 0xff, 0x00, 0x80, 0xff, 0xff, 0x00, 0x80, 0xff, 0xff, 0x00,
+        0x80, 0xff, 0xff, 0x00, 0x00, 0xc0, 0x01, 0x00, 0x00, 0xc0, 0x01, 0x00,
+        0x00, 0xc0, 0x01, 0x00, 0x00, 0xf8, 0x0f, 0x00, 0x00, 0xf0, 0x07, 0x00,
+        0x00, 0xe0, 0x03, 0x00, 0x00, 0xc0, 0x01, 0x00, 0x00, 0x80, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+    static const uchar hsplit_bits[] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x02, 0x00, 0x00, 0x40, 0x02, 0x00,
+        0x00, 0x40, 0x02, 0x00, 0x00, 0x40, 0x02, 0x00, 0x00, 0x40, 0x02, 0x00,
+        0x00, 0x41, 0x82, 0x00, 0x80, 0x41, 0x82, 0x01, 0xc0, 0x7f, 0xfe, 0x03,
+        0x80, 0x41, 0x82, 0x01, 0x00, 0x41, 0x82, 0x00, 0x00, 0x40, 0x02, 0x00,
+        0x00, 0x40, 0x02, 0x00, 0x00, 0x40, 0x02, 0x00, 0x00, 0x40, 0x02, 0x00,
+        0x00, 0x40, 0x02, 0x00, 0x00, 0x40, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+    static const uchar hsplitm_bits[] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0xe0, 0x07, 0x00, 0x00, 0xe0, 0x07, 0x00, 0x00, 0xe0, 0x07, 0x00,
+        0x00, 0xe0, 0x07, 0x00, 0x00, 0xe2, 0x47, 0x00, 0x00, 0xe3, 0xc7, 0x00,
+        0x80, 0xe3, 0xc7, 0x01, 0xc0, 0xff, 0xff, 0x03, 0xe0, 0xff, 0xff, 0x07,
+        0xc0, 0xff, 0xff, 0x03, 0x80, 0xe3, 0xc7, 0x01, 0x00, 0xe3, 0xc7, 0x00,
+        0x00, 0xe2, 0x47, 0x00, 0x00, 0xe0, 0x07, 0x00, 0x00, 0xe0, 0x07, 0x00,
+        0x00, 0xe0, 0x07, 0x00, 0x00, 0xe0, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+    static const uchar openhand_bits[] = {
+        0x80,0x01,0x58,0x0e,0x64,0x12,0x64,0x52,0x48,0xb2,0x48,0x92,
+        0x16,0x90,0x19,0x80,0x11,0x40,0x02,0x40,0x04,0x40,0x04,0x20,
+        0x08,0x20,0x10,0x10,0x20,0x10,0x00,0x00};
+    static const uchar openhandm_bits[] = {
+        0x80,0x01,0xd8,0x0f,0xfc,0x1f,0xfc,0x5f,0xf8,0xff,0xf8,0xff,
+        0xf6,0xff,0xff,0xff,0xff,0x7f,0xfe,0x7f,0xfc,0x7f,0xfc,0x3f,
+        0xf8,0x3f,0xf0,0x1f,0xe0,0x1f,0x00,0x00};
+    static const uchar closedhand_bits[] = {
+        0x00,0x00,0x00,0x00,0x00,0x00,0xb0,0x0d,0x48,0x32,0x08,0x50,
+        0x10,0x40,0x18,0x40,0x04,0x40,0x04,0x20,0x08,0x20,0x10,0x10,
+        0x20,0x10,0x20,0x10,0x00,0x00,0x00,0x00};
+    static const uchar closedhandm_bits[] = {
+        0x00,0x00,0x00,0x00,0x00,0x00,0xb0,0x0d,0xf8,0x3f,0xf8,0x7f,
+        0xf0,0x7f,0xf8,0x7f,0xfc,0x7f,0xfc,0x3f,0xf8,0x3f,0xf0,0x1f,
+        0xe0,0x1f,0xe0,0x1f,0x00,0x00,0x00,0x00};
+
+    switch (cursorShape) {
+    case Qt::SplitVCursor:
+        return createBitmapCursorFromData(screenCursorSize(screen), standardCursorSize(), 32, vsplit_bits, vsplitm_bits);
+    case Qt::SplitHCursor:
+        return createBitmapCursorFromData(screenCursorSize(screen), standardCursorSize(), 32, hsplit_bits, hsplitm_bits);
+    case Qt::OpenHandCursor:
+        return createBitmapCursorFromData(screenCursorSize(screen), standardCursorSize(), 16, openhand_bits, openhandm_bits);
+    case Qt::ClosedHandCursor:
+        return createBitmapCursorFromData(screenCursorSize(screen), standardCursorSize(), 16, closedhand_bits, closedhandm_bits);
+    }
+
+    return nullptr;
+}
+
+#if !QT_CONFIG(imageformat_png)
 // Create pixmap cursors from data and scale the image if the cursor size is
 // higher than the standard 32. Note that bitmap cursors as produced by
 // createBitmapCursor() only work for standard sizes (32,48,64...), which does
@@ -517,6 +628,7 @@ HCURSOR QWindowsCursor::createCursorFromShape(Qt::CursorShape cursorShape, const
     case Qt::SplitHCursor:
     case Qt::OpenHandCursor:
     case Qt::ClosedHandCursor:
+        return createBitmapCursorFromShapeData(cursorShape, screen);
     case Qt::DragCopyCursor:
     case Qt::DragMoveCursor:
     case Qt::DragLinkCursor:
@@ -553,6 +665,7 @@ CursorHandlePtr QWindowsCursor::standardWindowCursor(Qt::CursorShape shape)
 
 HCURSOR QWindowsCursor::m_overriddenCursor = nullptr;
 HCURSOR QWindowsCursor::m_overrideCursor = nullptr;
+CustomWindowCursorCache QWindowsCursor::m_customWindowCursorCache;
 
 /*!
     \brief Return cached pixmap cursor or create new one.
@@ -585,6 +698,18 @@ CursorHandlePtr QWindowsCursor::pixmapWindowCursor(const QCursor &c)
     return it.value();
 }
 
+
+CursorHandlePtr QWindowsCursor::customWindowCursor(const QCursor &c) 
+{
+    Q_ASSERT(c.shape() == Qt::CustomCursor);
+    CustomWindowCursorCache::const_iterator it = m_customWindowCursorCache.constFind(c.hashCode());
+    if (it != m_customWindowCursorCache.constEnd())
+        return it.value();
+
+    Q_ASSERT(false);
+    return standardWindowCursor();
+}
+
 QWindowsCursor::QWindowsCursor(const QPlatformScreen *screen)
     : m_screen(screen)
 {
@@ -594,6 +719,9 @@ QWindowsCursor::QWindowsCursor(const QPlatformScreen *screen)
 
 inline CursorHandlePtr QWindowsCursor::cursorHandle(const QCursor &cursor)
 {
+    if (cursor.shape() == Qt::CustomCursor)
+        return customWindowCursor(cursor);
+
     return cursor.shape() == Qt::BitmapCursor
         ? pixmapWindowCursor(cursor)
         : standardWindowCursor(cursor.shape());
@@ -674,6 +802,16 @@ QWindowsCursor::State QWindowsCursor::cursorState()
             return State::Suppressed;
     }
     return State::Hidden;
+}
+
+bool QWindowsCursor::registerCustomWindowCursor(const QCursor &c, HCURSOR hcur) 
+{
+    CustomWindowCursorCache::const_iterator it = m_customWindowCursorCache.constFind(c.hashCode());
+    if (it != m_customWindowCursorCache.constEnd())
+        return false;
+
+    m_customWindowCursorCache.insert(c.hashCode(), CursorHandlePtr(new CursorHandle(hcur)));
+    return true;
 }
 
 QPoint QWindowsCursor::pos() const
@@ -770,10 +908,178 @@ QPixmap QWindowsCursor::dragDefaultCursor(Qt::DropAction action) const
     return m_ignoreDragCursor;
 }
 
+QPixmap QWindowsCursor::dragQt4CompatibleCursor(Qt::DropAction action) const
+{
+    /* XPM */
+    static const char *const move_xpm[] = {
+    "11 20 3 1",
+    ".        c None",
+    "a        c #000000",
+    "X        c #FFFFFF", // Windows cursor is traditionally white
+    "aa.........",
+    "aXa........",
+    "aXXa.......",
+    "aXXXa......",
+    "aXXXXa.....",
+    "aXXXXXa....",
+    "aXXXXXXa...",
+    "aXXXXXXXa..",
+    "aXXXXXXXXa.",
+    "aXXXXXXXXXa",
+    "aXXXXXXaaaa",
+    "aXXXaXXa...",
+    "aXXaaXXa...",
+    "aXa..aXXa..",
+    "aa...aXXa..",
+    "a.....aXXa.",
+    "......aXXa.",
+    ".......aXXa",
+    ".......aXXa",
+    "........aa."};
+    
+     /* XPM */
+    static const char * const ignore_xpm[] = {
+    "24 30 3 1",
+    ".        c None",
+    "a        c #000000",
+    "X        c #FFFFFF",
+    "aa......................",
+    "aXa.....................",
+    "aXXa....................",
+    "aXXXa...................",
+    "aXXXXa..................",
+    "aXXXXXa.................",
+    "aXXXXXXa................",
+    "aXXXXXXXa...............",
+    "aXXXXXXXXa..............",
+    "aXXXXXXXXXa.............",
+    "aXXXXXXaaaa.............",
+    "aXXXaXXa................",
+    "aXXaaXXa................",
+    "aXa..aXXa...............",
+    "aa...aXXa...............",
+    "a.....aXXa..............",
+    "......aXXa.....XXXX.....",
+    ".......aXXa..XXaaaaXX...",
+    ".......aXXa.XaaaaaaaaX..",
+    "........aa.XaaaXXXXaaaX.",
+    "...........XaaaaX..XaaX.",
+    "..........XaaXaaaX..XaaX",
+    "..........XaaXXaaaX.XaaX",
+    "..........XaaX.XaaaXXaaX",
+    "..........XaaX..XaaaXaaX",
+    "...........XaaX..XaaaaX.",
+    "...........XaaaXXXXaaaX.",
+    "............XaaaaaaaaX..",
+    ".............XXaaaaXX...",
+    "...............XXXX....."};
+    
+    /* XPM */
+    static const char * const copy_xpm[] = {
+    "24 30 3 1",
+    ".        c None",
+    "a        c #000000",
+    "X        c #FFFFFF",
+    "aa......................",
+    "aXa.....................",
+    "aXXa....................",
+    "aXXXa...................",
+    "aXXXXa..................",
+    "aXXXXXa.................",
+    "aXXXXXXa................",
+    "aXXXXXXXa...............",
+    "aXXXXXXXXa..............",
+    "aXXXXXXXXXa.............",
+    "aXXXXXXaaaa.............",
+    "aXXXaXXa................",
+    "aXXaaXXa................",
+    "aXa..aXXa...............",
+    "aa...aXXa...............",
+    "a.....aXXa..............",
+    "......aXXa..............",
+    ".......aXXa.............",
+    ".......aXXa.............",
+    "........aa...aaaaaaaaaaa",
+    ".............aXXXXXXXXXa",
+    ".............aXXXXXXXXXa",
+    ".............aXXXXaXXXXa",
+    ".............aXXXXaXXXXa",
+    ".............aXXaaaaaXXa",
+    ".............aXXXXaXXXXa",
+    ".............aXXXXaXXXXa",
+    ".............aXXXXXXXXXa",
+    ".............aXXXXXXXXXa",
+    ".............aaaaaaaaaaa"};
+    
+    /* XPM */
+    static const char * const link_xpm[] = {
+    "24 30 3 1",
+    ".        c None",
+    "a        c #000000",
+    "X        c #FFFFFF",
+    "aa......................",
+    "aXa.....................",
+    "aXXa....................",
+    "aXXXa...................",
+    "aXXXXa..................",
+    "aXXXXXa.................",
+    "aXXXXXXa................",
+    "aXXXXXXXa...............",
+    "aXXXXXXXXa..............",
+    "aXXXXXXXXXa.............",
+    "aXXXXXXaaaa.............",
+    "aXXXaXXa................",
+    "aXXaaXXa................",
+    "aXa..aXXa...............",
+    "aa...aXXa...............",
+    "a.....aXXa..............",
+    "......aXXa..............",
+    ".......aXXa.............",
+    ".......aXXa.............",
+    "........aa...aaaaaaaaaaa",
+    ".............aXXXXXXXXXa",
+    ".............aXXXaaaaXXa",
+    ".............aXXXXaaaXXa",
+    ".............aXXXaaaaXXa",
+    ".............aXXaaaXaXXa",
+    ".............aXXaaXXXXXa",
+    ".............aXXaXXXXXXa",
+    ".............aXXXaXXXXXa",
+    ".............aXXXXXXXXXa",
+    ".............aaaaaaaaaaa"};
+
+    switch (action) {
+    case Qt::CopyAction:
+        if (m_copyDragCursor.isNull())
+            m_copyDragCursor = QPixmap(copy_xpm);
+        return m_copyDragCursor;
+    case Qt::TargetMoveAction:
+    case Qt::MoveAction:
+        if (m_moveDragCursor.isNull())
+            m_moveDragCursor = QPixmap(move_xpm);
+        return m_moveDragCursor;
+    case Qt::LinkAction:
+        if (m_linkDragCursor.isNull())
+            m_linkDragCursor = QPixmap(link_xpm);
+        return m_linkDragCursor;
+    case Qt::IgnoreAction:
+        if (m_ignoreDragCursor.isNull())
+            m_ignoreDragCursor = QPixmap(ignore_xpm);
+        return m_ignoreDragCursor;
+    default:
+        break;
+    }
+    return QPixmap();
+}
+
 HCURSOR QWindowsCursor::hCursor(const QCursor &c) const
 {
     const Qt::CursorShape shape = c.shape();
-    if (shape == Qt::BitmapCursor) {
+    if (shape == Qt::CustomCursor){
+        auto cit = m_customWindowCursorCache.constFind(c.hashCode());
+        if (cit != m_customWindowCursorCache.constEnd())
+            return cit.value()->handle();
+    } else if (shape == Qt::BitmapCursor) {
         const auto pit = m_pixmapCursorCache.constFind(QWindowsPixmapCursorCacheKey(c));
         if (pit != m_pixmapCursorCache.constEnd())
             return pit.value()->handle();

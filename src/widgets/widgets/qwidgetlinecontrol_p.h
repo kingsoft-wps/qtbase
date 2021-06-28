@@ -246,14 +246,7 @@ public:
         QString res = m_maskData ? stripString(content) : content;
         return (res.isNull() ? QString::fromLatin1("") : res);
     }
-    void setText(const QString &txt)
-    {
-#ifndef QT_NO_IM
-        if (composeMode())
-            QGuiApplication::inputMethod()->reset();
-#endif
-        internalSetText(txt, -1, false);
-    }
+    void setText(const QString &txt) { internalSetText(txt, -1, false); }
     void commitPreedit();
 
     QString displayText() const { return m_textLayout.text(); }
@@ -432,6 +425,7 @@ private:
     void internalInsert(const QString &s);
     void internalDelete(bool wasBackspace = false);
     void internalRemove(int pos);
+    void onWideChar(const QString &);
 
     inline void internalDeselect()
     {

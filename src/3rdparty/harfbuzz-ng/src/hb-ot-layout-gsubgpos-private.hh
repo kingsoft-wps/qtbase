@@ -463,6 +463,25 @@ struct hb_apply_context_t :
 			auto_zwj (true),
 			has_glyph_classes (gdef.has_glyph_classes ()) {}
 
+  hb_apply_context_t (unsigned int table_index_,
+		      hb_face_t *face_,
+		      hb_buffer_t *buffer_) :
+			iter_input (), iter_context (),
+			font (nullptr), face (face_), buffer (buffer_),
+			recurse_func (nullptr),
+			gdef (*hb_ot_layout_from_face (face)->gdef),
+			var_store (gdef.get_var_store ()),
+			direction (buffer_->props.direction),
+			lookup_mask (1),
+			table_index (table_index_),
+			lookup_index ((unsigned int) -1),
+			lookup_props (0),
+			nesting_level_left (HB_MAX_NESTING_LEVEL),
+			debug_depth (0),
+			auto_zwnj (true),
+			auto_zwj (true),
+			has_glyph_classes (gdef.has_glyph_classes ()) {}
+
   inline void set_lookup_mask (hb_mask_t mask) { lookup_mask = mask; }
   inline void set_auto_zwj (bool auto_zwj_) { auto_zwj = auto_zwj_; }
   inline void set_auto_zwnj (bool auto_zwnj_) { auto_zwnj = auto_zwnj_; }

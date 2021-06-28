@@ -468,9 +468,17 @@ bool QScrollBar::event(QEvent *event)
     case QEvent::HoverEnter:
     case QEvent::HoverLeave:
     case QEvent::HoverMove:
+    {
+#ifdef Q_OS_MAC
+        if (event->type() == QEvent::HoverEnter || event->type() == QEvent::HoverMove)
+            this->setAttribute(Qt::WA_UnderMouse, true);
+        else
+            this->setAttribute(Qt::WA_UnderMouse, false);
+#endif
         if (const QHoverEvent *he = static_cast<const QHoverEvent *>(event))
             d_func()->updateHoverControl(he->pos());
         break;
+	}
     case QEvent::StyleChange:
         d_func()->setTransient(style()->styleHint(QStyle::SH_ScrollBar_Transient, 0, this));
         break;
@@ -497,6 +505,8 @@ bool QScrollBar::event(QEvent *event)
 void QScrollBar::wheelEvent(QWheelEvent *event)
 {
     event->ignore();
+    if (!isEnabled())
+        return ;
     int delta = event->delta();
     // scrollbar is a special case - in vertical mode it reaches minimum
     // value in the upper position, however QSlider's minimum value is on
@@ -513,6 +523,15 @@ void QScrollBar::wheelEvent(QWheelEvent *event)
         d->setTransient(false);
     else if (event->phase() == Qt::ScrollEnd)
         d->setTransient(true);
+#ifdef Q_OS_MAC
+    else if (event->phase() == Qt::ScrollUpdate && !d->transient)
+    {
+        int pos = this->value();
+        pos += -event->delta() / 15;
+        this->setValue(pos);
+        event->accept();
+    }
+#endif // Q_OS_MAC
 }
 #endif
 
@@ -526,6 +545,14 @@ void QScrollBar::paintEvent(QPaintEvent *)
     QStyleOptionSlider opt;
     initStyleOption(&opt);
     opt.subControls = QStyle::SC_All;
+#ifdef Q_OS_MAC
+    // A separate ScrollBar usually does not need a background to add property control
+	QVariant varProp = this->property("NoScrollBarGroove");
+    if (varProp.isValid() && varProp.toBool())
+    {
+        opt.subControls.setFlag(QStyle::SC_ScrollBarGroove, false);
+    }
+#endif // Q_OS_MAC
     if (d->pressedControl) {
         opt.activeSubControls = (QStyle::SubControl)d->pressedControl;
         if (!d->pointerOutsidePressedControl)

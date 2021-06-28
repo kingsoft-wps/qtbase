@@ -64,6 +64,7 @@ public:
 private Q_SLOTS:
     void handleApplicationStateChanged(Qt::ApplicationState state);
 
+    void flushClipboard();
 protected:
     QMacPasteboard *pasteboardForMode(QClipboard::Mode mode) const;
 

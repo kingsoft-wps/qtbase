@@ -41,11 +41,28 @@
 #include "qwindowsdirect2dhelpers.h"
 #include "qwindowsdirect2ddevicecontext.h"
 
+#include <QtGui/qguiapplication.h>
+
 #include <wrl.h>
 
 using Microsoft::WRL::ComPtr;
 
 QT_BEGIN_NAMESPACE
+
+// The former HRESULT of EndDraw doesn't give a return value that could indicate a device lost error.
+// Here we need to try to create a resource via this device context, if it returns D2DERR_RECREATE_TARGET,
+// then a device lost error was detected.
+static bool isGpuDeviceLost(ID2D1DeviceContext* dc)
+{
+    Q_ASSERT(dc);
+    D2D1_PIXEL_FORMAT format = { DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED };
+    D2D1_BITMAP_PROPERTIES1 properties = { format, 96.f, 96.f, D2D1_BITMAP_OPTIONS_TARGET,
+                                           nullptr };
+    D2D1_SIZE_U size = { 1, 1 };
+    ComPtr<ID2D1Bitmap1> bmp;
+    HRESULT hr = dc->CreateBitmap(size, nullptr, 0, properties, &bmp);
+    return hr == D2DERR_RECREATE_TARGET;
+}
 
 class QWindowsDirect2DDeviceContextPrivate {
 public:
@@ -88,9 +105,15 @@ public:
             HRESULT hr = deviceContext->EndDraw(&tag1, &tag2);
 
             if (FAILED(hr)) {
+                bool deviceLostError = isGpuDeviceLost(deviceContext.Get());
                 success = false;
                 qWarning("%s: EndDraw failed: %#lx, tag1: %lld, tag2: %lld",
                          __FUNCTION__, long(hr), tag1, tag2);
+                if (deviceLostError) {
+                    QGuiApplication::postEvent(QGuiApplication::instance(),
+                                               new QEvent(QEvent::GpuDeviceLost),
+                                               Qt::HighEventPriority);
+                }
             }
         }
 

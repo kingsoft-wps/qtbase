@@ -64,15 +64,38 @@ QT_BEGIN_NAMESPACE
 class QIconPrivate
 {
 public:
+    struct QIconRecoverInfo {
+        QString fileName;
+        QSize size;
+        QIcon::Mode mode;
+        QIcon::State state;
+        QIconRecoverInfo(const QString &fn, const QSize &s, QIcon::Mode m, QIcon::State stt)
+            : fileName(fn), size(s), mode(m), state(stt)
+        {
+        }
+        QIconRecoverInfo(const QIconRecoverInfo &other)
+            : fileName(other.fileName), size(other.size), mode(other.mode), state(other.state)
+        {
+        }
+    };
+
     explicit QIconPrivate(QIconEngine *e);
 
     ~QIconPrivate() {
         delete engine;
+        if (recoverInfo) {
+            delete recoverInfo;
+            recoverInfo = nullptr;
+        }
     }
 
     qreal pixmapDevicePixelRatio(qreal displayDevicePixelRatio, const QSize &requestedSize, const QSize &actualSize);
+    void resetRecoverInfo();
+    void resetRecoverInfo(const QString &fileName, const QSize &size, QIcon::Mode mode, QIcon::State state);
+    QIconRecoverInfo *getRecoverInfo() const { return recoverInfo; }
 
     QIconEngine *engine;
+    QIconRecoverInfo *recoverInfo;
 
     QAtomicInt ref;
     int serialNum;

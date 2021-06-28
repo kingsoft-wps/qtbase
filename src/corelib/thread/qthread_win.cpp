@@ -323,7 +323,7 @@ DWORD WINAPI qt_adopted_thread_watcher_function(LPVOID)
     return 0;
 }
 
-#if !defined(QT_NO_DEBUG) && defined(Q_CC_MSVC) && !defined(Q_OS_WINRT)
+#if defined(Q_CC_MSVC) && !defined(Q_OS_WINRT)
 
 #ifndef Q_OS_WIN64
 #  define ULONG_PTR DWORD
@@ -337,7 +337,7 @@ typedef struct tagTHREADNAME_INFO
     DWORD dwFlags;     // reserved for future use, must be zero
 } THREADNAME_INFO;
 
-void qt_set_thread_name(HANDLE threadId, LPCSTR threadName)
+static void _qt_set_thread_name_by_exception(HANDLE threadId, LPCSTR threadName)
 {
     THREADNAME_INFO info;
     info.dwType = 0x1000;
@@ -354,7 +354,23 @@ void qt_set_thread_name(HANDLE threadId, LPCSTR threadName)
     {
     }
 }
-#endif // !QT_NO_DEBUG && Q_CC_MSVC && !Q_OS_WINRT
+
+// The SetThreadDescription API was brought in version 1607 of Windows 10.
+typedef HRESULT(WINAPI *pFnSetThreadDescription)(HANDLE, PCWSTR);
+
+void qt_set_thread_name(HANDLE threadId, LPCSTR threadName)
+{
+    auto fnSetThreadDescription = reinterpret_cast<pFnSetThreadDescription>(
+            ::GetProcAddress(::GetModuleHandleW(L"Kernel32.dll"), "SetThreadDescription"));
+    if (fnSetThreadDescription) {
+        const QString strName = QString::fromLocal8Bit(threadName);
+        fnSetThreadDescription(GetCurrentThread(),
+                               reinterpret_cast<const WCHAR *>(strName.utf16()));
+    } else if (IsDebuggerPresent()) {
+        _qt_set_thread_name_by_exception(threadId, threadName);
+    }
+}
+#endif // Q_CC_MSVC && !Q_OS_WINRT
 
 /**************************************************************************
  ** QThreadPrivate
@@ -392,7 +408,7 @@ unsigned int __stdcall QT_ENSURE_STACK_ALIGNED_FOR_SSE QThreadPrivate::start(voi
 
     data->ensureEventDispatcher();
 
-#if !defined(QT_NO_DEBUG) && defined(Q_CC_MSVC) && !defined(Q_OS_WINRT)
+#if defined(Q_CC_MSVC) && !defined(Q_OS_WINRT)
     // sets the name of the current thread.
     QByteArray objectName = thr->objectName().toLocal8Bit();
     qt_set_thread_name(HANDLE(-1),

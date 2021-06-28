@@ -47,6 +47,8 @@
 
 #include "qfontengine_p.h"
 
+#include <harfbuzz/hb-ot.h>
+
 QT_BEGIN_NAMESPACE
 
 // Unicode routines
@@ -709,6 +711,78 @@ hb_font_t *hb_qt_font_get_for_engine(QFontEngine *fe)
         fe->font_ = QFontEngine::Holder(_hb_qt_font_create(fe), _hb_qt_font_release);
 
     return static_cast<hb_font_t *>(fe->font_.get());
+}
+
+bool hb_qt_ot_layout_substitution_has_feature(
+        hb_face_t *face,
+        hb_tag_t script_tag,
+        hb_tag_t feature_tag)
+{
+    if (!hb_ot_layout_has_substitution(face))
+        return false;
+
+    unsigned int script_index = HB_OT_LAYOUT_NO_SCRIPT_INDEX;
+    if (!hb_ot_layout_table_find_script(face, HB_OT_TAG_GSUB, script_tag, &script_index))
+        return false;
+
+    if (hb_ot_layout_language_find_feature(
+                face, HB_OT_TAG_GSUB,
+                script_index, HB_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX,
+                feature_tag, nullptr)) {
+        return true;
+    }
+
+    unsigned int language_count = hb_ot_layout_script_get_language_tags(
+                face, HB_OT_TAG_GSUB,
+                script_index, 0,
+                nullptr, nullptr);
+    for (unsigned int i = 0; i < language_count; ++i) {
+        if (hb_ot_layout_language_find_feature(
+                    face, HB_OT_TAG_GSUB,
+                    script_index, i,feature_tag, nullptr)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool hb_qt_ot_layout_substitution_has_script(
+        hb_face_t *face,
+        hb_tag_t script_tag)
+{
+    if (!hb_ot_layout_has_substitution(face))
+        return false;
+
+    return hb_ot_layout_table_find_script(face, HB_OT_TAG_GSUB, script_tag, nullptr);
+}
+
+hb_codepoint_t hb_qt_ot_layout_substitution_apply(
+        hb_face_t *face,
+        hb_codepoint_t glyph)
+{
+    hb_set_t *gsub_lookups = hb_set_create();
+    const hb_tag_t script_tags[] = { HB_TAG('h', 'a', 'n', 'i'), HB_TAG_NONE };
+    const hb_tag_t feature_tags[] = { HB_TAG('v', 'e', 'r', 't'), HB_TAG_NONE };
+    hb_ot_layout_collect_lookups(face,
+                                 HB_OT_TAG_GSUB,
+                                 script_tags,
+                                 nullptr,
+                                 feature_tags,
+                                 gsub_lookups);
+
+    hb_codepoint_t result = glyph;
+    for (hb_codepoint_t idx = HB_SET_VALUE_INVALID; hb_set_next(gsub_lookups, &idx); ) {
+        hb_codepoint_t subst = hb_ot_layout_lookup_substitute(face, idx, glyph);
+        if (subst != glyph) {
+            result = subst;
+            break;
+        }
+    }
+
+    hb_set_destroy(gsub_lookups);
+
+    return result;
 }
 
 QT_END_NAMESPACE

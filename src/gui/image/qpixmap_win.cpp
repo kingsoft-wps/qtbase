@@ -349,14 +349,17 @@ Q_GUI_EXPORT HBITMAP qt_pixmapToWinHBITMAP(const QPixmap &p, int hbitmapFormat =
         return nullptr;
 
     QPlatformPixmap *platformPixmap = p.handle();
-    if (platformPixmap->classId() != QPlatformPixmap::RasterClass) {
+    if (platformPixmap->classId() == QPlatformPixmap::RasterClass) {
+        return qt_imageToWinHBITMAP(*static_cast<QRasterPlatformPixmap*>(platformPixmap)->buffer(), hbitmapFormat);
+    } else if (platformPixmap->classId() == QPlatformPixmap::Direct2DClass) {
+        return qt_imageToWinHBITMAP(p.toImage(), hbitmapFormat);
+    } else {
         QRasterPlatformPixmap *data = new QRasterPlatformPixmap(p.depth() == 1 ?
             QRasterPlatformPixmap::BitmapType : QRasterPlatformPixmap::PixmapType);
         data->fromImage(p.toImage(), Qt::AutoColor);
         return qt_pixmapToWinHBITMAP(QPixmap(data), hbitmapFormat);
     }
 
-    return qt_imageToWinHBITMAP(*static_cast<QRasterPlatformPixmap*>(platformPixmap)->buffer(), hbitmapFormat);
 }
 
 static QImage::Format imageFromWinHBITMAP_Format(const BITMAPINFOHEADER &header, int hbitmapFormat)
@@ -364,8 +367,12 @@ static QImage::Format imageFromWinHBITMAP_Format(const BITMAPINFOHEADER &header,
     QImage::Format result = QImage::Format_Invalid;
     switch (header.biBitCount) {
     case 32:
-        result = hbitmapFormat == HBitmapNoAlpha
-            ? QImage::Format_RGB32 : QImage::Format_ARGB32_Premultiplied;
+        if (hbitmapFormat == HBitmapNoAlpha)
+            result = QImage::Format_RGB32;
+        else if (hbitmapFormat == HBitmapAlpha)
+            result = QImage::Format_ARGB32;
+        else
+            result = QImage::Format_ARGB32_Premultiplied;
         break;
     case 24:
         result = QImage::Format_RGB888;

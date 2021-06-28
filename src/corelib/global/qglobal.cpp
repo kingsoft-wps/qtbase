@@ -2091,6 +2091,12 @@ QT_WARNING_DISABLE_DEPRECATED
 QSysInfo::WinVersion QSysInfo::windowsVersion()
 {
     const auto version = QOperatingSystemVersion::current();
+    if (version.majorVersion() == 5 && version.minorVersion() == 1)
+        return QSysInfo::WV_XP;
+    if (version.majorVersion() == 5 && version.minorVersion() == 2)
+        return QSysInfo::WV_2003;
+    if (version.majorVersion() == 6 && version.minorVersion() == 0)
+        return QSysInfo::WV_VISTA;
     if (version.majorVersion() == 6 && version.minorVersion() == 1)
         return QSysInfo::WV_WINDOWS7;
     if (version.majorVersion() == 6 && version.minorVersion() == 2)

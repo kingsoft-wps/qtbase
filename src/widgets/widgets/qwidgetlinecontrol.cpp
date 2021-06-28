@@ -59,6 +59,7 @@
 #endif
 
 #include "qvalidator.h"
+#include "qthaiinputcorrector.h"
 
 QT_BEGIN_NAMESPACE
 
@@ -959,6 +960,45 @@ void QWidgetLineControl::removeSelectedText()
 /*!
     \internal
 
+    QWidgetLineControl::onWideChar
+*/
+void QWidgetLineControl::onWideChar(const QString &s)
+{
+    if (s.size() > 1 ||
+        QThaiInputCorrector::getThaiCharType(s.at(0).unicode()) == QThaiCharTypeInvalid ||
+        m_maskData ||
+        m_echoMode == QLineEdit::Password)
+    {
+        insert(s);
+        return;
+    }
+    int priorState = m_undoState;
+    removeSelectedText();
+    {
+        int remaining = m_maxLength - m_text.length();
+        if (remaining != 0) {
+            QThaiInputCorrector syl;
+            syl.parse(m_text.utf16(), m_cursor, s.at(0).unicode());
+            if (syl.valid())
+            {
+                for (int i = 0; i < syl.getSrcLen(); ++i) {
+                    --m_cursor;
+                    addCommand(Command(Remove, m_cursor, m_text.at(m_cursor), -1, -1));
+                }
+                QString vs = syl.value();
+                m_text.replace(m_cursor, syl.getSrcLen(), vs);
+                for (int i = 0; i < (int)vs.length(); ++i)
+                    addCommand(Command(Insert, m_cursor++, vs.at(i), -1, -1));
+                m_textDirty = true;
+            }
+        }
+    }
+    finishChange(priorState);
+}
+
+/*!
+    \internal
+
     Parses the input mask specified by \a maskFields to generate
     the mask data used to handle input masks.
 */
@@ -1732,6 +1772,13 @@ void QWidgetLineControl::processKeyEvent(QKeyEvent* event)
         if (!isReadOnly())
             redo();
     }
+#ifdef Q_OS_MAC
+    else if (event->key() == 'y' && (event->modifiers() & Qt::ControlModifier || event->modifiers() & Qt::MetaModifier)
+             && !(event->modifiers() & Qt::AltModifier) && !(event->modifiers() & Qt::ShiftModifier)) {
+        if (!isReadOnly())
+            redo();
+    }
+#endif
     else if (event == QKeySequence::SelectAll) {
         selectAll();
     }
@@ -1944,7 +1991,7 @@ void QWidgetLineControl::processKeyEvent(QKeyEvent* event)
     if (unknown
         && !isReadOnly()
         && isAcceptableInput(event)) {
-        insert(event->text());
+        onWideChar(event->text());
 #if QT_CONFIG(completer)
         complete(event->key());
 #endif

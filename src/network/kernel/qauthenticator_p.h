@@ -100,7 +100,7 @@ public:
     QString workstation;
     QString userDomain;
 
-    QByteArray calculateResponse(const QByteArray &method, const QByteArray &path);
+    QByteArray calculateResponse(const QByteArray &method, const QByteArray &path, const QString &hostName = QString());
 
     inline static QAuthenticatorPrivate *getPrivate(QAuthenticator &auth) { return auth.d; }
     inline static const QAuthenticatorPrivate *getPrivate(const QAuthenticator &auth) { return auth.d; }

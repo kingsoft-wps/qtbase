@@ -329,6 +329,7 @@ bool QXcbDrag::findXdndAwareTarget(const QPoint &globalPos, xcb_window_t *target
     int ly = translate->dst_y;
 
     if (target && target != rootwin) {
+        unsigned long app_pid = static_cast<unsigned long>(getpid());
         xcb_window_t src = rootwin;
         while (target != 0) {
             qCDebug(lcQpaXDnd) << "checking target for XdndAware" << target;
@@ -348,8 +349,13 @@ bool QXcbDrag::findXdndAwareTarget(const QPoint &globalPos, xcb_window_t *target
                                      atom(QXcbAtom::XdndAware), XCB_GET_PROPERTY_TYPE_ANY, 0, 0);
             bool aware = reply && reply->type != XCB_NONE;
             if (aware) {
-                qCDebug(lcQpaXDnd) << "found XdndAware on" << target;
-                break;
+                reply = Q_XCB_REPLY(xcb_get_property, xcb_connection(), false, target, atom(QXcbAtom::_NET_WM_PID),
+                                    XCB_GET_PROPERTY_TYPE_ANY, 0, 1);
+                if (app_pid == *(unsigned long*)xcb_get_property_value(reply.get()))
+                {
+                    qCDebug(lcQpaXDnd) << "found XdndAware on" << target;
+                    break;
+                }
             }
 
             target = child;
@@ -779,8 +785,10 @@ void QXcbDrag::handle_xdnd_position(QPlatformWindow *w, const xcb_client_message
     QPoint p((e->data.data32[2] & 0xffff0000) >> 16, e->data.data32[2] & 0x0000ffff);
     Q_ASSERT(w);
     QRect geometry = w->geometry();
-    p -= geometry.topLeft();
-
+    QPoint topleft = geometry.topLeft();
+    if (w->isEmbedded())
+        topleft = w->mapToGlobal(topleft);
+    p -= topleft;
     if (!w || !w->window() || (w->window()->type() == Qt::Desktop))
         return;
 

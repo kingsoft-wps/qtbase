@@ -173,7 +173,7 @@ void QComposeInputContext::setFocusObject(QObject *object)
     m_focusObject = object;
 }
 
-void QComposeInputContext::reset()
+void QComposeInputContext::reset(bool bCancel)
 {
     clearComposeBuffer();
 }

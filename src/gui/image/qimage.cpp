@@ -127,6 +127,18 @@ QImageData * QImageData::create(const QSize &size, QImage::Format format)
     if (!params.isValid())
         return nullptr;
 
+#ifdef Q_OS_MAC
+    const int bytes_per_line = ((width * depth + 31) >> 5) << 2; // bytes per scanline (must be multiple of 4)
+
+    // sanity check for potential overflows
+    if (INT_MAX/depth < width
+        || bytes_per_line <= 0
+        || height <= 0
+        || INT_MAX/uint(bytes_per_line) < height
+        || INT_MAX/sizeof(uchar *) < uint(height))
+        return 0;
+#endif //#Q_OS_MAC
+
     QScopedPointer<QImageData> d(new QImageData);
 
     switch (format) {

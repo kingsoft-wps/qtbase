@@ -62,6 +62,10 @@ public:
     bool supportsThreadedOpenGL() const override;
     bool supportsSwitchableWidgetComposition() const override;
 
+#ifdef Q_OS_LINUX
+    int testColorSapce() const override;
+#endif
+
 private:
     QXcbConnection *m_connection;
     uint32_t m_glx_first_event;

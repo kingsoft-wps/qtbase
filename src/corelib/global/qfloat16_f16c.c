@@ -39,6 +39,7 @@
 
 #include "private/qsimd_p.h"
 
+#if !defined(Q_PROCESSOR_ARM_64)
 // The x86 F16C instructions operate on AVX registers, so AVX support is
 // required. We don't need to check for __F16C__ because we this file wouldn't
 // have been compiled if the support was missing in the first place, and not
@@ -89,3 +90,4 @@ void qFloatFromFloat16_fast(float *out, const quint16 *in, qsizetype len) Q_DECL
 } // extern "C"
 QT_END_NAMESPACE
 #endif
+#endif //Q_PROCESSOR_ARM_64

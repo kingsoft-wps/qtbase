@@ -128,7 +128,7 @@ public:
     struct Glyph {
         Glyph() = default;
         ~Glyph() { delete [] data; }
-        short linearAdvance = 0;
+        int linearAdvance = 0;
         unsigned char width = 0;
         unsigned char height = 0;
         short x = 0;
@@ -208,7 +208,14 @@ public:
     virtual QImage alphaRGBMapForGlyph(glyph_t, QFixed subPixelPosition, const QTransform &t);
     virtual QImage bitmapForGlyph(glyph_t, QFixed subPixelPosition, const QTransform &t, const QColor &color = QColor());
     virtual Glyph *glyphData(glyph_t glyph, QFixed subPixelPosition, GlyphFormat neededFormat, const QTransform &t);
+    virtual Glyph *glyphDataForCustomBold(glyph_t glyph, QFixed subPixelPosition, GlyphFormat neededFormat,
+                                          const QTransform &t, int wx, int wy);
     virtual bool hasInternalCaching() const { return false; }
+
+    virtual bool isColorFont() const { return false; }
+    virtual bool hasColorLayer(glyph_t) const { return false; }
+    virtual void addColorLayersToPath(glyph_t /*glyph*/, const QFixedPoint &/*position*/,
+                                      QVector<QPainterPath> &/*paths*/, QVector<QColor> &/*colors*/) {}
 
     virtual glyph_metrics_t alphaMapBoundingBox(glyph_t glyph, QFixed /*subPixelPosition*/, const QTransform &matrix, GlyphFormat /*format*/)
     {
@@ -262,17 +269,21 @@ public:
 
     virtual int getPointInOutline(glyph_t glyph, int flags, quint32 point, QFixed *xpos, QFixed *ypos, quint32 *nPoints);
 
-    void clearGlyphCache(const void *key);
-    void setGlyphCache(const void *key, QFontEngineGlyphCache *data);
-    QFontEngineGlyphCache *glyphCache(const void *key, GlyphFormat format, const QTransform &transform, const QColor &color = QColor()) const;
+    virtual void clearGlyphCache(const void *key);
+    virtual void setGlyphCache(const void *key, QFontEngineGlyphCache *data);
+    virtual QFontEngineGlyphCache *glyphCache(const void *key, GlyphFormat format, const QTransform &transform, const QColor &color = QColor()) const;
 
-    static const uchar *getCMap(const uchar *table, uint tableSize, bool *isSymbolFont, int *cmapSize);
+    static const uchar *getCMap(const uchar *table, uint tableSize, bool *isSymbolFont,
+                                int *cmapSize, QTextCodec **cmapCodec = nullptr);
     static quint32 getTrueTypeGlyphIndex(const uchar *cmap, int cmapSize, uint unicode);
 
     static QByteArray convertToPostscriptFontFamilyName(const QByteArray &fontFamily);
 
     virtual bool hasUnreliableGlyphOutline() const;
     virtual bool expectsGammaCorrectedBlending() const;
+
+    QTransform applyTextRotation(const QTransform &matrix) const;
+    QFixed getCustomBoldPixWidth(const QTransform &t);
 
     enum HintStyle {
         HintNone,
@@ -290,8 +301,19 @@ public:
         Subpixel_VBGR
     };
 
+    virtual QString fontPath() { return QString(); }
+
+    virtual bool needEmbolden() const { return false; }
+
+    bool changeCapJoinStyle();
+    bool forceDrawAsOutline();
+
+    virtual bool hasCustomBoldWidth(int penWidth, int vw, int vh, int ww, int wh, int& wx, int& wy);
+
 private:
     const Type m_type;
+    static QStringList changeCapJoinFamilys;
+    static QStringList forceDrawAsOutlineFamilys;
 
 public:
     QAtomicInt ref;
@@ -360,8 +382,13 @@ public:
     GlyphFormat glyphFormat;
     int m_subPixelPositionCount; // Number of positions within a single pixel for this cache
 
+    mutable QFixed customBoldwidth;
+
     inline QVariant userData() const { return m_userData; }
 
+#ifdef Q_OS_MAC
+    QString fontStyleName;
+#endif // Q_OS_MAC
 protected:
     explicit QFontEngine(Type type);
 
@@ -370,8 +397,8 @@ protected:
     inline void setUserData(const QVariant &userData) { m_userData = userData; }
     QFixed calculatedCapHeight() const;
 
-private:
-    struct GlyphCacheEntry {
+protected:
+    struct Q_GUI_EXPORT GlyphCacheEntry {
         GlyphCacheEntry();
         GlyphCacheEntry(const GlyphCacheEntry &);
         ~GlyphCacheEntry();
@@ -381,6 +408,8 @@ private:
         QExplicitlySharedDataPointer<QFontEngineGlyphCache> cache;
         bool operator==(const GlyphCacheEntry &other) const { return cache == other.cache; }
     };
+
+private:
     typedef QLinkedList<GlyphCacheEntry> GlyphCaches;
     mutable QHash<const void *, GlyphCaches> m_glyphCaches;
 

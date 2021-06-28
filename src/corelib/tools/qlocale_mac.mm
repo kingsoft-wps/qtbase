@@ -83,19 +83,82 @@ static QByteArray getMacLocaleName()
     return result;
 }
 
+QString QCFString_QString(CFStringRef str)
+{
+    if(!str)
+        return QString();
+    CFIndex length = CFStringGetLength(str);
+    const UniChar *chars = CFStringGetCharactersPtr(str);
+    if (chars)
+        return QString(reinterpret_cast<const QChar *>(chars), length);
+
+    QVarLengthArray<UniChar> buffer(length);
+    CFStringGetCharacters(str, CFRangeMake(0, length), buffer.data());
+    return QString(reinterpret_cast<const QChar *>(buffer.constData()), length);
+}
+
+QString QCFStringtoQString(const NSString *nsstr)
+{
+    return QCFString_QString(reinterpret_cast<CFStringRef>(nsstr));
+}
+
+static QString getApplicationLanguage()
+{
+    NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
+    NSArray* writtenlanguage = [userDefaults objectForKey:@"AppleLanguages"];
+    NSString *strWrittenlanguage = [writtenlanguage firstObject];
+    return QCFStringtoQString(strWrittenlanguage);
+}
+
+static bool isSettingApplicationLanguage()
+{
+    NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
+    NSArray* writtenlanguage = [userDefaults objectForKey:@"AppleLanguages"];
+    if (0 == [writtenlanguage count])
+	return false;
+
+    NSString *strWrittenlanguage = [writtenlanguage firstObject];
+    if ((nil == strWrittenlanguage) || [strWrittenlanguage isEqualToString: @""])
+	return false;
+
+    if (!([strWrittenlanguage isEqualToString: @"en"]
+          || [strWrittenlanguage isEqualToString: @"zh_CN"]
+          || [strWrittenlanguage isEqualToString: @"zh_TW"]))
+	return false;
+
+    return true;
+}
+
+static QString systemLanguage()
+{
+    QCFType<CFArrayRef> langs = CFLocaleCopyPreferredLanguages();
+    CFStringRef cfstring = static_cast<CFStringRef>(CFArrayGetValueAtIndex(langs, 0));
+    return QString::fromCFString(cfstring);
+}
 static QString macMonthName(int month, bool short_format)
 {
     month -= 1;
     if (month < 0 || month > 11)
         return QString();
 
+    QCFType<CFLocaleRef> usLocale;
+    if (!isSettingApplicationLanguage())//No language has been set, show follow system
+    {
+	    usLocale = CFLocaleCopyCurrent();
+    }
+    else
+    {
+        QString strAppLang = getApplicationLanguage();
+        usLocale = CFLocaleCreate(NULL, strAppLang.toCFString());
+    }
     QCFType<CFDateFormatterRef> formatter
-        = CFDateFormatterCreate(0, QCFType<CFLocaleRef>(CFLocaleCopyCurrent()),
+        = CFDateFormatterCreate(0, usLocale,
                                 kCFDateFormatterNoStyle,  kCFDateFormatterNoStyle);
     QCFType<CFArrayRef> values
         = static_cast<CFArrayRef>(CFDateFormatterCopyProperty(formatter,
                                   short_format ? kCFDateFormatterShortMonthSymbols
                                                : kCFDateFormatterMonthSymbols));
+    usLocale = nil;
     if (values != 0) {
         CFStringRef cfstring = static_cast<CFStringRef>(CFArrayGetValueAtIndex(values, month));
         return QString::fromCFString(cfstring);
@@ -499,6 +562,8 @@ QVariant QSystemLocale::query(QueryType type, QVariant in = QVariant()) const
     case StringToStandardQuotation:
     case StringToAlternateQuotation:
         return macQuoteString(type, in.value<QStringRef>());
+    case SystemLanguage:
+        return systemLanguage();
     default:
         break;
     }

@@ -77,7 +77,7 @@ class QWindowsOpenGLContext : public QPlatformOpenGLContext
 {
     Q_DISABLE_COPY(QWindowsOpenGLContext)
 public:
-    // Returns the native context handle (e.g. HGLRC for WGL, EGLContext for EGL).
+    // Returns the native context handle (e.g. HGLRC for WGL).
     virtual void *nativeContext() const = 0;
 
     // These should be implemented only for some winsys interfaces, for example EGL.

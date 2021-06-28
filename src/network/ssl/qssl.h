@@ -99,6 +99,8 @@ namespace QSsl {
         TlsV1_3,
         TlsV1_3OrLater,
 
+        GmSslV1,
+
         UnknownProtocol = -1
     };
 

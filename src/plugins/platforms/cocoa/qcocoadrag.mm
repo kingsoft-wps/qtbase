@@ -134,6 +134,9 @@ Qt::DropAction QCocoaDrag::drag(QDrag *o)
     NSImage *nsimage = qt_mac_create_nsimage(pm);
     [nsimage setSize:NSSizeFromCGSize(pmDeviceIndependentSize.toCGSize())];
 
+    if (nullptr == m_drag->mimeData())
+        return Qt::IgnoreAction;
+
     QMacPasteboard dragBoard((CFStringRef) NSDragPboard, QMacInternalPasteboardMime::MIME_DND);
     m_drag->mimeData()->setData(QLatin1String("application/x-qt-mime-type-name"), QByteArray("dummy"));
     dragBoard.setMimeData(m_drag->mimeData(), QMacPasteboard::LazyRequest);
@@ -169,6 +172,10 @@ void QCocoaDrag::setAcceptedAction(Qt::DropAction act)
 QPixmap QCocoaDrag::dragPixmap(QDrag *drag, QPoint &hotSpot) const
 {
     const QMimeData* data = drag->mimeData();
+
+    if (nullptr == data)
+        return QPixmap();
+
     QPixmap pm = drag->pixmap();
 
     if (pm.isNull()) {
@@ -188,6 +195,8 @@ QPixmap QCocoaDrag::dragPixmap(QDrag *drag, QPoint &hotSpot) const
             if (s.length() > dragImageMaxChars)
                 s = s.left(dragImageMaxChars -3) + QChar(0x2026);
             if (!s.isEmpty()) {
+				// 防止tab显示过宽，纯文本缩略图导出把tab替换成空格
+				s.replace("\t", " ");
                 const int width = fm.horizontalAdvance(s);
                 const int height = fm.height();
                 if (width > 0 && height > 0) {

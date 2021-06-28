@@ -260,6 +260,13 @@ void drawDial(const QStyleOptionSlider *option, QPainter *painter)
                        qMin(140, buttonColor .saturation()),
                        qMax(180, buttonColor.value()));
 
+#ifdef Q_OS_MAC
+    p->save();
+    p->setBrush(QColor(0xff, 0xff, 0xff));
+    p->setPen(QColor(0xbc, 0xbc, 0xbc));
+    p->drawEllipse(br);
+    p->restore();
+#else
     if (enabled) {
         // Drop shadow
         qreal shadowSize = qMax(1.0, penSize/2.0);
@@ -294,6 +301,10 @@ void drawDial(const QStyleOptionSlider *option, QPainter *painter)
     p->setBrush(Qt::NoBrush);
     p->setPen(buttonColor.lighter(110));
     p->drawEllipse(br.adjusted(1, 1, -1, -1));
+#endif // Q_OS_MAC
+#ifdef Q_OS_MAC
+    // ignore
+#else
 
     if (option->state & QStyle::State_HasFocus) {
         QColor highlight = pal.highlight().color();
@@ -305,6 +316,7 @@ void drawDial(const QStyleOptionSlider *option, QPainter *painter)
         p->setBrush(Qt::NoBrush);
         p->drawEllipse(br.adjusted(-1, -1, 1, 1));
     }
+#endif // Q_OS_MAC
 
     END_STYLE_PIXMAPCACHE
 
@@ -325,12 +337,18 @@ void drawDial(const QStyleOptionSlider *option, QPainter *painter)
         painter->drawLine(calcRadialPos(option, qreal(0.90)), calcRadialPos(option, qreal(0.96)));
     }
 
+#ifdef Q_OS_MAC
+    painter->setBrush(QBrush(QColor(0x80, 0x80, 0x80)));
+    painter->setPen(QPen(QColor(0x80, 0x80, 0x80)));
+    painter->drawEllipse(dialRect);
+#else
     painter->setBrush(dialGradient);
     painter->setPen(QColor(255, 255, 255, 150));
     painter->drawEllipse(dialRect.adjusted(-1, -1, 1, 1));
     painter->setPen(QColor(0, 0, 0, 80));
     painter->drawEllipse(dialRect);
     painter->restore();
+#endif // Q_OS_MAC
 }
 #endif //QT_CONFIG(dial)
 

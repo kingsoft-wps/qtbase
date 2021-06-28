@@ -41,6 +41,9 @@
 #define QWINDOWSDIRECT2DBACKINGSTORE_H
 
 #include <QtGui/qpa/qplatformbackingstore.h>
+#include <wrl.h>
+
+struct IDXGISurface1;
 
 QT_BEGIN_NAMESPACE
 
@@ -54,7 +57,7 @@ public:
     QWindowsDirect2DBackingStore(QWindow *window);
     ~QWindowsDirect2DBackingStore();
 
-    void beginPaint(const QRegion &) override;
+    bool beginPaint(const QRegion &) override;
     void endPaint() override;
 
     QPaintDevice *paintDevice() override;
@@ -62,6 +65,23 @@ public:
     void resize(const QSize &size, const QRegion &staticContents) override;
 
     QImage toImage() const override;
+};
+
+class QWindowsDirect2DBackingStoreNoPresenting : public QWindowsDirect2DBackingStore
+{
+    Q_DISABLE_COPY(QWindowsDirect2DBackingStoreNoPresenting)
+
+public:
+    QWindowsDirect2DBackingStoreNoPresenting(QWindow *window);
+    ~QWindowsDirect2DBackingStoreNoPresenting();
+
+    void flush(QWindow *targetWindow, const QRegion &region, const QPoint &offset) override;
+    void beginFlush() override;
+    void endFlush() override;
+
+private:
+    Microsoft::WRL::ComPtr<IDXGISurface1> m_surface;
+    HDC m_surfaceHdc = 0;
 };
 
 QT_END_NAMESPACE

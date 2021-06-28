@@ -69,4 +69,8 @@ void qglx_surfaceFormatFromGLXFBConfig(QSurfaceFormat *format, Display *display,
 void qglx_surfaceFormatFromVisualInfo(QSurfaceFormat *format, Display *display, XVisualInfo *visualInfo, int flags = 0);
 bool qglx_reduceFormat(QSurfaceFormat *format);
 
+#ifdef Q_OS_LINUX
+int qglx_testColorSapce();
+#endif
+
 #endif // QGLXCONVENIENCE_H

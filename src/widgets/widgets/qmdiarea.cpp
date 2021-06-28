@@ -726,7 +726,16 @@ void QMdiAreaPrivate::_q_deactivateAllWindows(QMdiSubWindow *aboutToActivate)
         // We don't want to handle signals caused by child->showNormal().
         ignoreWindowStateChange = true;
         if(!(options & QMdiArea::DontMaximizeSubWindowOnActivation) && !showActiveWindowMaximized)
+#ifdef Q_OS_MAC
+        {
+            if (q->isVisible())
+                showActiveWindowMaximized = child->isMaximized() && child->isVisible();
+            else
+                showActiveWindowMaximized = child->isMaximized();
+        }
+#else
             showActiveWindowMaximized = child->isMaximized() && child->isVisible();
+#endif
         if (showActiveWindowMaximized && child->isMaximized()) {
             if (q->updatesEnabled()) {
                 updatesDisabledByUs = true;
@@ -1352,7 +1361,7 @@ bool QMdiAreaPrivate::lastWindowAboutToBeDestroyed() const
 void QMdiAreaPrivate::setChildActivationEnabled(bool enable, bool onlyNextActivationEvent) const
 {
     foreach (QMdiSubWindow *subWindow, childWindows) {
-        if (!subWindow || !subWindow->isVisible())
+        if (!subWindow)
             continue;
         if (onlyNextActivationEvent)
             subWindow->d_func()->ignoreNextActivationEvent = !enable;
@@ -2554,8 +2563,11 @@ bool QMdiArea::eventFilter(QObject *object, QEvent *event)
         return QAbstractScrollArea::eventFilter(object, event);
 
     Q_D(QMdiArea);
+
+    QMdiSubWindow *subWindow = qobject_cast<QMdiSubWindow *>(object);
     // Global key events with Ctrl modifier.
-    if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) {
+    if (subWindow && subWindow->parent() == this && (event->type() == QEvent::KeyPress
+        || event->type() == QEvent::KeyRelease)) {
 
         QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
         // Ingore key events without a Ctrl modifier (except for press/release on the modifier itself).
@@ -2604,13 +2616,13 @@ bool QMdiArea::eventFilter(QObject *object, QEvent *event)
         return QAbstractScrollArea::eventFilter(object, event);
     }
 
-    QMdiSubWindow *subWindow = qobject_cast<QMdiSubWindow *>(object);
-
     if (!subWindow) {
         // QApplication events:
-        if (event->type() == QEvent::ApplicationActivate && !d->active
+        if (event->type() == QEvent::WindowActivate && !d->active
             && isVisible() && !window()->isMinimized()) {
-            d->activateCurrentWindow();
+            QWidget *window = qobject_cast<QWidget *>(object);
+            if (window && window->isAncestorOf(this))
+                d->activateCurrentWindow();
         } else if (event->type() == QEvent::ApplicationDeactivate && d->active) {
             d->setActive(d->active, false, false);
         }

@@ -111,8 +111,8 @@ src_3rdparty_freetype.target = sub-3rdparty-freetype
 src_3rdparty_gradle.subdir = $$PWD/3rdparty/gradle
 src_3rdparty_gradle.target = sub-3rdparty-gradle
 
-src_angle.subdir = $$PWD/angle
-src_angle.target = sub-angle
+src_3rdparty_libjpeg.subdir = $$PWD/3rdparty/libjpeg
+src_3rdparty_libjpeg.target = sub-3rdparty-libjpeg
 
 src_gui.subdir = $$PWD/gui
 src_gui.target = sub-gui
@@ -199,10 +199,6 @@ qtConfig(gui) {
         SUBDIRS += src_3rdparty_harfbuzzng
         src_gui.depends += src_3rdparty_harfbuzzng
     }
-    qtConfig(angle) {
-        SUBDIRS += src_angle
-        src_gui.depends += src_angle
-    }
     qtConfig(png):!qtConfig(system-png) {
         SUBDIRS += src_3rdparty_libpng
         src_3rdparty_freetype.depends += src_3rdparty_libpng
@@ -211,6 +207,10 @@ qtConfig(gui) {
     qtConfig(freetype):!qtConfig(system-freetype) {
         SUBDIRS += src_3rdparty_freetype
         src_platformsupport.depends += src_3rdparty_freetype
+    }
+    qtConfig(jpeg): {
+        SUBDIRS += src_3rdparty_libjpeg
+        src_plugins.depends += src_3rdparty_libjpeg
     }
     SUBDIRS += src_tools_qvkgen
     src_gui.depends += src_tools_qvkgen

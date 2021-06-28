@@ -803,6 +803,64 @@ QList<QByteArray> QMacPasteboardMimeVCard::convertFromMime(const QString &mime, 
     return ret;
 }
 
+class QMacPasteboardMimeImage : public QMacInternalPasteboardMime
+{
+public:
+    QMacPasteboardMimeImage() : QMacInternalPasteboardMime(MIME_ALL){ }
+    QString convertorName();
+
+    QString flavorFor(const QString &mime);
+    QString mimeFor(QString flav);
+    bool canConvert(const QString &mime, QString flav);
+    QVariant convertToMime(const QString &mime, QList<QByteArray> data, QString flav);
+    QList<QByteArray> convertFromMime(const QString &mime, QVariant data, QString flav);
+};
+
+QString QMacPasteboardMimeImage::convertorName()
+{
+    return QLatin1String("Image");
+}
+
+bool QMacPasteboardMimeImage::canConvert(const QString &mime, QString flav)
+{
+    return mime == mimeFor(flav);
+}
+
+QString QMacPasteboardMimeImage::flavorFor(const QString &mime)
+{
+    if (mime == QLatin1String("image/png"))
+        return QLatin1String("public.png");
+    else if (mime == QLatin1String("image/jpeg"))
+        return QLatin1String("public.jpeg");
+    else if (mime == QLatin1String("image/gif"))
+        return QLatin1String("com.compuserve.gif");
+    return QString();
+}
+
+QString QMacPasteboardMimeImage::mimeFor(QString flav)
+{
+    if (flav == QLatin1String("public.png"))
+        return QLatin1String("image/png");
+    else if (flav == QLatin1String("public.jpeg"))
+        return QLatin1String("image/jpeg");
+    else if (flav == QLatin1String("com.compuserve.gif"))
+        return QLatin1String("image/gif");
+    return QString();
+}
+
+QVariant QMacPasteboardMimeImage::convertToMime(const QString &, QList<QByteArray> data, QString)
+{
+    if (data.count() > 1)
+        qWarning("QMacPasteboardMimeAny: Cannot handle multiple member data");
+    return QVariant(data.first());
+}
+
+QList<QByteArray> QMacPasteboardMimeImage::convertFromMime(const QString &, QVariant data, QString)
+{
+    QList<QByteArray> ret;
+    ret.append(data.toByteArray());
+    return ret;
+}
 extern QImage qt_mac_toQImage(CGImageRef image);
 extern CGImageRef qt_mac_toCGImage(const QImage &qImage);
 
@@ -904,6 +962,7 @@ void QMacInternalPasteboardMime::initializeMimeTypes()
         new QMacPasteboardMimeUrl;
         new QMacPasteboardMimeTypeName;
         new QMacPasteboardMimeVCard;
+        new QMacPasteboardMimeImage;
     }
 }
 

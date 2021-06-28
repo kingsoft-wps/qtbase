@@ -433,6 +433,8 @@ static inline int uiEffects()
         result |= QPlatformTheme::FadeMenuUiEffect;
     if (booleanSystemParametersInfo(SPI_GETCOMBOBOXANIMATION, false))
         result |= QPlatformTheme::AnimateComboUiEffect;
+    if (booleanSystemParametersInfo(SPI_GETTOOLTIPFADE, false)) // add for first use FadeTooltipUiEffect
+        result |= QPlatformTheme::FadeTooltipUiEffect;
     if (booleanSystemParametersInfo(SPI_GETTOOLTIPANIMATION, false))
         result |= QPlatformTheme::AnimateTooltipUiEffect;
     return result;
@@ -604,7 +606,7 @@ static QPixmap loadIconFromShell32(int resourceId, QSizeF size)
 QPixmap QWindowsTheme::standardPixmap(StandardPixmap sp, const QSizeF &pixmapSize) const
 {
     int resourceId = -1;
-    SHSTOCKICONID stockId = SIID_INVALID;
+    int stockId = SIID_INVALID;
     UINT stockFlags = 0;
     LPCTSTR iconName = nullptr;
     switch (sp) {
@@ -691,15 +693,19 @@ QPixmap QWindowsTheme::standardPixmap(StandardPixmap sp, const QSizeF &pixmapSiz
     }
 
     if (stockId != SIID_INVALID) {
-        QPixmap pixmap;
-        SHSTOCKICONINFO iconInfo;
-        memset(&iconInfo, 0, sizeof(iconInfo));
-        iconInfo.cbSize = sizeof(iconInfo);
-        stockFlags |= (pixmapSize.width() > 16 ? SHGFI_LARGEICON : SHGFI_SMALLICON);
-        if (SHGetStockIconInfo(stockId, SHGFI_ICON | stockFlags, &iconInfo) == S_OK) {
-            pixmap = qt_pixmapFromWinHICON(iconInfo.hIcon);
-            DestroyIcon(iconInfo.hIcon);
-            return pixmap;
+        if (QOperatingSystemVersion::current() >= QOperatingSystemVersion::WindowsVista
+            && QWindowsContext::shell32dll.sHGetStockIconInfo) {
+            QPixmap pixmap;
+            SHSTOCKICONINFO iconInfo;
+            memset(&iconInfo, 0, sizeof(iconInfo));
+            iconInfo.cbSize = sizeof(iconInfo);
+            stockFlags |= (pixmapSize.width() > 16 ? SHGFI_LARGEICON : SHGFI_SMALLICON);
+            if (QWindowsContext::shell32dll.sHGetStockIconInfo(stockId, SHGFI_ICON | stockFlags,
+                                                               &iconInfo) == S_OK) {
+                pixmap = qt_pixmapFromWinHICON(iconInfo.hIcon);
+                DestroyIcon(iconInfo.hIcon);
+                return pixmap;
+            }
         }
     }
 
@@ -776,8 +782,16 @@ static QPixmap pixmapFromShellImageList(int iImageList, const SHFILEINFO &info)
     // For MinGW:
     static const IID iID_IImageList = {0x46eb5926, 0x582e, 0x4017, {0x9f, 0xdf, 0xe8, 0x99, 0x8d, 0xaa, 0x9, 0x50}};
 
-    IImageList *imageList = nullptr;
-    HRESULT hr = SHGetImageList(iImageList, iID_IImageList, reinterpret_cast<void **>(&imageList));
+    if (!QWindowsContext::shell32dll.sHGetImageList)
+        return result;
+        
+    if (iImageList == sHIL_JUMBO && 
+        QOperatingSystemVersion::current() < QOperatingSystemVersion::WindowsVista)
+        return result;
+
+    IImageList *imageList = 0;
+    HRESULT hr = QWindowsContext::shell32dll.sHGetImageList(iImageList, iID_IImageList,
+                                                            reinterpret_cast<void **>(&imageList));
     if (hr != S_OK)
         return result;
     HICON hIcon;

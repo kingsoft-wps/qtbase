@@ -74,6 +74,9 @@ public:
     void setInitName(const QString &name) { m_initName = name; }
     QString initName() const { return m_initName; }
 
+    void setRemoveDuplicate(bool b) { m_removeDuplicate = b; }
+    bool removeDuplicate() const { return m_removeDuplicate; }
+
     void setOutputName(const QString &name) { m_outputName = name; }
     QString outputName() const { return m_outputName; }
 
@@ -133,6 +136,7 @@ private:
     QString m_outputName;
     Format m_format;
     bool m_verbose;
+    bool m_removeDuplicate;
     int m_compressLevel;
     int m_compressThreshold;
     int m_treeOffset;

@@ -1709,6 +1709,26 @@ DebugSymbolResolver::Symbol DebugSymbolResolver::resolveSymbol(DWORD64 address) 
     return result;
 }
 
+ushort captureStackBackTrace(ULONG FramesToSkip, ULONG FramesToCapture, PVOID *BackTrace, PULONG BackTraceHash)
+{
+    typedef USHORT (WINAPI *RtlCaptureStackBackTrace_t)(
+            __in ULONG FramesToSkip,
+            __in ULONG FramesToCapture,
+            __out PVOID *BackTrace,
+            __out_opt PULONG BackTraceHash);
+
+    static RtlCaptureStackBackTrace_t pRtlCaptureStackBackTrace = 0;
+    if (0 == pRtlCaptureStackBackTrace)
+    {
+        HMODULE lib = LoadLibraryW(L"kernel32.dll");
+        pRtlCaptureStackBackTrace = (RtlCaptureStackBackTrace_t)GetProcAddress(lib, "RtlCaptureStackBackTrace");
+        if (0 == pRtlCaptureStackBackTrace)
+            return 0;
+    }
+
+    return pRtlCaptureStackBackTrace(FramesToSkip, FramesToCapture, BackTrace, BackTraceHash);
+}
+
 static LONG WINAPI windowsFaultHandler(struct _EXCEPTION_POINTERS *exInfo)
 {
     enum { maxStackFrames = 100 };
@@ -1734,7 +1754,7 @@ static LONG WINAPI windowsFaultHandler(struct _EXCEPTION_POINTERS *exInfo)
         }
         void *stack[maxStackFrames];
         fputs("\nStack:\n", stdout);
-        const unsigned frameCount = CaptureStackBackTrace(0, DWORD(maxStackFrames), stack, NULL);
+        const unsigned frameCount = captureStackBackTrace(0, DWORD(maxStackFrames), stack, NULL);
         for (unsigned f = 0; f < frameCount; ++f)     {
             DebugSymbolResolver::Symbol symbol = resolver.resolveSymbol(DWORD64(stack[f]));
             if (symbol.name) {

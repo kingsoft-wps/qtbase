@@ -45,6 +45,8 @@
 #include <qurl.h>
 #include <private/qcore_mac_p.h>
 
+#include <unistd.h>
+#include <pwd.h>
 #ifndef QT_BOOTSTRAPPED
 #include <qcoreapplication.h>
 #endif
@@ -111,6 +113,17 @@ static QString baseWritableLocation(QStandardPaths::StandardLocation type,
     QString path;
     const NSSearchPathDirectory dir = searchPathDirectory(type);
     switch (type) {
+	case QStandardPaths::DocumentsLocation:
+	{
+		struct passwd *pw = getpwuid(getuid());
+		if (!pw)
+		{
+			return QString();
+		}
+		QString curUserPath = QString::fromUtf8(pw->pw_dir);
+		QString sysDocumentPath = curUserPath + QLatin1String("/Documents");
+		return sysDocumentPath;
+	}
     case QStandardPaths::HomeLocation:
         path = QDir::homePath();
         break;
@@ -160,6 +173,14 @@ static QString baseWritableLocation(QStandardPaths::StandardLocation type,
             break;
         default:
             break;
+        }
+    }
+    if(QStandardPaths::DesktopLocation == type)
+    {
+        QFileInfo file(path);
+        if(file.isSymLink())
+        {
+            path = file.symLinkTarget();
         }
     }
 

@@ -48,6 +48,8 @@ QCocoaClipboard::QCocoaClipboard()
     ,m_find(new QMacPasteboard(kPasteboardFind, QMacInternalPasteboardMime::MIME_CLIP))
 {
     connect(qGuiApp, &QGuiApplication::applicationStateChanged, this, &QCocoaClipboard::handleApplicationStateChanged);
+    // flush data will use qApp, but when if flush, the qApp has destructed, so flush it before quit!
+    connect(qGuiApp, &QGuiApplication::aboutToQuit, this, &QCocoaClipboard::flushClipboard);   
 }
 
 QMimeData *QCocoaClipboard::mimeData(QClipboard::Mode mode)
@@ -67,7 +69,7 @@ void QCocoaClipboard::setMimeData(QMimeData *data, QClipboard::Mode mode)
         }
 
         pasteBoard->sync();
-        pasteBoard->setMimeData(data);
+        pasteBoard->setMimeData(data, QMacPasteboard::LazyRequestAndKeep);
         emitChanged(mode);
     }
 }
@@ -104,6 +106,11 @@ void QCocoaClipboard::handleApplicationStateChanged(Qt::ApplicationState state)
         emitChanged(QClipboard::FindBuffer);
 }
 
+void QCocoaClipboard::flushClipboard()
+{
+    m_clipboard->sync();
+    m_clipboard.reset();
+}
 #include "moc_qcocoaclipboard.cpp"
 
 QT_END_NAMESPACE

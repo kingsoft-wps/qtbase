@@ -219,12 +219,16 @@ bool QDesktopWidget::isVirtualDesktop() const
 
 bool QDesktopWidgetPrivate::isVirtualDesktop()
 {
-    return QGuiApplication::primaryScreen()->virtualSiblings().size() > 1;
+    if (QGuiApplication::primaryScreen())
+        return QGuiApplication::primaryScreen()->virtualSiblings().size() > 1;
+    return false;
 }
 
 QRect QDesktopWidgetPrivate::geometry()
 {
-    return QGuiApplication::primaryScreen()->virtualGeometry();
+    if (QGuiApplication::primaryScreen())
+        return QGuiApplication::primaryScreen()->virtualGeometry();
+    return QRect();
 }
 
 QSize QDesktopWidgetPrivate::size()
@@ -357,7 +361,7 @@ int QDesktopWidgetPrivate::screenNumber(const QPoint &p)
 
 QScreen *QDesktopWidgetPrivate::screen(int screenNo)
 {
-    QList<QScreen *> screens = QGuiApplication::screens();
+    const QList<QScreen *> screens = QGuiApplication::screens();
     if (screenNo == -1)
         screenNo = 0;
     if (screenNo < 0 || screenNo >= screens.size())

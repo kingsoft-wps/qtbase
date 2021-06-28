@@ -55,7 +55,12 @@ public:
     // ### Qt 6 - merge the three showText functions below
     static void showText(const QPoint &pos, const QString &text, QWidget *w = nullptr);
     static void showText(const QPoint &pos, const QString &text, QWidget *w, const QRect &rect);
+#ifdef Q_OS_MAC
+    //et shortcut key selection ToolTip pop-up will be intercepted by ToolTip keyboard time, for this case, a Qt::WindowFlags parameter is added
+    static void showText(const QPoint &pos, const QString &text, QWidget *w, const QRect &rect, int msecShowTime, Qt::WindowFlags flags = Qt::Widget);
+#else
     static void showText(const QPoint &pos, const QString &text, QWidget *w, const QRect &rect, int msecShowTime);
+#endif // Q_OS_MAC
     static inline void hideText() { showText(QPoint(), QString()); }
 
     static bool isVisible();

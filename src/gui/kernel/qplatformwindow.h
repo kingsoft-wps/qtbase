@@ -64,6 +64,7 @@ QT_BEGIN_NAMESPACE
 class QPlatformScreen;
 class QPlatformWindowPrivate;
 class QWindow;
+class QScreen;
 class QIcon;
 class QRegion;
 
@@ -82,6 +83,7 @@ public:
     QPlatformScreen *screen() const override;
 
     virtual QSurfaceFormat format() const override;
+    virtual void setFormat(const QSurfaceFormat& format);
 
     virtual void setGeometry(const QRect &rect);
     virtual QRect geometry() const;
@@ -95,6 +97,9 @@ public:
     virtual void setWindowState(Qt::WindowStates state);
 
     virtual WId winId() const;
+#ifdef Q_OS_MAC
+    virtual WId windowId() const;
+#endif // Q_OS_MAC
     virtual void setParent(const QPlatformWindow *window);
 
     virtual void setWindowTitle(const QString &title);
@@ -103,12 +108,30 @@ public:
     virtual bool close();
     virtual void raise();
     virtual void lower();
+#ifdef Q_OS_MAC
+    //  Customize window barTitle attributes on mac
+    virtual void setTitlebarAppearsTransparent(bool);
+    virtual void setBackgroundColor(const QColor &clr);
+    virtual void setTitleTextColor(const QColor &clr) {Q_UNUSED(clr);}
+    // Move NSWindow without redrawing
+    virtual void setNSWindowGeometryNoRedraw(const QRect &);
+    // Whether to hide the top titlebar
+    virtual void setTitlebarHide(bool);
+    // Set whether to show all
+    virtual void setContentViewFullSize(bool);
+    virtual void createWindowTitleView() {}
+    // Switch form full screen state
+    virtual void toggleFullScreen() {}
+#endif
+    virtual void stackUnder(const QPlatformWindow* w);
+
 
     virtual bool isExposed() const;
     virtual bool isActive() const;
     virtual bool isAncestorOf(const QPlatformWindow *child) const;
     virtual bool isEmbedded() const;
     virtual bool isForeignWindow() const { return false; };
+	virtual bool isMapGlobalRT() const { return false; };
     virtual QPoint mapToGlobal(const QPoint &pos) const;
     virtual QPoint mapFromGlobal(const QPoint &pos) const;
 
@@ -117,6 +140,7 @@ public:
     virtual void setOpacity(qreal level);
     virtual void setMask(const QRegion &region);
     virtual void requestActivateWindow();
+    virtual void requestFocusWindow();
 
     virtual void handleContentOrientationChange(Qt::ScreenOrientation orientation);
 
@@ -140,12 +164,17 @@ public:
 
     virtual void invalidateSurface();
 
-    static QRect initialGeometry(const QWindow *w,
-        const QRect &initialGeometry, int defaultWidth, int defaultHeight);
+    static QRect initialGeometry(const QWindow *w, const QRect &initialGeometry,
+                                 int defaultWidth, int defaultHeight,
+                                 const QScreen **resultingScreenReturn = nullptr);
 
     virtual void requestUpdate();
     bool hasPendingUpdateRequest() const;
     virtual void deliverUpdateRequest();
+
+    virtual void syncTransientParent();
+    virtual void updateWindowExpose();
+    virtual void resetDeviceDependentResources();
 
     // Window property accessors. Platform plugins should use these
     // instead of accessing QWindow directly.

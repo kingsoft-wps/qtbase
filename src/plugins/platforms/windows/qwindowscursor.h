@@ -85,6 +85,7 @@ private:
 };
 
 typedef QSharedPointer<CursorHandle> CursorHandlePtr;
+typedef QHash<uint, CursorHandlePtr> CustomWindowCursorCache;
 
 class QWindowsCursor : public QPlatformCursor
 {
@@ -116,15 +117,20 @@ public:
     static HCURSOR createPixmapCursor(QPixmap pixmap, const QPoint &hotSpot, qreal scaleFactor = 1);
     static HCURSOR createPixmapCursor(const PixmapCursor &pc, qreal scaleFactor = 1) { return createPixmapCursor(pc.pixmap, pc.hotSpot, scaleFactor); }
     static PixmapCursor customCursor(Qt::CursorShape cursorShape, const QPlatformScreen *screen = nullptr);
+    static HCURSOR createBitmapCursorFromShapeData(Qt::CursorShape cursorShape, const QPlatformScreen* screen = nullptr);
 
     static HCURSOR createCursorFromShape(Qt::CursorShape cursorShape, const QPlatformScreen *screen = nullptr);
     static QPoint mousePosition();
     static State cursorState();
 
+    static bool registerCustomWindowCursor(const QCursor &c, HCURSOR hcur);
+
     CursorHandlePtr standardWindowCursor(Qt::CursorShape s = Qt::ArrowCursor);
     CursorHandlePtr pixmapWindowCursor(const QCursor &c);
+    CursorHandlePtr customWindowCursor(const QCursor &c);
 
     QPixmap dragDefaultCursor(Qt::DropAction action) const;
+    QPixmap dragQt4CompatibleCursor(Qt::DropAction action) const;
 
     HCURSOR hCursor(const QCursor &c) const;
 
@@ -137,6 +143,7 @@ private:
     const QPlatformScreen *const m_screen;
     StandardCursorCache m_standardCursorCache;
     PixmapCursorCache m_pixmapCursorCache;
+    static CustomWindowCursorCache m_customWindowCursorCache;
 
     mutable QPixmap m_copyDragCursor;
     mutable QPixmap m_moveDragCursor;

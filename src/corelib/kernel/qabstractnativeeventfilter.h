@@ -54,6 +54,23 @@ public:
 
     virtual bool nativeEventFilter(const QByteArray &eventType, void *message, long *result) = 0;
 
+    enum AllowNativeEventFilterFlag {
+        DispatcherMsg               = 0x01,
+        WinProcessMsg               = 0x02,
+        PlatformMsg                 = 0x04,
+        AllowAll                    = 0xff,
+        AllowDispatcherMsg          = DispatcherMsg,
+        AllowWinProcessMsg          = WinProcessMsg,
+        AllowPlatformMsg            = PlatformMsg,
+        IgnoreWinProcessMsg         = PlatformMsg | DispatcherMsg,// support like qt4
+
+        AllowInputMsg               = 0x100
+    };
+    Q_DECLARE_FLAGS(AllowNativeEventFilterFlags, AllowNativeEventFilterFlag)
+
+    bool allowNativeEventFilter(const AllowNativeEventFilterFlag& flag, bool checkInputMsg);
+protected:
+    virtual AllowNativeEventFilterFlags nativeEventFilterFlags() const { return AllowAll; }
 private:
     Q_DISABLE_COPY(QAbstractNativeEventFilter)
     QAbstractNativeEventFilterPrivate *d;

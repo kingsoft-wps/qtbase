@@ -90,11 +90,19 @@ public:
 
     virtual void notifyLayoutDirectionChange();
     virtual void notifyActiveWindowChange(QWindow *previous);
+    virtual void updateWidgetFocus(QWindow *previous);
 
     virtual bool shouldQuit() override;
 
     bool shouldQuitInternal(const QWindowList &processedWindows);
     virtual bool tryCloseAllWindows();
+
+    virtual WId widgetEffectiveWinId(const QObject *o) const;
+    virtual QPair<QObject*, WId> popupFocusEditableWidget() const;
+    virtual QVariant objectImQuery(Qt::InputMethodQuery im, const QObject* o, WId nativeWid) const;
+    virtual void changeKeyboard() const;
+
+    virtual bool isInactiveWithoutFocus() const;
 
     static void captureGlobalModifierState(QEvent *e);
     static Qt::KeyboardModifiers modifier_buttons;
@@ -207,12 +215,15 @@ public:
     static void updateBlockedStatus(QWindow *window);
     virtual bool isWindowBlocked(QWindow *window, QWindow **blockingWindow = 0) const;
     virtual bool popupActive() { return false; }
+    virtual void closeAllPopups() { }
+    virtual bool isButtonDown() const { return false; }
 
     static ulong mousePressTime;
     static Qt::MouseButton mousePressButton;
     static int mousePressX;
     static int mousePressY;
     static QPointF lastCursorPosition;
+    static QPointer<QWindow> mousePressWindow;
     static QPointer<QWindow> currentMouseWindow;
     static QPointer<QWindow> currentMousePressWindow;
     static Qt::ApplicationState applicationState;
@@ -317,6 +328,7 @@ protected:
     bool tryCloseRemainingWindows(QWindowList processedWindows);
 #if QT_CONFIG(draganddrop)
     virtual void notifyDragStarted(const QDrag *);
+    virtual bool notifyDragCanceled(const QDrag *drag, const QPoint &pos);
 #endif // QT_CONFIG(draganddrop)
 
 private:

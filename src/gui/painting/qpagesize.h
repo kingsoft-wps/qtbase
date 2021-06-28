@@ -263,6 +263,7 @@ public:
     QSizeF size(Unit units) const;
     QSize sizePoints() const;
     QSize sizePixels(int resolution) const;
+    QSize sizePixels(const QSize &resolution) const;
 
     QRectF rect(Unit units) const;
     QRect rectPoints() const;

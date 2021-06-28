@@ -106,4 +106,23 @@ void qHBFreeFace(HB_Face face)
     HB_FreeFace(face);
 }
 
+HB_Error qHBGSUBSelectScript(void*  gsub,
+                             HB_UInt         script_tag,
+                             HB_UShort*      script_index)
+{
+    return HB_GSUB_Select_Script((HB_GSUBHeader*)gsub, script_tag, script_index);
+}
+
+HB_Error qHBGSUBAddFeature(void* gsub,
+                           HB_UInt script_tag,
+                           HB_UInt feature_tag)
+{
+    return HB_GSUB_AddFeature((HB_GSUBHeader*)gsub, script_tag, feature_tag);
+}
+
+HB_UInt qHBApplySingleSubstitute(void* gsub, HB_UInt gindex)
+{
+    return HB_Apply_SingleSubstitute((HB_GSUBHeader*)gsub, gindex);
+}
+
 QT_END_NAMESPACE

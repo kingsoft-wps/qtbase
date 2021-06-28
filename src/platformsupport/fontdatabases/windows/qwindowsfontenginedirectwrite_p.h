@@ -76,7 +76,9 @@ class QWindowsFontEngineDirectWrite : public QFontEngine
 public:
     explicit QWindowsFontEngineDirectWrite(IDWriteFontFace *directWriteFontFace,
                                     qreal pixelSize,
-                                    const QSharedPointer<QWindowsFontEngineData> &d);
+                                    HFONT _hfont,
+                                    const QSharedPointer<QWindowsFontEngineData> &d,
+                                    bool isColorFont = false);
     ~QWindowsFontEngineDirectWrite() override;
 
     void initFontInfo(const QFontDef &request, int dpi);
@@ -116,6 +118,7 @@ public:
 
     QFontEngine *cloneWithSize(qreal pixelSize) const override;
     Qt::HANDLE handle() const override;
+    bool isColorFont() const override;
 
     const QSharedPointer<QWindowsFontEngineData> &fontEngineData() const { return m_fontEngineData; }
 
@@ -125,16 +128,23 @@ public:
 
     void setUniqueFamilyName(const QString &newName) { m_uniqueFamilyName = newName; }
 
+    int glyphMargin(GlyphFormat format) override;
+
+    inline HFONT hFontHandle() const { return m_hFont; }
 private:
-    QImage imageForGlyph(glyph_t t, QFixed subPixelPosition, int margin, const QTransform &xform, const QColor &color = QColor());
+    QImage imageForGlyph(glyph_t t, QFixed subPixelPosition, int margin, const QTransform &xform,
+                         GlyphFormat, const QColor &color = QColor());
     void collectMetrics();
-    void renderGlyphRun(QImage *destination, float r, float g, float b, float a, IDWriteGlyphRunAnalysis *glyphAnalysis, const QRect &boundingRect);
+    void updateMetricsByTable(const QByteArray &hheaTable, const QByteArray &os2Table);
+    void renderGlyphRun(QImage *destination, float r, float g, float b, float a,
+                        IDWriteGlyphRunAnalysis *glyphAnalysis, const QRect &boundingRect, bool clearType);
     static QString filenameFromFontFile(IDWriteFontFile *fontFile);
 
     const QSharedPointer<QWindowsFontEngineData> m_fontEngineData;
 
     IDWriteFontFace *m_directWriteFontFace;
     IDWriteBitmapRenderTarget *m_directWriteBitmapRenderTarget;
+    HFONT m_hFont;
 
     QFixed m_lineThickness;
     QFixed m_underlinePosition;

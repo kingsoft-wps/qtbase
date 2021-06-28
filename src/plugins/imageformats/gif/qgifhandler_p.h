@@ -85,6 +85,7 @@ public:
     int loopCount() const override;
     int nextImageDelay() const override;
     int currentImageNumber() const override;
+    bool isAnimation() const;
 
 private:
     bool imageIsComing() const;

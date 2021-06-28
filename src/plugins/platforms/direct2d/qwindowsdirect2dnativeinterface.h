@@ -49,6 +49,7 @@ class QWindowsDirect2DNativeInterface : public QWindowsNativeInterface
     Q_OBJECT
 public:
     void *nativeResourceForBackingStore(const QByteArray &resource, QBackingStore *bs) override;
+    QFunctionPointer platformFunction(const QByteArray &function) const override;
 };
 
 QT_END_NAMESPACE

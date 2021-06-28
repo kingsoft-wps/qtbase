@@ -86,7 +86,7 @@ public:
 
     virtual QPrint::DeviceState state() const;
 
-    virtual bool isValidPageLayout(const QPageLayout &layout, int resolution) const;
+    virtual bool isValidPageLayout(const QPageLayout& layout, const QSize &resolution) const;
 
     virtual bool supportsMultipleCopies() const;
     virtual bool supportsCollateCopies() const;
@@ -106,7 +106,7 @@ public:
     virtual QSize maximumPhysicalPageSize() const;
 
     virtual QMarginsF printableMargins(const QPageSize &pageSize, QPageLayout::Orientation orientation,
-                                       int resolution) const;
+                                       const QSize &resolution) const;
 
     virtual int defaultResolution() const;
     virtual QList<int> supportedResolutions() const;

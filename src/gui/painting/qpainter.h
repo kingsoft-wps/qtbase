@@ -76,6 +76,7 @@ class QMatrix;
 class QTransform;
 class QStaticText;
 class QGlyphRun;
+class QImageEffects;
 
 class QPainterPrivateDeleter;
 
@@ -91,7 +92,8 @@ public:
         SmoothPixmapTransform = 0x04,
         HighQualityAntialiasing = 0x08,
         NonCosmeticDefaultPen = 0x10,
-        Qt4CompatiblePainting = 0x20
+        Qt4CompatiblePainting = 0x20,
+        HighQualityPixmapTransform = 0x100
     };
     Q_FLAG(RenderHint)
 
@@ -175,7 +177,9 @@ public:
         RasterOp_SourceOrNotDestination,
         RasterOp_ClearDestination,
         RasterOp_SetDestination,
-        RasterOp_NotDestination
+        RasterOp_NotDestination,
+        
+        NCompositionModes
     };
     void setCompositionMode(CompositionMode mode);
     CompositionMode compositionMode() const;
@@ -249,6 +253,7 @@ public:
 
     QMatrix combinedMatrix() const;
     QTransform combinedTransform() const;
+    QTransform combinedTransformNoHidpi() const;
 
     void setMatrixEnabled(bool enabled);
     bool matrixEnabled() const;
@@ -385,7 +390,8 @@ public:
                              const QPixmap &pixmap, PixmapFragmentHints hints = PixmapFragmentHints());
 
     void drawImage(const QRectF &targetRect, const QImage &image, const QRectF &sourceRect,
-                   Qt::ImageConversionFlags flags = Qt::AutoColor);
+                   Qt::ImageConversionFlags flags = Qt::AutoColor,
+                   const QImageEffects *effects = nullptr);
     inline void drawImage(const QRect &targetRect, const QImage &image, const QRect &sourceRect,
                           Qt::ImageConversionFlags flags = Qt::AutoColor);
     inline void drawImage(const QPointF &p, const QImage &image, const QRectF &sr,
@@ -425,6 +431,11 @@ public:
     QRectF boundingRect(const QRectF &rect, int flags, const QString &text);
     QRect boundingRect(const QRect &rect, int flags, const QString &text);
     inline QRect boundingRect(int x, int y, int w, int h, int flags, const QString &text);
+
+#ifdef Q_OS_MAC
+    bool isManualBoldenSuccess();
+    void setManualBoldenSuccess(bool success);
+#endif
 
     QRectF boundingRect(const QRectF &rect, const QString &text, const QTextOption &o = QTextOption());
 
@@ -470,6 +481,9 @@ public:
 
     void beginNativePainting();
     void endNativePainting();
+
+    void updateState();
+    void setWindowsNeedEmulation(bool bValue);
 
 private:
     Q_DISABLE_COPY(QPainter)

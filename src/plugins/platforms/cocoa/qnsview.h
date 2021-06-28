@@ -49,6 +49,7 @@ QT_BEGIN_NAMESPACE
 class QCocoaWindow;
 class QCocoaGLContext;
 class QPointF;
+class QWindow;
 QT_END_NAMESPACE
 
 Q_FORWARD_DECLARE_OBJC_CLASS(QT_MANGLE_NAMESPACE(QNSViewMouseMoveHelper));
@@ -61,6 +62,7 @@ Q_FORWARD_DECLARE_OBJC_CLASS(QT_MANGLE_NAMESPACE(QCocoaNSMenuItem));
 - (instancetype)initWithCocoaWindow:(QCocoaWindow *)platformWindow;
 
 - (void)convertFromScreen:(NSPoint)mouseLocation toWindowPoint:(QPointF *)qtWindowPoint andScreenPoint:(QPointF *)qtScreenPoint;
+- (QWindow *)topLevelWindow;
 
 @end
 

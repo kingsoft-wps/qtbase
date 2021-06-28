@@ -277,6 +277,8 @@ public:
     virtual bool parse(const QXmlInputSource* input, bool incremental);
     virtual bool parseContinue();
 
+    void setUseBlankSpace(bool flag);
+
 private:
     Q_DISABLE_COPY(QXmlSimpleReader)
     Q_DECLARE_PRIVATE(QXmlSimpleReader)

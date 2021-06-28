@@ -370,7 +370,9 @@ void *QThreadPrivate::start(void *arg)
     }
 #endif // __GLIBCXX__
     catch (...) {
+#ifndef Q_OS_MAC
         qTerminate();
+#endif
     }
 #endif // QT_NO_EXCEPTIONS
 
@@ -428,7 +430,9 @@ void QThreadPrivate::finish(void *arg)
     }
 #endif // __GLIBCXX__
     catch (...) {
+#ifndef Q_OS_MAC
         qTerminate();
+#endif
     }
 #endif // QT_NO_EXCEPTIONS
 }

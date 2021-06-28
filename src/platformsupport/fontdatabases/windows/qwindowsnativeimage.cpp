@@ -119,8 +119,10 @@ QWindowsNativeImage::QWindowsNativeImage(int width, int height,
         m_bitmap = createDIB(m_hdc, width, height, format, &bits);
         m_null_bitmap = static_cast<HBITMAP>(SelectObject(m_hdc, m_bitmap));
         m_image = QImage(bits, width, height, format);
-        Q_ASSERT(m_image.paintEngine()->type() == QPaintEngine::Raster);
-        static_cast<QRasterPaintEngine *>(m_image.paintEngine())->setDC(m_hdc);
+        if (QRasterPaintEngine *engine = static_cast<QRasterPaintEngine *>(m_image.paintEngine())) {
+            Q_ASSERT(engine->type() == QPaintEngine::Raster);
+            engine->setDC(m_hdc);
+        }
     } else {
         m_image = QImage(width, height, format);
     }

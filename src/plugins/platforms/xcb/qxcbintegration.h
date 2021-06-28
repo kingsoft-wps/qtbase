@@ -123,6 +123,11 @@ public:
 
     static QXcbIntegration *instance() { return m_instance; }
 
+protected:
+#ifdef Q_OS_LINUX
+    int testColorSapce() const override;
+#endif
+
 private:
     QList<QXcbConnection *> m_connections;
 

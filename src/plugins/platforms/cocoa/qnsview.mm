@@ -295,7 +295,7 @@
 
 - (BOOL)isTransparentForUserInput
 {
-    return m_platformWindow->window() &&
+    return m_platformWindow && m_platformWindow->window() &&
         m_platformWindow->window()->flags() & Qt::WindowTransparentForInput;
 }
 

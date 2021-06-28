@@ -1855,6 +1855,9 @@ void QPlainTextEdit::keyReleaseEvent(QKeyEvent *e)
             setTextCursor(cursor);
         }
     }
+#elif defined Q_OS_MAC
+	// The press message has been processed
+	e->accept();
 #else
     QWidget::keyReleaseEvent(e);
 #endif
@@ -1904,7 +1907,7 @@ void QPlainTextEditPrivate::relayoutDocument()
 static void fillBackground(QPainter *p, const QRectF &rect, QBrush brush, const QRectF &gradientRect = QRectF())
 {
     p->save();
-    if (brush.style() >= Qt::LinearGradientPattern && brush.style() <= Qt::ConicalGradientPattern) {
+    if (brush.style() >= Qt::LinearGradientPattern && brush.style() <= Qt::PathGradientPattern) {
         if (!gradientRect.isNull()) {
             QTransform m = QTransform::fromTranslate(gradientRect.left(), gradientRect.top());
             m.scale(gradientRect.width(), gradientRect.height());

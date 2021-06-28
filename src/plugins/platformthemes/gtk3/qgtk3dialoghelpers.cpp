@@ -387,6 +387,7 @@ void QGtk3FileDialogHelper::onCurrentFolderChanged(QGtk3FileDialogHelper *dialog
 
 void QGtk3FileDialogHelper::onFilterChanged(QGtk3FileDialogHelper *dialog)
 {
+    dialog->currentFilterChanged();
     emit dialog->filterSelected(dialog->selectedNameFilter());
 }
 
@@ -418,13 +419,40 @@ void QGtk3FileDialogHelper::setFileChooserAction()
     gtk_file_chooser_set_action(GTK_FILE_CHOOSER(gtkDialog), action);
 }
 
+void QGtk3FileDialogHelper::currentFilterChanged()
+{
+    GtkDialog *gtkDialog = d->gtkDialog();
+    gchar *gcFilename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(gtkDialog));
+    if (gcFilename)
+    {
+        QString fileFullName = QString::fromUtf8(gcFilename);
+        g_free(gcFilename);
+
+        QString fileName = QFileInfo(fileFullName).fileName();
+        QString selectedFilter = selectedNameFilter();
+        QStringList newNameFilters = QPlatformFileDialogHelper::cleanFilterList(selectedFilter);
+        QString newNameFilterExtension;
+        if (newNameFilters.count() > 0)
+            newNameFilterExtension = QFileInfo(newNameFilters.at(0)).suffix();
+
+        const QString fileNameExtension = QFileInfo(fileName).suffix();
+        if (!fileNameExtension.isEmpty() && !newNameFilterExtension.isEmpty())
+        {
+            const int fileNameExtensionLength = fileNameExtension.count();
+            fileName.replace(fileName.count() - fileNameExtensionLength,
+                             fileNameExtensionLength, newNameFilterExtension);
+            gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(gtkDialog), qUtf8Printable(fileName));
+        }
+    }
+}
+
 void QGtk3FileDialogHelper::applyOptions()
 {
     GtkDialog *gtkDialog = d->gtkDialog();
     const QSharedPointer<QFileDialogOptions> &opts = options();
 
     gtk_window_set_title(GTK_WINDOW(gtkDialog), qUtf8Printable(opts->windowTitle()));
-    gtk_file_chooser_set_local_only(GTK_FILE_CHOOSER(gtkDialog), true);
+    gtk_file_chooser_set_local_only(GTK_FILE_CHOOSER(gtkDialog), false);
 
     setFileChooserAction();
 
@@ -486,7 +514,22 @@ void QGtk3FileDialogHelper::setNameFilters(const QStringList &filters)
 
         gtk_file_filter_set_name(gtkFilter, qUtf8Printable(name.isEmpty() ? extensions.join(QLatin1String(", ")) : name));
         foreach (const QString &ext, extensions)
-            gtk_file_filter_add_pattern(gtkFilter, qUtf8Printable(ext));
+        {
+            QString caseInsensitive;
+            for (int i = 0 ; i < ext.length() ; ++i) {
+                QChar ch = ext.at(i);
+                if (ch.isLetter()) {
+                    caseInsensitive.append(
+                            QLatin1Char('[') +
+                            ch.toLower() +
+                            ch.toUpper() +
+                            QLatin1Char(']'));
+                } else {
+                    caseInsensitive.append(ch);
+                }
+            }
+            gtk_file_filter_add_pattern(gtkFilter, qUtf8Printable(caseInsensitive));
+        }
 
         gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(gtkDialog), gtkFilter);
 

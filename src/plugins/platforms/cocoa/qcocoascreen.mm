@@ -499,30 +499,40 @@ QPixmap QCocoaScreen::grabWindow(WId view, int x, int y, int width, int height) 
 */
 QCocoaScreen *QCocoaScreen::primaryScreen()
 {
+    if (!QGuiApplication::primaryScreen())
+        return nullptr;
     return static_cast<QCocoaScreen *>(QGuiApplication::primaryScreen()->handle());
 }
 
 CGPoint QCocoaScreen::mapToNative(const QPointF &pos, QCocoaScreen *screen)
 {
     Q_ASSERT(screen);
+    if (!screen)
+        return pos.toCGPoint();
     return qt_mac_flip(pos, screen->geometry()).toCGPoint();
 }
 
 CGRect QCocoaScreen::mapToNative(const QRectF &rect, QCocoaScreen *screen)
 {
     Q_ASSERT(screen);
+    if (!screen)
+        return rect.toCGRect();
     return qt_mac_flip(rect, screen->geometry()).toCGRect();
 }
 
 QPointF QCocoaScreen::mapFromNative(CGPoint pos, QCocoaScreen *screen)
 {
     Q_ASSERT(screen);
+    if (!screen)
+        return QPointF::fromCGPoint(pos);
     return qt_mac_flip(QPointF::fromCGPoint(pos), screen->geometry());
 }
 
 QRectF QCocoaScreen::mapFromNative(CGRect rect, QCocoaScreen *screen)
 {
     Q_ASSERT(screen);
+    if (!screen)
+        return QRectF::fromCGRect(rect);
     return qt_mac_flip(QRectF::fromCGRect(rect), screen->geometry());
 }
 

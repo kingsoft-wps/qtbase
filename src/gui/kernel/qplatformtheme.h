@@ -317,6 +317,10 @@ public:
     virtual QString standardButtonText(int button) const;
     virtual QKeySequence standardButtonShortcut(int button) const;
 
+#ifdef Q_OS_MAC
+    virtual void handleSystemThemeChange() {}
+#endif // Q_OS_MAC
+
     static QVariant defaultThemeHint(ThemeHint hint);
     static QString defaultStandardButtonText(int button);
     static QString removeMnemonics(const QString &original);

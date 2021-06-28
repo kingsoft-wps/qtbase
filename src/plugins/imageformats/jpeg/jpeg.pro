@@ -8,9 +8,16 @@ HEADERS += main.h qjpeghandler_p.h
 qtConfig(system-jpeg) {
     QMAKE_USE += libjpeg
 } else {
-    include($$PWD/../../../3rdparty/libjpeg.pri)
+    QMAKE_USE_PRIVATE += libjpeg
 }
 
+include($$PWD/../../../3rdparty/lcms.pri)
+
+win32 {
+    !winrt {
+        LIBS_PRIVATE += -luser32 -lgdi32
+    }
+}
 OTHER_FILES += jpeg.json
 
 PLUGIN_TYPE = imageformats

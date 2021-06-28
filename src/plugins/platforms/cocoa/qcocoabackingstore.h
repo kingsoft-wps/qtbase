@@ -82,7 +82,7 @@ public:
 
     void resize(const QSize &size, const QRegion &staticContents) override;
 
-    void beginPaint(const QRegion &region) override;
+    bool beginPaint(const QRegion &region) override;
     QPaintDevice *paintDevice() override;
     void endPaint() override;
 

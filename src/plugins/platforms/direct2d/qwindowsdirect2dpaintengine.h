@@ -44,6 +44,7 @@
 #include <QtGui/private/qpaintengineex_p.h>
 
 struct ID2D1Geometry;
+struct IDWriteFontFace;
 
 QT_BEGIN_NAMESPACE
 
@@ -70,6 +71,7 @@ public:
 
     Type type() const override;
 
+    QPainterState *createState(QPainterState *orig) const override;
     void setState(QPainterState *s) override;
 
     void draw(const QVectorPath &path) override;
@@ -104,6 +106,9 @@ public:
 
     void drawStaticTextItem(QStaticTextItem *staticTextItem) override;
     void drawTextItem(const QPointF &p, const QTextItem &textItem) override;
+
+    static QString getDWriteFontPath(IDWriteFontFace *pFace);
+    static bool matchDWriteFont(const QFontEngine *fontEngine, IDWriteFontFace **ppFontFace);
 
 private:
     void ensureBrush();

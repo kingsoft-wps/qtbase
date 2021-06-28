@@ -164,7 +164,11 @@ public:
         WordSpacingResolved         = 0x4000,
         HintingPreferenceResolved   = 0x8000,
         StyleNameResolved           = 0x10000,
-        AllPropertiesResolved       = 0x1ffff
+        VerticalMetricsResolved     = 0x20000,
+        EscapementAngleResolved     = 0x40000,
+        ForceScalableResolved       = 0x80000,
+        ManualBoldenResolved        = 0x100000,
+        AllPropertiesResolved       = 0xfffff
     };
 
     QFont();
@@ -237,6 +241,18 @@ public:
 
     void setHintingPreference(HintingPreference hintingPreference);
     HintingPreference hintingPreference() const;
+
+    bool verticalMetrics() const;
+    void setVerticalMetrics(bool);
+
+    qreal escapementAngle() const;
+    void setEscapementAngle(qreal degree); 
+
+    bool manualBolden() const;
+    void setManualBolden(bool);
+
+    bool forceScalable() const;
+    void setForceScalable(bool);
 
 #if QT_DEPRECATED_SINCE(5, 5)
     bool rawMode() const;

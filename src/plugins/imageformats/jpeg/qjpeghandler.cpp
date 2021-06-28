@@ -44,11 +44,17 @@
 #include <qvector.h>
 #include <qbuffer.h>
 #include <qmath.h>
+#include <qfile.h>
 #include <private/qsimd_p.h>
 #include <private/qimage_p.h>   // for qt_getImageText
 
 #include <stdio.h>      // jpeglib needs this to be pre-included
 #include <setjmp.h>
+#include <QtCore/QCoreApplication>
+
+#if defined(Q_PROCESSOR_ARM_64) && defined(Q_OS_MAC)
+#undef __ARM_NEON__
+#endif
 
 #ifdef FAR
 #undef FAR
@@ -70,8 +76,329 @@ extern "C" {
 #endif
 }
 
+#include "lcms2.h"
+#ifdef Q_OS_WIN
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <wingdi.h>
+#elif defined(Q_OS_LINUX)
+#include <QSettings>
+#include <QDir>
+#endif
+
+/*
+  Define declarations.
+*/
+#define ICC_MARKER (JPEG_APP0 + 2)
+#define ICC_PROFILE "ICC_PROFILE"
+#define IPTC_MARKER (JPEG_APP0 + 13)
+
 QT_BEGIN_NAMESPACE
 QT_WARNING_DISABLE_GCC("-Wclobbered")
+
+struct ProfilesContainer
+{
+    void clear()
+    {
+        m_iccProfile.clear();
+        m_exifProfile.clear();
+        m_xmpProfile.clear();
+        m_8bimProfile.clear();
+    }
+
+public:
+    QByteArray m_iccProfile;
+    // not read, seem not usefull;
+    QByteArray m_exifProfile;
+    QByteArray m_xmpProfile;
+    QByteArray m_8bimProfile;
+};
+
+#ifdef Q_OS_WIN
+#define CMYK_COLOR_PROFILE_FILE_NAME "RSWOP.icm"
+#define RGB_COLOR_PROFILE_FILE_NAME "sRGB Color Space Profile.icm"
+#elif defined(Q_OS_LINUX)
+#define SYSTEM_COLOR_PROFILE_FILE_DIR "/usr/share/color/icc/colord"
+#define CMYK_COLOR_PROFILE_FILE_NAME "FOGRA39L_coated.icc"
+#define RGB_COLOR_PROFILE_FILE_NAME "sRGB.icc"
+static QString getApplicationIccFileDir()
+{
+	QString iccFileDirPath;
+
+	QDir pwd(QCoreApplication::applicationDirPath());
+	QString qtConfig = pwd.filePath("qt.conf");
+	if (!QFile::exists(qtConfig))
+		return iccFileDirPath;
+
+	QSettings qtConfigSettings(qtConfig, QSettings::IniFormat);
+	qtConfigSettings.beginGroup("Paths");
+	iccFileDirPath = pwd.path() + QDir::separator() + qtConfigSettings.value("IccFilePath").toString();
+	qtConfigSettings.endGroup();
+	return iccFileDirPath;
+}
+#else
+#define RGB_COLOR_PROFILE_FILE_NAME "sRGB.icc"
+#define CMYK_COLOR_PROFILE_FILE_NAME "FOGRA39L_coated.icc"
+#endif
+
+static QByteArray loadColorProfile(const QString& colorProfileName)
+{
+	QString profilePath;
+#ifdef Q_OS_WIN
+	DWORD length = MAX_PATH;
+	WCHAR name[MAX_PATH] = {0};
+    HDC desktopDC = ::GetDC(HWND_DESKTOP);
+
+	if (0 != ::GetICMProfileW(desktopDC, &length, name))
+	{
+		profilePath = QString::fromUtf16(reinterpret_cast<const ushort*>(name));
+
+		int depart = profilePath.lastIndexOf("\\");
+		if (depart > 0)
+		{
+			profilePath = profilePath.left(depart + 1) + colorProfileName;
+		}
+	}
+    ::ReleaseDC(HWND_DESKTOP, desktopDC);
+#elif defined(Q_OS_LINUX)
+	profilePath = QString(SYSTEM_COLOR_PROFILE_FILE_DIR) + QDir::separator() + colorProfileName;
+	if (!QFile::exists(profilePath))
+		profilePath = getApplicationIccFileDir() + QDir::separator() + colorProfileName;
+#endif
+	QByteArray profile;
+	if (QFile::exists(profilePath))
+	{
+		QFile ioHandle(profilePath);
+		if (ioHandle.open(QIODevice::ReadOnly))
+		{
+			profile = ioHandle.readAll();
+		}
+		ioHandle.close();
+	}
+	return profile;
+}
+
+static QByteArray getSystemCMYKProfile()
+{
+	return loadColorProfile(CMYK_COLOR_PROFILE_FILE_NAME);
+}
+
+static QByteArray getSystemSRgbProfile()
+{
+	static QByteArray srgbProfile;
+	static bool isLoaded = false;
+	if (!isLoaded)
+	{
+		isLoaded = true;
+		srgbProfile = loadColorProfile(RGB_COLOR_PROFILE_FILE_NAME);
+	}
+	return srgbProfile;
+}
+
+static int readByte(j_decompress_ptr jpeg_info)
+{
+    if (jpeg_info->src->bytes_in_buffer == 0)
+        (void)(*jpeg_info->src->fill_input_buffer)(jpeg_info);
+    jpeg_info->src->bytes_in_buffer--;
+    return ((int)GETJOCTET(*jpeg_info->src->next_input_byte++));
+}
+
+typedef long ssize_t;
+
+// reference from ImageMagick: cooders/jpeg.c.
+static boolean readICCProfile(j_decompress_ptr jpeg_info)
+{
+    char buffer[12] = { 0 };
+    ProfilesContainer *ptrProfilesContainer = nullptr;
+    ssize_t i = 0;
+    unsigned char *p = nullptr;
+    size_t length = 0;
+
+    length = (size_t)((size_t)readByte(jpeg_info) << 8);
+    length += (size_t)readByte(jpeg_info);
+    length -= 2;
+    if (length <= 14) {
+        while (length-- > 0) {
+            readByte(jpeg_info);
+        }
+        return true;
+    }
+    for (i = 0; i < 12; ++i)
+        buffer[i] = (char)readByte(jpeg_info);
+
+    // Not a ICC profile, return.
+    if (strcmp(buffer, ICC_PROFILE) != 0) {
+        for (i = 0; i < (ssize_t)(length - 12); ++i)
+            readByte(jpeg_info);
+        return true;
+    }
+    readByte(jpeg_info); /* id */
+    readByte(jpeg_info); /* markers */
+    length -= 14;
+    ptrProfilesContainer = (ProfilesContainer *)jpeg_info->client_data;
+    if (ptrProfilesContainer == nullptr)
+        return false;
+
+    QByteArray profile(length, Qt::Uninitialized);
+    p = (unsigned char *)profile.data();
+    for (i = (ssize_t)(length - 1); i >= 0; i--)
+        *p++ = (unsigned char)readByte(jpeg_info);
+
+    ptrProfilesContainer->m_iccProfile.append(profile);
+    return true;
+}
+
+class CMScmyk2rgbConverter
+{
+public:
+    CMScmyk2rgbConverter()
+        : m_transformHandle(nullptr), m_srcProfile(nullptr), m_tgtProfile(nullptr), m_maxWidth(0)
+    {
+    }
+    ~CMScmyk2rgbConverter()
+    {
+        if (m_transformHandle) {
+            cmsDeleteTransform(m_transformHandle);
+            m_transformHandle = nullptr;
+        }
+        if (m_srcProfile) {
+            cmsCloseProfile(m_srcProfile);
+            m_srcProfile = nullptr;
+        }
+        if (m_tgtProfile) {
+            cmsCloseProfile(m_tgtProfile);
+            m_tgtProfile = nullptr;
+        }
+    }
+    bool init(const QByteArray &sourceProfile, const QByteArray &targetProfile,
+              const size_t clipWidth)
+    {
+        if (sourceProfile.isEmpty() || targetProfile.isEmpty())
+            return false;
+
+        cmsUInt32Number srcType = TYPE_RGB_16, tgtType = TYPE_RGB_16;
+        size_t srcChanncels = 3, tgtChanncels = 3;
+
+        m_srcProfile = cmsOpenProfileFromMemTHR((cmsContext)this, sourceProfile.data(),
+                                                (cmsUInt32Number)sourceProfile.size());
+        m_tgtProfile = cmsOpenProfileFromMemTHR((cmsContext)this, targetProfile.data(),
+                                                (cmsUInt32Number)targetProfile.size());
+
+        if (m_srcProfile == nullptr || m_tgtProfile == nullptr)
+            return false;
+
+        parseFormat(cmsGetColorSpace(m_srcProfile), srcType, srcChanncels);
+        parseFormat(cmsGetColorSpace(m_tgtProfile), tgtType, tgtChanncels);
+
+        if (srcType != (cmsUInt32Number)TYPE_CMYK_16 || tgtType != (cmsUInt32Number)TYPE_RGB_16
+            || srcChanncels != 4 || tgtChanncels != 3)
+            return false;
+
+        m_transformHandle = cmsCreateTransform(m_srcProfile, srcType, m_tgtProfile, tgtType,
+                                               INTENT_PERCEPTUAL, cmsFLAGS_HIGHRESPRECALC);
+
+        if (m_transformHandle == nullptr)
+            return false;
+
+#ifndef QT_NO_EXCEPTIONS
+        try {
+#endif
+            m_src_pixels.resize(clipWidth * srcChanncels);
+            m_tgt_pixels.resize(clipWidth * tgtChanncels);
+            m_maxWidth = clipWidth;
+#ifndef QT_NO_EXCEPTIONS
+        } catch (...) {
+            return false;
+        }
+#endif
+
+        return true;
+    }
+    // in:cmyk buffer;
+    // out:dest rgb buffer;
+    void transfer(uchar *cmykData, QRgb *out, size_t width)
+    {
+        Q_ASSERT(width <= m_maxWidth);
+        uchar const *cmykDataEnd = cmykData + width * 4;
+        unsigned short *const pSrcBegin = m_src_pixels.data();
+        unsigned short *pSrc = pSrcBegin;
+        unsigned short *const pDestBegin = m_tgt_pixels.data();
+
+        for (; cmykData < cmykDataEnd; ++cmykData) {
+            *pSrc++ = scaleCharToShort(0xff - *cmykData);
+        }
+        cmsDoTransform(m_transformHandle, pSrcBegin, pDestBegin, width);
+
+        unsigned short *pDest = pDestBegin;
+        QRgb *const outEnd = out + width;
+        for (; out < outEnd; ++out, pDest += 3) {
+            *out = qRgb(scaleShortToChar(pDest[0]), scaleShortToChar(pDest[1]),
+                        scaleShortToChar(pDest[2]));
+        }
+    }
+
+    static inline unsigned char scaleShortToChar(const ushort num)
+    {
+        // from imageMagick, seem not necessary: (((num + 128UL) - ((num + 128UL) >> 8)) >> 8);
+        return num >> 8;
+    }
+    static inline unsigned short scaleCharToShort(const unsigned char num) { return num * 0x101; }
+    static void parseFormat(const cmsColorSpaceSignature &signature, cmsUInt32Number &type,
+                            size_t &channels)
+    {
+        switch (signature)
+        {
+            case cmsSigCmykData: {
+                type = (cmsUInt32Number)TYPE_CMYK_16;
+                channels = 4;
+                break;
+            }
+            case cmsSigGrayData: {
+                type = TYPE_GRAY_16;
+                channels = 1;
+                break;
+            }
+            case cmsSigLabData: {
+                type = TYPE_Lab_16;
+                channels = 3;
+                break;
+            }
+            case cmsSigLuvData: {
+                type = TYPE_YUV_16;
+                channels = 3;
+                break;
+            }
+            case cmsSigRgbData: {
+                type = TYPE_RGB_16;
+                channels = 3;
+                break;
+            }
+            case cmsSigXYZData: {
+                type = TYPE_XYZ_16;
+                channels = 3;
+                break;
+            }
+            case cmsSigYCbCrData: {
+                type = TYPE_YCbCr_16;
+                channels = 3;
+                break;
+            }
+            default: {
+                type = TYPE_RGB_16;
+                channels = 3;
+                break;
+            }
+        }
+    }
+
+private:
+    cmsHPROFILE m_srcProfile;
+    cmsHPROFILE m_tgtProfile;
+    cmsHTRANSFORM m_transformHandle;
+    QVector<unsigned short> m_src_pixels;
+    QVector<unsigned short> m_tgt_pixels;
+    size_t m_maxWidth;
+};
 
 Q_GUI_EXPORT void QT_FASTCALL qt_convert_rgb888_to_rgb32(quint32 *dst, const uchar *src, int len);
 typedef void (QT_FASTCALL *Rgb888ToRgb32Converter)(quint32 *dst, const uchar *src, int len);
@@ -217,6 +544,21 @@ inline static bool read_jpeg_format(QImage::Format &format, j_decompress_ptr cin
         break;
     }
     cinfo->output_scanline = cinfo->output_height;
+    return result;
+}
+
+inline static bool read_jpeg_dpm(int &dpmx, int &dpmy, j_decompress_ptr cinfo)
+{
+    bool result = true;
+    if (cinfo->density_unit == 1) {
+        dpmx = int(100. * cinfo->X_density / 2.54);
+        dpmy = int(100. * cinfo->Y_density / 2.54);
+    } else if (cinfo->density_unit == 2) {
+        dpmx = int(100. * cinfo->X_density);
+        dpmy = int(100. * cinfo->Y_density);
+    } else {
+        result = false;
+    }
     return result;
 }
 
@@ -374,6 +716,17 @@ static bool read_jpeg_image(QImage *outImage,
 
             (void) jpeg_start_decompress(info);
 
+            CMScmyk2rgbConverter cmykConverter;
+            bool bValidCmykConverter = false;
+            if (info->out_color_space == JCS_CMYK && info->client_data) {
+                QByteArray srgbProFile = getSystemSRgbProfile();
+                QByteArray cmykProFile = ((ProfilesContainer *)info->client_data)->m_iccProfile;
+                if (!srgbProFile.isEmpty() && cmykProFile.isEmpty()) {
+                    cmykProFile = getSystemCMYKProfile();
+                }
+                bValidCmykConverter = cmykConverter.init(cmykProFile, srgbProFile, clip.width());
+            }
+
             while (info->output_scanline < info->output_height) {
                 int y = int(info->output_scanline) - clip.y();
                 if (y >= clip.height())
@@ -392,11 +745,42 @@ static bool read_jpeg_image(QImage *outImage,
                     // Convert CMYK->RGB.
                     uchar *in = rows[0] + clip.x() * 4;
                     QRgb *out = (QRgb*)outImage->scanLine(y);
-                    for (int i = 0; i < clip.width(); ++i) {
-                        int k = in[3];
-                        *out++ = qRgb(k * in[0] / 255, k * in[1] / 255,
-                                      k * in[2] / 255);
-                        in += 4;
+                    if (bValidCmykConverter) {
+                        cmykConverter.transfer(in, out, clip.width());
+                    } else {
+                        for (int i = 0; i < clip.width(); ++i) {
+                            // Try to fix R, G, B in restrain (58, 255), (38, 255), (0, 205), this
+                            // was a color approached by ps, with microsoft wscRGB.cdmp
+                            // we have no way to use ICC profiles here, cause' the original data
+                            // decoded from YCCK to RGB was already wrong, propbably a mistake by
+                            // fixing the DCT errors. (in ycck_cmyk_convert, the maxium value could
+                            // be 260, which should always below 255) I found that only the R
+                            // channel could probably be fixed by a linear restrain. But the G, B
+                            // channel was all wrong, and a completly chaos. It should be a bad idea
+                            // to use libjpeg to decode any YCCK/CMYK datas, see jdcolor.c See
+                            // reference, intel YCCK_RGB conversions:
+                            // http://software.intel.com/sites/products/documentation/hpc/ipp/ippi/ippi_ch15/functn_YCCKToCMYK_JPEG.html#functn_YCCKToCMYK_JPEG
+                            // Something might be useful, see topic:
+                            // http://www.hackerfactor.com/blog/index.php?/archives/464-K-is-the-New-Black.html
+
+                            int k = in[3];
+
+                            /* original mix */
+                            int r = k * in[0] / 255, g = k * in[1] / 255, b = k * in[2] / 255;
+
+                            // Besides, we should try to keep the white - black - gray colors here,
+                            // fix these colors would make the whole picture turn yellow.
+                            bool isGray = (r - g) * (r - g) + (g - b) * (g - b) + (r - b) * (r - b) < 1200;
+
+                            if (!isGray) {
+                                r = (r + 58) * 255 / 313;
+                                g = (g + 38) * 255 / 293;
+                                b = b * 205 / 255;
+                            }
+
+                            *out++ = qRgb(r, g, b);
+                            in += 4;
+                        }
                     }
                 } else if (info->output_components == 1) {
                     // Grayscale.
@@ -720,6 +1104,7 @@ public:
     QImageIOHandler::Transformations transformation;
     QVariant size;
     QImage::Format format;
+    QSizeF dpm;
     QSize scaledSize;
     QRect scaledClipRect;
     QRect clipRect;
@@ -738,7 +1123,11 @@ public:
     bool progressive;
 
     QJpegHandler *q;
+    ProfilesContainer m_profiles;
 };
+
+Q_GUI_EXPORT extern int qt_defaultDpiX();
+Q_GUI_EXPORT extern int qt_defaultDpiY();
 
 static bool readExifHeader(QDataStream &stream)
 {
@@ -884,11 +1273,19 @@ bool QJpegHandlerPrivate::readJpegHeader(QIODevice *device)
         jpeg_create_decompress(&info);
         info.src = iod_src;
 
+        m_profiles.clear();
+        info.client_data = (void *)&m_profiles;
+        jpeg_set_marker_processor(&info, ICC_MARKER, readICCProfile);
+
         if (!setjmp(err.setjmp_buffer)) {
             jpeg_save_markers(&info, JPEG_COM, 0xFFFF);
             jpeg_save_markers(&info, JPEG_APP0 + 1, 0xFFFF); // Exif uses APP1 marker
 
             (void) jpeg_read_header(&info, TRUE);
+
+            if (info.out_color_space != JCS_CMYK && info.client_data) {
+                ((ProfilesContainer *)info.client_data)->clear();
+            }
 
             int width = 0;
             int height = 0;
@@ -897,6 +1294,12 @@ bool QJpegHandlerPrivate::readJpegHeader(QIODevice *device)
 
             format = QImage::Format_Invalid;
             read_jpeg_format(format, &info);
+
+            int dpmx = qt_defaultDpiX() * 100.0 / 2.54;
+            int dpmy = qt_defaultDpiY() * 100.0 / 2.54;
+            read_jpeg_dpm(dpmx, dpmy, &info);
+            dpm.setWidth(dpmx);
+            dpm.setHeight(dpmy);
 
             QByteArray exifData;
 
@@ -950,6 +1353,9 @@ bool QJpegHandlerPrivate::read(QImage *image)
     if(state == ReadHeader)
     {
         bool success = read_jpeg_image(image, scaledSize, scaledClipRect, clipRect, quality, rgb888ToRgb32ConverterPtr, &info, &err);
+        if (info.client_data)
+            ((ProfilesContainer *)info.client_data)->clear();
+
         if (success) {
             for (int i = 0; i < readTexts.size()-1; i+=2)
                 image->setText(readTexts.at(i), readTexts.at(i+1));
@@ -1053,7 +1459,9 @@ bool QJpegHandler::supportsOption(ImageOption option) const
         || option == ImageFormat
         || option == OptimizedWrite
         || option == ProgressiveScanWrite
-        || option == ImageTransformation;
+        || option == ImageTransformation
+        || option == DotsPerMeter
+        || option == UseDefaultDpi;
 }
 
 QVariant QJpegHandler::option(ImageOption option) const
@@ -1083,6 +1491,12 @@ QVariant QJpegHandler::option(ImageOption option) const
     case ImageTransformation:
         d->readJpegHeader(device());
         return int(d->transformation);
+    case DotsPerMeter:
+        d->readJpegHeader(device());
+        return d->dpm;
+    case UseDefaultDpi:
+        d->readJpegHeader(device());
+        return (0 == d->info.density_unit);
     default:
         break;
     }

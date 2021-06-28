@@ -127,7 +127,7 @@ Q_REQUIRED_RESULT bool qIsFinite(qfloat16 f) Q_DECL_NOTHROW { return qt_is_finit
     exactness is stronger the smaller the numbers are.
  */
 
-#if QT_COMPILER_SUPPORTS(F16C)
+#if QT_COMPILER_SUPPORTS(F16C) && !defined(Q_PROCESSOR_ARM_64)
 static inline bool hasFastF16()
 {
     // All processors with F16C also support AVX, but YMM registers

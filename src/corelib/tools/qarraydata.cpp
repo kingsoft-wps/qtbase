@@ -46,16 +46,20 @@
 
 QT_BEGIN_NAMESPACE
 
+
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_GCC("-Wmissing-field-initializers")
+
 const QArrayData QArrayData::shared_null[2] = {
     { Q_REFCOUNT_INITIALIZE_STATIC, 0, 0, 0, sizeof(QArrayData) }, // shared null
-    { { Q_BASIC_ATOMIC_INITIALIZER(0) }, 0, 0, 0, 0 } /* zero initialized terminator */
-};
+    /* zero initialized terminator */};
 
 static const QArrayData qt_array[3] = {
     { Q_REFCOUNT_INITIALIZE_STATIC, 0, 0, 0, sizeof(QArrayData) }, // shared empty
     { { Q_BASIC_ATOMIC_INITIALIZER(0) }, 0, 0, 0, sizeof(QArrayData) }, // unsharable empty
-    { { Q_BASIC_ATOMIC_INITIALIZER(0) }, 0, 0, 0, 0 } /* zero initialized terminator */
-};
+    /* zero initialized terminator */};
+
+QT_WARNING_POP
 
 static const QArrayData &qt_array_empty = qt_array[0];
 static const QArrayData &qt_array_unsharable_empty = qt_array[1];
@@ -139,6 +143,25 @@ QArrayData *QArrayData::reallocateUnaligned(QArrayData *data, size_t objectSize,
     Q_ASSERT(!data->ref.isShared());
 
     size_t headerSize = sizeof(QArrayData);
+    size_t allocSize = calculateBlockSize(capacity, objectSize, headerSize, options);
+    QArrayData *header = static_cast<QArrayData *>(reallocateData(data, allocSize, options));
+    if (header)
+        header->alloc = capacity;
+    return header;
+}
+
+QArrayData *QArrayData::reallocateAligned(QArrayData *data, size_t objectSize, size_t alignment,
+                                          size_t capacity, AllocationOptions options) Q_DECL_NOTHROW
+{
+    Q_ASSERT(data);
+    Q_ASSERT(data->isMutable());
+    Q_ASSERT(!data->ref.isShared());
+
+    size_t headerSize = sizeof(QArrayData);
+
+    if (!(options & RawData))
+        headerSize += (alignment - Q_ALIGNOF(QArrayData));
+
     size_t allocSize = calculateBlockSize(capacity, objectSize, headerSize, options);
     QArrayData *header = static_cast<QArrayData *>(reallocateData(data, allocSize, options));
     if (header)

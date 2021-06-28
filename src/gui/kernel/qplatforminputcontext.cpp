@@ -114,8 +114,9 @@ bool QPlatformInputContext::hasCapability(Capability capability) const
     Method to be called when input method needs to be reset. Called by QInputMethod::reset().
     No further QInputMethodEvents should be sent as response.
  */
-void QPlatformInputContext::reset()
+void QPlatformInputContext::reset(bool bCancel)
 {
+    Q_UNUSED(bCancel)
 }
 
 void QPlatformInputContext::commit()
@@ -140,7 +141,7 @@ void QPlatformInputContext::invokeAction(QInputMethod::Action action, int cursor
     // Default behavior for simple ephemeral input contexts. Some
     // complex input contexts should not be reset here.
     if (action == QInputMethod::Click)
-        reset();
+        reset(true);
 }
 
 /*!
@@ -267,6 +268,22 @@ bool QPlatformInputContextPrivate::s_inputMethodAccepted = false;
 void QPlatformInputContextPrivate::setInputMethodAccepted(bool accepted)
 {
     QPlatformInputContextPrivate::s_inputMethodAccepted = accepted;
+}
+
+void QPlatformInputContext::updateEnable(QWindow *pWindow)
+{
+    Q_UNUSED(pWindow)
+    update(Qt::ImEnabled);
+}
+
+void QPlatformInputContext::updateFocusEnable()
+{
+    update(Qt::ImEnabled);
+}
+
+void QPlatformInputContext::closeCandidateWindow()
+{
+
 }
 
 /*!

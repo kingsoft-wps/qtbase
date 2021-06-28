@@ -4325,5 +4325,34 @@ HB_Error  HB_GSUB_Apply_String( HB_GSUBHeader*   gsub,
   return error;
 }
 
+HB_Error HB_GSUB_AddFeature(HB_GSUBHeader* gsub,
+                           HB_UInt script_tag,
+                           HB_UInt feature_tag)
+{
+    HB_UShort script_index = 0;
+    HB_Error error = HB_GSUB_Select_Script(gsub, script_tag, &script_index);
+    if (error == HB_Err_Ok) {
+        HB_UShort feature_index = 0;
+        error = HB_GSUB_Select_Feature(gsub, feature_tag, script_index, 0xffff, &feature_index);
+        if (error == HB_Err_Ok) {
+            error = HB_GSUB_Add_Feature(gsub, feature_index, 1);
+        }
+    }
+    return error;
+}
+
+HB_UInt HB_Apply_SingleSubstitute(HB_GSUBHeader* gsub, HB_UInt gindex)
+{
+      HB_UInt result = gindex;
+    HB_Buffer buffer = NULL;
+    hb_buffer_new(&buffer);
+    hb_buffer_add_glyph(buffer, gindex, 0, 0);
+    HB_Error error = HB_GSUB_Apply_String(gsub, buffer);
+    if (!error && buffer->out_length == 1)
+        result = buffer->out_string[0].gindex;
+    hb_buffer_free(buffer);
+    return result;
+}
+
 
 /* END */

@@ -6,7 +6,8 @@ HEADERS += \
         widgets/qabstractscrollarea.h \
         widgets/qabstractscrollarea_p.h \
         widgets/qfocusframe.h \
-        widgets/qwidgetanimator_p.h
+        widgets/qwidgetanimator_p.h \
+        widgets/qthaiinputcorrector.h
 
 SOURCES += \
         widgets/qframe.cpp \
@@ -322,6 +323,7 @@ qtConfig(toolbar) {
         widgets/qtoolbar.h \
         widgets/qtoolbar_p.h \
         widgets/qtoolbararealayout_p.h \
+        widgets/qtoolbaritemwidget.h \
         widgets/qtoolbarlayout_p.h \
         widgets/qtoolbarseparator_p.h
 

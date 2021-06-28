@@ -962,7 +962,7 @@
 #      define Q_COMPILER_ATTRIBUTES
 // Almost working, see https://connect.microsoft.com/VisualStudio/feedback/details/2011648
 //#      define Q_COMPILER_CONSTEXPR
-#      define Q_COMPILER_THREADSAFE_STATICS
+//#      define Q_COMPILER_THREADSAFE_STATICS
 #      define Q_COMPILER_UNIFORM_INIT
 #    endif
 #    if _MSC_VER >= 1910
@@ -973,6 +973,13 @@
 
 #ifdef Q_COMPILER_UNICODE_STRINGS
 #  define Q_STDLIB_UNICODE_STRINGS
+#endif
+
+// add for support XP
+#ifdef Q_OS_WIN
+#ifdef Q_COMPILER_THREAD_LOCAL
+#undef Q_COMPILER_THREAD_LOCAL
+#endif
 #endif
 
 #ifdef __cplusplus

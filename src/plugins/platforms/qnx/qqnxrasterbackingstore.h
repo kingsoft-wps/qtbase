@@ -58,7 +58,7 @@ public:
     void flush(QWindow *window, const QRegion &region, const QPoint &offset) override;
     void resize(const QSize &size, const QRegion &staticContents) override;
     bool scroll(const QRegion &area, int dx, int dy) override;
-    void beginPaint(const QRegion &region) override;
+    bool beginPaint(const QRegion &region) override;
     void endPaint() override;
 
 private:

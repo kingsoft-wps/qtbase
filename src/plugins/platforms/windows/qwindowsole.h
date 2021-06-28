@@ -48,11 +48,13 @@
 #include <QtCore/qvector.h>
 
 #include <objidl.h>
+struct IDragSourceHelper;
 
 QT_BEGIN_NAMESPACE
 
 class QMimeData;
 class QWindow;
+class QDropDescription;
 
 class QWindowsOleDataObject : public QWindowsComBase<IDataObject>
 {
@@ -77,10 +79,54 @@ public:
     STDMETHOD(DUnadvise)(DWORD dwConnection);
     STDMETHOD(EnumDAdvise)(LPENUMSTATDATA FAR* ppenumAdvise);
 
-private:
+protected:
     QPointer<QMimeData> data;
     const int CF_PERFORMEDDROPEFFECT;
     DWORD performedEffect = DROPEFFECT_NONE;
+};
+
+struct AFX_DATACACHE_ENTRY {
+    FORMATETC m_formatEtc;
+    STGMEDIUM m_stgMedium;
+    DATADIR m_nDataDir;
+};
+
+class QWindowsOleDataObjectEx : public QWindowsOleDataObject
+{
+public:
+    explicit QWindowsOleDataObjectEx(QMimeData *mimeData);
+    virtual ~QWindowsOleDataObjectEx();
+
+    inline bool getUseDescription() const { return m_bUseDescription; }
+    inline QDropDescription *getDropDescription() const { return m_pDropDescription; }
+
+    // IDataObject methods
+    STDMETHOD(GetData)(LPFORMATETC pformatetcIn, LPSTGMEDIUM pmedium);
+    STDMETHOD(GetDataHere)(LPFORMATETC pformatetc, LPSTGMEDIUM pmedium);
+    STDMETHOD(QueryGetData)(LPFORMATETC pformatetc);
+    STDMETHOD(SetData)(LPFORMATETC pformatetc, STGMEDIUM FAR *pmedium, BOOL fRelease);
+    STDMETHOD(EnumFormatEtc)(DWORD dwDirection, LPENUMFORMATETC FAR *ppenumFormatEtc);
+
+private:
+    bool init();
+    void ParseDraggedData();
+    bool SetDragImage(const QPoint &);
+
+    AFX_DATACACHE_ENTRY *Lookup(LPFORMATETC lpFormatEtc, DATADIR nDataDir) const;
+    void CacheGlobalData(CLIPFORMAT cfFormat, HGLOBAL hGlobal, LPFORMATETC lpFormatEtc = NULL);
+    void CacheData(CLIPFORMAT cfFormat, LPSTGMEDIUM lpStgMedium, LPFORMATETC lpFormatEtc = NULL);
+    AFX_DATACACHE_ENTRY *GetCacheEntry(LPFORMATETC lpFormatEtc, DATADIR nDataDir);
+    void EmptyCacheEntry();
+
+private:
+    IDragSourceHelper *m_pDragSourceHelper;
+    QDropDescription *m_pDropDescription;
+    bool m_bUseDescription;
+
+    AFX_DATACACHE_ENTRY *m_pDataCache;
+    UINT m_nMaxSize;
+    UINT m_nSize;
+    UINT m_nGrowBy;
 };
 
 class QWindowsOleEnumFmtEtc : public QWindowsComBase<IEnumFORMATETC>

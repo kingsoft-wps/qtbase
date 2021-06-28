@@ -71,6 +71,21 @@ QWindowsPipeReader::QWindowsPipeReader(QObject *parent)
             this, &QWindowsPipeReader::emitPendingReadyRead, Qt::QueuedConnection);
 }
 
+bool qt_cancelIo(HANDLE handle, OVERLAPPED *overlapped)
+{
+    typedef BOOL (WINAPI *PtrCancelIoEx)(HANDLE, LPOVERLAPPED);
+    static PtrCancelIoEx ptrCancelIoEx = 0;
+    if (!ptrCancelIoEx && QOperatingSystemVersion::current() >= QOperatingSystemVersion::Windows7) {
+        HMODULE kernel32 = GetModuleHandleA("kernel32");
+        if (kernel32)
+            ptrCancelIoEx = PtrCancelIoEx(GetProcAddress(kernel32, "CancelIoEx"));
+    }
+    if (ptrCancelIoEx)
+        return ptrCancelIoEx(handle, overlapped);
+    else
+        return CancelIo(handle);
+}
+
 QWindowsPipeReader::~QWindowsPipeReader()
 {
     stop();
@@ -97,7 +112,7 @@ void QWindowsPipeReader::stop()
     stopped = true;
     if (readSequenceStarted) {
         overlapped->pipeReader = nullptr;
-        if (!CancelIoEx(handle, overlapped)) {
+        if (!qt_cancelIo(handle, overlapped)) {
             const DWORD dwError = GetLastError();
             if (dwError != ERROR_NOT_FOUND) {
                 qErrnoWarning(dwError, "QWindowsPipeReader: CancelIoEx on handle %p failed.",

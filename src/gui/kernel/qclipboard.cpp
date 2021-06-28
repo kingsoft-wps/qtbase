@@ -516,6 +516,15 @@ void QClipboard::clear(Mode mode)
 }
 
 /*!
+    QClipboard::flushClipboard
+*/
+void QClipboard::flushClipboard()
+{
+	QPlatformClipboard* clipboard = QGuiApplicationPrivate::platformIntegration()->clipboard();
+	return clipboard->flushClipboard();
+}
+
+/*!
     Returns \c true if the clipboard supports mouse selection; otherwise
     returns \c false.
 */

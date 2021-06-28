@@ -742,6 +742,7 @@ void QT_FASTCALL fetchTransformedBilinearARGB32PM_downscale_helper_avx2(uint *b,
     else if (fdx < 0)
         boundedEnd = qMin(boundedEnd, b + (min_fx - fx) / fdx);
 
+#ifndef Q_OS_MAC
     // A fast middle part without boundary checks
     const __m256i vdistShuffle =
         _mm256_setr_epi8(0, char(0x80), 0, char(0x80), 4, char(0x80), 4, char(0x80), 8, char(0x80), 8, char(0x80), 12, char(0x80), 12, char(0x80),
@@ -781,6 +782,7 @@ void QT_FASTCALL fetchTransformedBilinearARGB32PM_downscale_helper_avx2(uint *b,
         fx += fdx;
         ++b;
     }
+#endif
 
     while (b < end) {
         int x1 = (fx >> 16);

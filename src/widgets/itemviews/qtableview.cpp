@@ -1573,6 +1573,13 @@ void QTableView::paintEvent(QPaintEvent *event)
                     colp +=  columnWidth(col) - gridSize;
                 painter.drawLine(colp, dirtyArea.top(), colp, dirtyArea.bottom());
             }
+
+            // draw the top & left grid lines if the headers are not visible.
+            // We do update this line when subsequent scroll happen (see scrollContentsBy)
+            if (horizontalHeader->isHidden() && verticalScrollMode() == ScrollPerItem)
+                painter.drawLine(dirtyArea.left(), 0, dirtyArea.right(), 0);
+            if (verticalHeader->isHidden() && horizontalScrollMode() == ScrollPerItem)
+                painter.drawLine(0, dirtyArea.top(), 0, dirtyArea.bottom());
             painter.setPen(old);
         }
     }

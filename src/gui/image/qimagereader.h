@@ -138,6 +138,8 @@ public:
     ImageReaderError error() const;
     QString errorString() const;
 
+    QVariant option(QImageIOHandler::ImageOption option) const;
+    void setOption(QImageIOHandler::ImageOption option, const QVariant &value);
     bool supportsOption(QImageIOHandler::ImageOption option) const;
 
     static QByteArray imageFormat(const QString &fileName);

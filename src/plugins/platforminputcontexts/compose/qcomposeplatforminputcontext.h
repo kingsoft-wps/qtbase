@@ -60,7 +60,7 @@ public:
 
     bool isValid() const override;
     void setFocusObject(QObject *object) override;
-    void reset() override;
+    void reset(bool bCancel = false) override;
     void update(Qt::InputMethodQueries) override;
     bool filterEvent(const QEvent *event) override;
 

@@ -116,11 +116,19 @@ struct Q_CORE_EXPORT QArrayData
             size_t capacity, AllocationOptions options = Default) Q_DECL_NOTHROW;
     Q_REQUIRED_RESULT static QArrayData *reallocateUnaligned(QArrayData *data, size_t objectSize,
             size_t newCapacity, AllocationOptions newOptions = Default) Q_DECL_NOTHROW;
+    Q_REQUIRED_RESULT static QArrayData* reallocateAligned(QArrayData* data, size_t objectSize, 
+            size_t alignment, size_t newCapacity, AllocationOptions newOptions = Default) Q_DECL_NOTHROW;
     static void deallocate(QArrayData *data, size_t objectSize,
             size_t alignment) Q_DECL_NOTHROW;
 
     static const QArrayData shared_null[2];
     static QArrayData *sharedNull() Q_DECL_NOTHROW { return const_cast<QArrayData*>(shared_null); }
+    static size_t alignmentThreshold() Q_DECL_NOTHROW 
+    {
+        // malloc on 32-bit platforms should return pointers that are 8-byte aligned or more
+        // while on 64-bit platforms they should be 16-byte aligned or more
+        return static_cast<size_t>(2 * sizeof(void*));
+    }
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QArrayData::AllocationOptions)
@@ -230,6 +238,19 @@ struct QTypedArrayData
     {
         Q_STATIC_ASSERT(sizeof(QTypedArrayData) == sizeof(QArrayData));
         return static_cast<QTypedArrayData *>(QArrayData::reallocateUnaligned(data, sizeof(T),
+                    capacity, options));
+    }
+
+    static QTypedArrayData* reallocate(QTypedArrayData* data, size_t capacity,
+            AllocationOptions options = Default)
+    {
+        Q_STATIC_ASSERT(sizeof(QTypedArrayData) == sizeof(QArrayData));
+        const size_t alignment = Q_ALIGNOF(AlignmentDummy);
+        if (alignment > QArrayData::alignmentThreshold())
+            return static_cast<QTypedArrayData*>(QArrayData::reallocateAligned(data, sizeof(T),
+                        alignment, capacity, options));
+
+        return static_cast<QTypedArrayData*>(QArrayData::reallocateUnaligned(data, sizeof(T),
                     capacity, options));
     }
 

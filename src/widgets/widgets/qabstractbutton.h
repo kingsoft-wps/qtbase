@@ -141,7 +141,10 @@ protected:
     void focusOutEvent(QFocusEvent *e) override;
     void changeEvent(QEvent *e) override;
     void timerEvent(QTimerEvent *e) override;
-
+#ifdef Q_OS_MAC
+    void leaveEvent(QEvent *) override;
+    void enterEvent(QEvent *) override;
+#endif // Q_OS_MAC
 
 protected:
     QAbstractButton(QAbstractButtonPrivate &dd, QWidget* parent = nullptr);

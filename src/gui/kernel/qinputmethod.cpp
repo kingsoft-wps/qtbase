@@ -339,15 +339,16 @@ void QInputMethod::update(Qt::InputMethodQueries queries)
 /*!
     Resets the input method state. For example, a text editor normally calls
     this method before inserting a text to make widget ready to accept a text.
+    By default cancel the ongoing composition, otherwise complete the ongoing composition
 
     Input method resets automatically when the focused editor changes.
 */
-void QInputMethod::reset()
+void QInputMethod::reset(bool bCancel)
 {
     Q_D(QInputMethod);
     QPlatformInputContext *ic = d->platformInputContext();
     if (ic)
-        ic->reset();
+        ic->reset(bCancel);
 }
 
 /*!
@@ -390,6 +391,79 @@ void QInputMethod::invokeAction(Action a, int cursorPosition)
         ic->invokeAction(a, cursorPosition);
 }
 
+inline QWindow* findParentforPopup(QWindow* w)
+{
+    QWindow* e = w;
+    while (e && e->type() == Qt::Popup){
+        QWindow* p = e->parent();
+        if (!p)
+            p = e->transientParent();
+        e = p;
+    }
+
+    return e;
+}
+void QInputMethod::disableFocusIME(QWindow *pWindow /*= nullptr*/)
+{
+    Q_D(QInputMethod);
+    QPlatformInputContextPrivate::setInputMethodAccepted(false);
+    QPlatformInputContext *ic = d->platformInputContext();
+    if (ic) {
+        if (pWindow) {
+            if (pWindow->type() == Qt::Popup) {
+                QWindow* parent = findParentforPopup(pWindow);
+                if (parent)
+                    ic->updateEnable(parent);
+            }
+            ic->updateEnable(pWindow);
+        } else {
+            ic->updateFocusEnable();
+        }
+    }
+}
+
+void QInputMethod::updateFocusIME(QObject *focus)
+{
+    Q_D(QInputMethod);
+    QPlatformInputContext *ic = d->platformInputContext();
+    if (ic) {
+        bool enabled = d->objectAcceptsInputMethod(focus);
+        QPlatformInputContextPrivate::setInputMethodAccepted(enabled);
+        ic->updateFocusEnable();
+    }
+}
+
+void QInputMethod::updateEnable(QWindow *pWindow)
+{
+    Q_D(QInputMethod);
+    QPlatformInputContext *ic = d->platformInputContext();
+    if (ic) {
+        QObject *focus = pWindow->focusObject();
+        bool enabled = d->objectAcceptsInputMethod(focus);
+        QPlatformInputContextPrivate::setInputMethodAccepted(enabled);
+
+        QWindow *focusWnd = QGuiApplication::focusWindow();
+        if (focusWnd != pWindow)
+            ic->updateEnable(focusWnd);
+
+        if (pWindow->type() == Qt::Popup) {
+            QWindow* parent = findParentforPopup(pWindow);
+            if (focusWnd != parent)
+                ic->updateEnable(parent);
+        }
+
+        ic->updateEnable(pWindow);
+    }
+}
+
+void QInputMethod::closeCandidateWindow()
+{
+    Q_D(QInputMethod);
+    QPlatformInputContext *ic = d->platformInputContext();
+    if (ic)
+        ic->closeCandidateWindow();
+}
+
 static inline bool platformSupportsHiddenText()
 {
     const QPlatformInputContext *inputContext = QGuiApplicationPrivate::platformIntegration()->inputContext();
@@ -409,7 +483,7 @@ bool QInputMethodPrivate::objectAcceptsInputMethod(QObject *object)
         QGuiApplication::sendEvent(object, &query);
         enabled = query.value(Qt::ImEnabled).toBool();
         if (enabled && !supportsHiddenText
-            && Qt::InputMethodHints(query.value(Qt::ImHints).toInt()).testFlag(Qt::ImhHiddenText)) {
+            && Qt::InputMethodHints(query.value(Qt::ImHints).toInt()) & (Qt::ImhExclusiveInputMask | Qt::ImhHiddenText)) {
             enabled = false;
         }
     }

@@ -157,15 +157,40 @@ bool QTextureGlyphCache::populate(QFontEngine *fontEngine, int numGlyphs, const 
             coords.insert(key, c);
             continue;
         }
+
+		int baselineX = metrics.x.truncate();
+		int baselineY = -metrics.y.truncate();
+
+#ifdef Q_OS_WIN
+        if (QFontEngine::Win == fontEngine->type()) {
+            QFixed customboldPixWidth = fontEngine->getCustomBoldPixWidth(m_transform);
+            if (customboldPixWidth > 0) {
+                glyph_width += customboldPixWidth.round().truncate();
+                glyph_height += customboldPixWidth.round().truncate();
+
+                baselineX -= (customboldPixWidth / 2).round().truncate(),
+                baselineY += (customboldPixWidth / 2).round().truncate();
+            }
+        }
+#endif
+
         // align to 8-bit boundary
         if (m_format == QFontEngine::Format_Mono)
             glyph_width = (glyph_width+7)&~7;
 
+#ifdef Q_OS_MAC
+		if (fontEngine->fontDef.verticalMetrics)
+		{
+			baselineX++;
+			baselineY--;
+		}
+#endif // Q_OS_MAC
+
         Coord c = { 0, 0, // will be filled in later
                     glyph_width,
                     glyph_height, // texture coords
-                    metrics.x.truncate(),
-                    -metrics.y.truncate() }; // baseline for horizontal scripts
+					baselineX,
+					baselineY }; // baseline for horizontal scripts
 
         listItemCoordinates.insert(key, c);
         rowHeight = qMax(rowHeight, glyph_height);
@@ -323,7 +348,9 @@ void QImageTextureGlyphCache::fillTexture(const Coord &c, glyph_t g, QFixed subP
     if (m_format == QFontEngine::Format_A32
         || m_format == QFontEngine::Format_ARGB) {
         QImage ref(m_image.bits() + (c.x * 4 + c.y * m_image.bytesPerLine()),
-                   qMin(mask.width(), c.w), qMin(mask.height(), c.h), m_image.bytesPerLine(),
+                   qMax(qMin(mask.width(), c.w), c.w),
+                   qMax(qMin(mask.height(), c.h), c.h),
+                   m_image.bytesPerLine(),
                    m_image.format());
         QPainter p(&ref);
         p.setCompositionMode(QPainter::CompositionMode_Source);

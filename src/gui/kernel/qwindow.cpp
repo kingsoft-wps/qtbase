@@ -399,6 +399,9 @@ void QWindowPrivate::setVisible(bool visible)
         QGuiApplicationPrivate::updateBlockedStatus(q);
     }
 
+    if (!visible)
+        q->activateParent();
+
 #ifndef QT_NO_CURSOR
     if (visible && (hasCursor || QGuiApplication::overrideCursor()))
         applyCursor();
@@ -456,6 +459,31 @@ void QWindowPrivate::updateSiblingPosition(SiblingPosition position)
         return;
 
     siblings.move(currentPosition, targetPosition);
+}
+
+bool QWindowPrivate::updateSiblingStackUnder(const QWindow* w)
+{
+    Q_Q(QWindow);
+
+    if (!q->parent())
+        return false;
+
+    QObjectList &siblings = q->parent()->d_ptr->children;
+    const int siblingCount = siblings.size() - 1;
+    if (siblingCount == 0)
+        return false;
+
+    int targetPosition = siblings.indexOf(const_cast<QWindow*>(w));
+    if (targetPosition < 0 || targetPosition > siblingCount)
+        return false;
+
+    const int currentPosition = siblings.indexOf(q);
+    if (currentPosition < targetPosition)
+        --targetPosition;
+
+    Q_ASSERT(currentPosition >= 0);
+    siblings.move(currentPosition, targetPosition);
+    return true;
 }
 
 inline bool QWindowPrivate::windowRecreationRequired(QScreen *newScreen) const
@@ -549,6 +577,7 @@ void QWindowPrivate::create(bool recursive, WId nativeHandle)
         if (QPlatformWindow *childPlatformWindow = childWindow->d_func()->platformWindow)
             childPlatformWindow->setParent(this->platformWindow);
     }
+    initialized = true;
 
     QPlatformSurfaceEvent e(QPlatformSurfaceEvent::SurfaceCreated);
     QGuiApplication::sendEvent(q, &e);
@@ -568,6 +597,15 @@ QRectF QWindowPrivate::closestAcceptableGeometry(const QRectF &rect) const
 {
     Q_UNUSED(rect)
     return QRectF();
+}
+
+// Used for TDR
+// if happened, reset all device dependent resources
+void QWindowPrivate::resetDeviceDependentResources()
+{
+    if (!platformWindow)
+        return;
+    platformWindow->resetDeviceDependentResources();
 }
 
 /*!
@@ -660,8 +698,25 @@ WId QWindow::winId() const
     if(!d->platformWindow)
         const_cast<QWindow *>(this)->create();
 
+    if (!d->platformWindow)
+        return 0;
+
     return d->platformWindow->winId();
 }
+#ifdef Q_OS_MAC
+WId QWindow::windowId() const
+{
+    Q_D(const QWindow);
+
+    if (type() == Qt::ForeignWindow)
+        return WId(property("_q_foreignWinId").value<WId>());
+
+    if(!d->platformWindow)
+        const_cast<QWindow *>(this)->create();
+
+    return d->platformWindow->windowId();
+}
+#endif // Q_OS_MAC
 
  /*!
     Returns the parent window, if any.
@@ -820,6 +875,8 @@ void QWindow::setFormat(const QSurfaceFormat &format)
 {
     Q_D(QWindow);
     d->requestedFormat = format;
+    if (d->platformWindow)
+        d->platformWindow->setFormat(format);
 }
 
 /*!
@@ -1049,6 +1106,19 @@ void QWindow::lower()
         d->platformWindow->lower();
 }
 
+
+void QWindow::stackUnder(const QWindow* w)
+{
+    Q_D(QWindow);
+    if (nullptr == w 
+        || w == this 
+        || !d->updateSiblingStackUnder(w))
+        return;
+
+    if (d->platformWindow && w->handle())
+        d->platformWindow->stackUnder(w->handle());
+}
+
 /*!
     \property QWindow::opacity
     \brief The opacity of the window in the windowing system.
@@ -1125,6 +1195,22 @@ void QWindow::requestActivate()
     }
     if (d->platformWindow)
         d->platformWindow->requestActivateWindow();
+}
+
+/*!
+Requests the window to be set focus, i.e. receive keyboard focus.
+
+\sa isActive(), QGuiApplication::focusWindow(), QWindowsWindowFunctions::setWindowActivationBehavior()
+*/
+void QWindow::requestFocus()
+{
+    Q_D(QWindow);
+    if (flags() & Qt::WindowDoesNotAcceptFocus) {
+        qWarning() << "requestActivate() called for " << this << " which has Qt::WindowDoesNotAcceptFocus set.";
+        return;
+    }
+    if (d->platformWindow)
+        d->platformWindow->requestFocusWindow();
 }
 
 /*!
@@ -1359,7 +1445,11 @@ void QWindow::setTransientParent(QWindow *parent)
         return;
     }
 
-    d->transientParent = parent;
+    if (d->transientParent != parent) {
+        d->transientParent = parent;
+        if (d->platformWindow)
+            d->platformWindow->syncTransientParent();
+    }
 
     QGuiApplicationPrivate::updateBlockedStatus(this);
 }
@@ -1391,6 +1481,9 @@ QWindow *QWindow::transientParent() const
 */
 bool QWindow::isAncestorOf(const QWindow *child, AncestorMode mode) const
 {
+    if (child == nullptr)
+        return false;
+
     if (child->parent() == this || (mode == IncludeTransients && child->transientParent() == this))
         return true;
 
@@ -2045,6 +2138,63 @@ QObject *QWindow::focusObject() const
     return const_cast<QWindow *>(this);
 }
 
+
+bool QWindow::handleMouseActivateWindowEvent(long* result)
+{
+    (*result) = 0;
+    return false;
+}
+
+bool QWindow::handleActivateWindowEvent(bool bGotFocus)
+{
+    Q_UNUSED(bGotFocus);
+    return false;
+}
+
+int QWindow::compareWindowZorder(const QWindow* w) const
+{
+    Q_UNUSED(w);
+    return 0;
+}
+
+QPoint QWindow::mapToNativeWidget(const QPoint& pt) const
+{
+    Q_UNUSED(pt);
+    return pt;
+}
+
+bool QWindow::isAncestorOfWidget(const QWindow* w) const
+{
+    Q_UNUSED(w);
+    return false;
+}
+
+bool QWindow::underMouse(const QPoint& pt) const
+{
+    Q_UNUSED(pt);
+    return true;
+}
+
+
+bool QWindow::tryActivateModalWindow()
+{
+    return false;
+}
+
+bool QWindow::handleDeactivateApplicationEvent()
+{
+    return false;
+}
+
+bool QWindow::handleActivateApplicationEvent()
+{
+    return false;
+}
+
+QWindow *QWindow::systemMenu()
+{
+    return nullptr;
+}
 /*!
     Shows the window.
 
@@ -2532,6 +2682,13 @@ bool QWindow::nativeEvent(const QByteArray &eventType, void *message, long *resu
 }
 
 /*!
+    Activate parent when hidden
+*/
+void QWindow::activateParent()
+{
+}
+
+/*!
     \fn QPoint QWindow::mapToGlobal(const QPoint &pos) const
 
     Translates the window coordinate \a pos to global screen
@@ -2545,7 +2702,7 @@ QPoint QWindow::mapToGlobal(const QPoint &pos) const
     Q_D(const QWindow);
     // QTBUG-43252, prefer platform implementation for foreign windows.
     if (d->platformWindow
-        && (d->platformWindow->isForeignWindow() || d->platformWindow->isEmbedded())) {
+		&& (d->platformWindow->isForeignWindow() || d->platformWindow->isEmbedded() || d->platformWindow->isMapGlobalRT())) {
         return QHighDpi::fromNativeLocalPosition(d->platformWindow->mapToGlobal(QHighDpi::toNativeLocalPosition(pos, this)), this);
     }
 
@@ -2555,7 +2712,90 @@ QPoint QWindow::mapToGlobal(const QPoint &pos) const
     return pos + d->globalPosition();
 }
 
+#ifdef Q_OS_MAC
+//  Customize window barTitle attributes on mac
+void QWindow::setTitlebarAppearsTransparent(bool b)
+{
+    Q_D(const QWindow);
+    // QTBUG-43252, prefer platform implementation for foreign windows.
+    if (d->platformWindow)
+        d->platformWindow->setTitlebarAppearsTransparent(b);
+}
 
+void QWindow::setBackgroundColor(const QColor &clr)
+{
+    Q_D(const QWindow);
+    // QTBUG-43252, prefer platform implementation for foreign windows.
+    if (d->platformWindow)
+        d->platformWindow->setBackgroundColor(clr);
+}
+
+void QWindow::setTitleTextColor(const QColor &clr)
+{
+    Q_D(const QWindow);
+    // QTBUG-43252, prefer platform implementation for foreign windows.
+    if (d->platformWindow)
+        d->platformWindow->setTitleTextColor(clr);
+}
+
+/* Moving NSWindow without redrawing, setting the rectangular area of the window will not cause redrawing, 
+so the efficiency of the sub-interface will be higher
+*/
+void QWindow::setNSWindowGeometryNoRedraw(const QRect &rc)
+{
+    Q_D(QWindow);
+    d->positionAutomatic = false;
+    if (rc == geometry())
+        return;
+
+    d->positionPolicy = QWindowPrivate::WindowFrameExclusive;
+    if (d->platformWindow)
+    {
+        QRect nativeRect;
+        QScreen *newScreen = d->screenForGeometry(rc);
+        if (newScreen && isTopLevel())
+            nativeRect = QHighDpi::toNativePixels(rc, newScreen);
+        else
+            nativeRect = QHighDpi::toNativePixels(rc, this);
+        d->platformWindow->setNSWindowGeometryNoRedraw(nativeRect);
+    }
+    else
+    {
+        this->setGeometry(rc);
+    }
+}
+
+// Whether to hide the top titlebar
+void QWindow::setTitlebarHide(bool b)
+{
+    Q_D(const QWindow);
+    if (d->platformWindow)
+        d->platformWindow->setTitlebarHide(b);
+}
+
+// Set whether to show all
+void QWindow::setContentViewFullSize(bool b)
+{
+    Q_D(const QWindow);
+    if (d->platformWindow)
+        d->platformWindow->setContentViewFullSize(b);
+}
+
+void QWindow::createWindowTitleView()
+{
+    Q_D(const QWindow);
+    if (d->platformWindow)
+        d->platformWindow->createWindowTitleView();
+}
+
+
+void QWindow::toggleFullScreen()
+{
+    Q_D(const QWindow);
+    if (d->platformWindow)
+        d->platformWindow->toggleFullScreen();
+}
+#endif
 /*!
     \fn QPoint QWindow::mapFromGlobal(const QPoint &pos) const
 
@@ -2569,7 +2809,7 @@ QPoint QWindow::mapFromGlobal(const QPoint &pos) const
     Q_D(const QWindow);
     // QTBUG-43252, prefer platform implementation for foreign windows.
     if (d->platformWindow
-        && (d->platformWindow->isForeignWindow() || d->platformWindow->isEmbedded())) {
+		&& (d->platformWindow->isForeignWindow() || d->platformWindow->isEmbedded() || d->platformWindow->isMapGlobalRT())) {
         return QHighDpi::fromNativeLocalPosition(d->platformWindow->mapFromGlobal(QHighDpi::toNativeLocalPosition(pos, this)), this);
     }
 
@@ -2577,6 +2817,24 @@ QPoint QWindow::mapFromGlobal(const QPoint &pos) const
         return QHighDpiScaling::mapPositionFromGlobal(pos, d->globalPosition(), this);
 
     return pos - d->globalPosition();
+}
+
+bool QWindow::acceptEnforceDrops()
+{
+    Q_D(const QWindow);
+    return d->acceptEnforceDrops;
+}
+
+void QWindow::setAcceptEnforceDrops(bool on)
+{
+    Q_D(QWindow);
+    d->acceptEnforceDrops = on;
+}
+
+void QWindow::resetDeviceDependentResources()
+{
+    Q_D(QWindow);
+    d->resetDeviceDependentResources();
 }
 
 QPoint QWindowPrivate::globalPosition() const
@@ -2693,6 +2951,16 @@ QWindow *QWindow::fromWinId(WId id)
     return window;
 }
 
+QWindow *QWindow::find(WId id)
+{
+    QPlatformIntegration *platformIntegration = QGuiApplicationPrivate::platformIntegration();
+    if (!platformIntegration)
+        return nullptr;
+
+    QPlatformWindow *platformWindow = platformIntegration->findPlatformWindow(id);
+    return platformWindow ? platformWindow->window() : nullptr;
+}
+
 /*!
     Causes an alert to be shown for \a msec miliseconds. If \a msec is \c 0 (the
     default), then the alert is shown indefinitely until the window becomes
@@ -2754,6 +3022,18 @@ void QWindow::unsetCursor()
 {
     Q_D(QWindow);
     d->setCursor(0);
+}
+
+bool QWindow::isAncestorCursorOf(const QWindow* w) const
+{
+    Q_UNUSED(w);
+    return true;
+}
+
+bool QWindow::updateCursor(const QPoint& pt)
+{
+    Q_UNUSED(pt);
+    return true;
 }
 
 /*!

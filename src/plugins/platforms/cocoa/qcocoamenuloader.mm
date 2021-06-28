@@ -59,6 +59,10 @@
     NSMenuItem *aboutItem;
     NSMenuItem *aboutQtItem;
     NSMenuItem *hideItem;
+    NSMenuItem *checkUpdateItem; // Check For Updates
+    NSMenuItem *appStoreEvalItem; //
+    NSMenuItem *importFromDeviceItem;
+    NSMenuItem *proxySettingItem;
     NSMenuItem *servicesItem;
     NSMenuItem *hideAllOthersItem;
     NSMenuItem *showAllItem;
@@ -113,6 +117,33 @@
         aboutQtItem.enabled = NO;
         aboutQtItem.hidden = YES;
         [appMenu addItem:aboutQtItem];
+        // checkUpdateItem
+        checkUpdateItem = [[QCocoaNSMenuItem alloc] init];
+        checkUpdateItem.title = @"Check For Updates...";
+        // Disable until a QAction is associated
+        checkUpdateItem.enabled = NO;
+        checkUpdateItem.hidden = YES;
+        [appMenu addItem:checkUpdateItem];
+
+        // appStoreEvalItem
+        appStoreEvalItem = [[QCocoaNSMenuItem alloc] init];
+        appStoreEvalItem.title = @"AppStore Evaluation";
+        // Disable until a QAction is associated
+        appStoreEvalItem.enabled = NO;
+        appStoreEvalItem.hidden = YES;
+        [appMenu addItem:appStoreEvalItem];
+         // proxySettingItem
+        proxySettingItem = [[QCocoaNSMenuItem alloc] init];
+        proxySettingItem.title = @"Login Proxy Setting";
+        // Disable until a QAction is associated
+        proxySettingItem.enabled = NO;
+        proxySettingItem.hidden = YES;
+        [appMenu addItem:proxySettingItem];
+
+        importFromDeviceItem = [[NSMenuItem alloc] initWithTitle:@"Import From Device" action:nil keyEquivalent:@""];
+        [importFromDeviceItem setIdentifier:@"NSMenuItemImportFromDeviceIdentifier"];
+        [importFromDeviceItem setHidden:YES];
+        [appMenu addItem:importFromDeviceItem];
 
         [appMenu addItem:[NSMenuItem separatorItem]];
 
@@ -180,6 +211,8 @@
 
 - (void)dealloc
 {
+    [importFromDeviceItem release];
+	importFromDeviceItem = nil;
     [theMenu release];
     [appMenu release];
     [aboutItem release];
@@ -225,6 +258,7 @@
                                action:nil keyEquivalent:@""];
     appMenuItem.submenu = appMenu;
     [menu insertItem:appMenuItem atIndex:0];
+    [appMenuItem release];
 }
 
 - (NSMenu *)menu
@@ -261,7 +295,20 @@
 {
     return [[hideItem retain] autorelease];
 }
+- (NSMenuItem *)checkUpdateMenuItem
+{
+    return [[checkUpdateItem retain] autorelease];
+}
 
+- (NSMenuItem *)appStoreEvalMenuItem
+{
+    return [[appStoreEvalItem retain] autorelease];
+}
+
+- (NSMenuItem *)proxySettingMenuItem
+{
+	return [[proxySettingItem retain] autorelease];
+}
 - (NSMenuItem *)appSpecificMenuItem:(QCocoaMenuItem *)platformItem
 {
     // No reason to create the item if it already exists.
@@ -313,6 +360,9 @@
     hideAllOthersItem.title = qt_mac_applicationmenu_string(HideOthersAppMenuItem).toNSString();
     showAllItem.title = qt_mac_applicationmenu_string(ShowAllAppMenuItem).toNSString();
     quitItem.title = qt_mac_applicationmenu_string(QuitAppMenuItem).arg(qt_mac_applicationName()).toNSString();
+    checkUpdateItem.title = qt_mac_applicationmenu_string(CheckUpdateItem).toNSString();
+    appStoreEvalItem.title = qt_mac_applicationmenu_string(AppStoreEvalItem).toNSString();
+    proxySettingItem.title = qt_mac_applicationmenu_string(ProxySettingMenuItem).toNSString();
 #endif
 }
 

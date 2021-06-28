@@ -385,7 +385,7 @@ void QCALayerBackingStore::resize(const QSize &size, const QRegion &staticConten
     m_requestedSize = size;
 }
 
-void QCALayerBackingStore::beginPaint(const QRegion &region)
+bool QCALayerBackingStore::beginPaint(const QRegion &region)
 {
     Q_UNUSED(region);
 
@@ -411,6 +411,7 @@ void QCALayerBackingStore::beginPaint(const QRegion &region)
     }
 
     m_paintedRegion += region;
+    return true;
 }
 
 void QCALayerBackingStore::ensureBackBuffer()

@@ -103,7 +103,10 @@ static gboolean socketNotifierSourceDispatch(GSource *source, GSourceFunc, gpoin
         GPollFDWithQSocketNotifier *p = src->pollfds.at(i);
 
         if ((p->pollfd.revents & p->pollfd.events) != 0)
+        {
+            p->pollfd.revents = 0;
             QCoreApplication::sendEvent(p->socketNotifier, &event);
+        }
     }
 
     return true; // ??? don't remove, right?

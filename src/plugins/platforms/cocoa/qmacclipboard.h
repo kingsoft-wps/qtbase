@@ -51,7 +51,7 @@ class QMacMimeData;
 class QMacPasteboard
 {
 public:
-    enum DataRequestType { EagerRequest, LazyRequest };
+    enum DataRequestType { EagerRequest, LazyRequest, LazyRequestAndKeep/*keep when exit the application*/ };
 private:
     struct Promise {
         Promise() : itemId(0), convertor(nullptr) { }

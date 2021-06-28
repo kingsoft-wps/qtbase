@@ -76,7 +76,10 @@ public:
         VkSurface,
         GeneratePeekerId,
         RemovePeekerId,
-        PeekEventQueue
+        PeekEventQueue,
+        TakeFirstEvent,
+        PutEvent,
+        KeysymToKeycode,
     };
 
     QXcbNativeInterface();
@@ -121,6 +124,10 @@ public:
     static bool peekEventQueue(QXcbEventQueue::PeekerCallback peeker, void *peekerData = nullptr,
                                QXcbEventQueue::PeekOptions option = QXcbEventQueue::PeekDefault,
                                qint32 peekerId = -1);
+    static xcb_generic_event_t *takeFirstEvent();
+    static void putEvent(xcb_window_t window, xcb_generic_event_t *event);
+
+    static xcb_keycode_t keysymToKeycode(xcb_keysym_t keysym);
 
     Q_INVOKABLE QString dumpConnectionNativeWindows(const QXcbConnection *connection, WId root) const;
     Q_INVOKABLE QString dumpNativeWindows(WId root = 0) const;

@@ -72,9 +72,9 @@ QStringList QWasmFontDatabase::fallbacksForFamily(const QString &family, QFont::
 }
 
 QStringList QWasmFontDatabase::addApplicationFont(const QByteArray &fontData,
-                                                    const QString &fileName)
+                                                    const QString &fileName, void **handle)
 {
-    return QFreeTypeFontDatabase::addApplicationFont(fontData, fileName);
+    return QFreeTypeFontDatabase::addApplicationFont(fontData, fileName, handle);
 }
 
 void QWasmFontDatabase::releaseHandle(void *handle)

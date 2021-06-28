@@ -110,6 +110,8 @@ namespace QPdf {
         bool handleDirty;
     };
 
+    QByteArray encodeNameObjStr(const QByteArray& name);
+    
     enum PathFlags {
         ClipPath,
         FillPath,
@@ -223,11 +225,12 @@ public:
     QPageLayout pageLayout() const;
 
     void setPen();
-    void setBrush();
+    void setBrush();    
     void setupGraphicsState(QPaintEngine::DirtyFlags flags);
-
+    
 private:
     void updateClipPath(const QPainterPath & path, Qt::ClipOperation op);
+	bool tryScaleImage(QImage& image, int quality);
 };
 
 class Q_GUI_EXPORT QPdfEnginePrivate : public QPaintEnginePrivate
@@ -287,6 +290,7 @@ public:
 
     // Page layout: size, orientation and margins
     QPageLayout m_pageLayout;
+  
 
 private:
     int gradientBrush(const QBrush &b, const QTransform &matrix, int *gStateObject);
@@ -328,6 +332,13 @@ private:
     QVector<uint> pages;
     QHash<qint64, uint> imageCache;
     QHash<QPair<uint, uint>, uint > alphaCache;
+
+protected:
+    int maxPantumBoldSize;
+    int imageQuality;
+    bool bAdaptiveImageQuality;
+    // OfficialView needs the cmyk color system and character outlines
+    bool useCmykColor;
 };
 
 QT_END_NAMESPACE

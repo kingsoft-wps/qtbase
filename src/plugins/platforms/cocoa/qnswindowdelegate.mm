@@ -41,6 +41,7 @@
 #include "qcocoahelpers.h"
 #include "qcocoawindow.h"
 #include "qcocoascreen.h"
+#include "qcocoaintegration.h"
 
 #include <QDebug>
 #include <QtCore/private/qcore_mac_p.h>
@@ -84,7 +85,7 @@ static QCocoaWindow *toPlatformWindow(NSWindow *window)
     QSizeF maximumSize = w->maximumSize() + QSize(0, w->frameMargins().top());
 
     // The window should never be larger than the current screen geometry
-    const QRectF screenGeometry = platformWindow->screen()->geometry();
+    const QRectF screenGeometry = platformWindow->screen() ? platformWindow->screen()->geometry() : QRectF();
     maximumSize = maximumSize.boundedTo(screenGeometry.size());
 
     // Use the current frame position for the initial maximized frame,
@@ -128,5 +129,22 @@ static QCocoaWindow *toPlatformWindow(NSWindow *window)
     // Only allow drag if the filename is non-empty. We allow whitespace, to
     // allow faking a window icon by setting the file path to a single space.
     return !whitespaceRegex.exactMatch(platformWindow->window()->filePath());
+}
+- (void)windowWillEnterFullScreen:(NSNotification *)notification
+{
+    Q_UNUSED(notification);
+    while (QCocoaWindow *popup = QCocoaIntegration::instance()->popPopupWindow()) {
+        QWindowSystemInterface::handleCloseEvent(popup->window());
+        QWindowSystemInterface::flushWindowSystemEvents();
+    }
+}
+
+- (void)windowWillExitFullScreen:(NSNotification *)notification
+{
+    Q_UNUSED(notification);
+    while (QCocoaWindow *popup = QCocoaIntegration::instance()->popPopupWindow()) {
+        QWindowSystemInterface::handleCloseEvent(popup->window());
+        QWindowSystemInterface::flushWindowSystemEvents();
+    }
 }
 @end

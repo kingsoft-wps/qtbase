@@ -2689,10 +2689,19 @@ void QT_FASTCALL rasterop_solid_SourceXorDestination(uint *dest,
                                                      uint color,
                                                      uint const_alpha)
 {
-    Q_UNUSED(const_alpha);
     color &= 0x00ffffff;
-    while (length--)
-        *dest++ ^= color;
+    if (const_alpha == 255) {
+        while (length--) {
+            *dest++ ^= color;
+        }
+    } else {
+        auto ica = 255 - const_alpha;
+        while (length--) {
+            auto s = *dest ^ color;
+            *dest = INTERPOLATE_PIXEL_255(s, const_alpha, *dest, ica);
+            ++dest;
+        }
+    }
 }
 
 void QT_FASTCALL rasterop_SourceXorDestination(uint *Q_DECL_RESTRICT dest,
@@ -2700,10 +2709,18 @@ void QT_FASTCALL rasterop_SourceXorDestination(uint *Q_DECL_RESTRICT dest,
                                                int length,
                                                uint const_alpha)
 {
-    Q_UNUSED(const_alpha);
-    while (length--) {
-        *dest = (*src ^ *dest) | 0xff000000;
-        ++dest; ++src;
+    if (const_alpha == 255) {
+        while (length--) {
+            *dest = (*src ^ *dest) | 0xff000000;
+            ++dest; ++src;
+        }
+    } else {
+        auto ica = 255 - const_alpha;
+        while (length--) {
+            auto s = (*src ^ *dest) | 0xff000000;
+            *dest = INTERPOLATE_PIXEL_255(s, const_alpha, *dest, ica);
+            ++dest; ++src;
+        }
     }
 }
 
@@ -2985,7 +3002,7 @@ CompositionFunctionSolid qt_functionForModeSolid_C[] = {
         rasterop_solid_SourceOrNotDestination,
         rasterop_solid_ClearDestination,
         rasterop_solid_SetDestination,
-        rasterop_solid_NotDestination
+        rasterop_solid_NotDestination,
 };
 
 CompositionFunctionSolid64 qt_functionForModeSolid64_C[] = {
@@ -3014,7 +3031,7 @@ CompositionFunctionSolid64 qt_functionForModeSolid64_C[] = {
         comp_func_solid_Difference_rgb64,
         comp_func_solid_Exclusion_rgb64,
         0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0
+        0, 0, 0, 0, 0, 0, 0, 0,
 };
 
 CompositionFunction qt_functionForMode_C[] = {
@@ -3055,7 +3072,7 @@ CompositionFunction qt_functionForMode_C[] = {
         rasterop_SourceOrNotDestination,
         rasterop_ClearDestination,
         rasterop_SetDestination,
-        rasterop_NotDestination
+        rasterop_NotDestination,
 };
 
 CompositionFunction64 qt_functionForMode64_C[] = {
@@ -3084,7 +3101,7 @@ CompositionFunction64 qt_functionForMode64_C[] = {
         comp_func_Difference_rgb64,
         comp_func_Exclusion_rgb64,
         0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0
+        0, 0, 0, 0, 0, 0, 0, 0,
 };
 
 QT_END_NAMESPACE

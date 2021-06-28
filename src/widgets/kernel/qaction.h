@@ -86,7 +86,11 @@ class Q_WIDGETS_EXPORT QAction : public QObject
 public:
     // note this is copied into qplatformmenu.h, which must stay in sync
     enum MenuRole { NoRole = 0, TextHeuristicRole, ApplicationSpecificRole, AboutQtRole,
-                    AboutRole, PreferencesRole, QuitRole };
+                    AboutRole, PreferencesRole, QuitRole,
+#ifdef Q_OS_MAC
+                    CheckForUpdatesRole, AppStoreEvalRole, ProxySettingRole
+#endif // Q_OS_MAC
+					 };
     Q_ENUM(MenuRole)
     enum Priority { LowPriority = 0,
                     NormalPriority = 128,

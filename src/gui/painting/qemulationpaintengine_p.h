@@ -77,6 +77,8 @@ public:
     void drawStaticTextItem(QStaticTextItem *item) override;
     void drawTiledPixmap(const QRectF &r, const QPixmap &pixmap, const QPointF &s) override;
     void drawImage(const QRectF &r, const QImage &pm, const QRectF &sr, Qt::ImageConversionFlags flags) override;
+    void drawImage(const QRectF &r, const QImage &pm, const QRectF &sr, const QImageEffects *effects,
+                   Qt::ImageConversionFlags flags = Qt::AutoColor) override; 
 
     void clipEnabledChanged() override;
     void penChanged() override;

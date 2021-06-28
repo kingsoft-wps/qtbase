@@ -910,15 +910,17 @@ QString QCommonStylePrivate::calculateElidedText(const QString &text, const QTex
         }
 
         const int start = line.textStart();
-        const int length = line.textLength();
+        int length = line.textLength();
         const bool drawElided = line.naturalTextWidth() > textRect.width();
         bool elideLastVisibleLine = lastVisibleLine == i;
         if (!drawElided && i + 1 < lineCount && lastVisibleLineShouldBeElided) {
             const QTextLine nextLine = textLayout.lineAt(i + 1);
             const int nextHeight = height + nextLine.height() / 2;
             // elide when less than the next half line is visible
-            if (nextHeight + layoutRect.top() > textRect.height() + textRect.top())
+            if (nextHeight + layoutRect.top() > textRect.height() + textRect.top()) {
                 elideLastVisibleLine = true;
+                length += nextLine.textLength();
+            }
         }
 
         QString text = textLayout.text().mid(start, length);
@@ -2467,8 +2469,18 @@ QRect QCommonStyle::subElementRect(SubElement sr, const QStyleOption *opt,
     case SE_CheckBoxIndicator:
         {
             int h = proxy()->pixelMetric(PM_IndicatorHeight, opt, widget);
+#ifdef Q_OS_MAC
+            // Can't be bigger than the outside boundingRect
+            h = qMin(h, opt->rect.height());
+
+            int w = proxy()->pixelMetric(PM_IndicatorWidth, opt, widget);
+            w = qMin(w, opt->rect.width());
+            r.setRect(opt->rect.x(), opt->rect.y() + ((opt->rect.height() - h) / 2),
+                      w, h);
+#else
             r.setRect(opt->rect.x(), opt->rect.y() + ((opt->rect.height() - h) / 2),
                       proxy()->pixelMetric(PM_IndicatorWidth, opt, widget), h);
+#endif
             r = visualRect(opt->direction, opt->rect, r);
         }
         break;
@@ -2519,8 +2531,18 @@ QRect QCommonStyle::subElementRect(SubElement sr, const QStyleOption *opt,
     case SE_RadioButtonIndicator:
         {
             int h = proxy()->pixelMetric(PM_ExclusiveIndicatorHeight, opt, widget);
+#ifdef Q_OS_MAC
+            // Can't be bigger than the outside boundingRect
+            h = qMin(h, opt->rect.height());
+
+            int w = proxy()->pixelMetric(PM_ExclusiveIndicatorWidth, opt, widget);
+            w = qMin(w, opt->rect.width());
+
+            r.setRect(opt->rect.x(), opt->rect.y() + ((opt->rect.height() - h) / 2), w, h);
+#else
             r.setRect(opt->rect.x(), opt->rect.y() + ((opt->rect.height() - h) / 2),
                     proxy()->pixelMetric(PM_ExclusiveIndicatorWidth, opt, widget), h);
+#endif // Q_OS_MAC
             r = visualRect(opt->direction, opt->rect, r);
         }
         break;
@@ -4543,7 +4565,11 @@ int QCommonStyle::pixelMetric(PixelMetric m, const QStyleOption *opt, const QWid
         break;
 
     case PM_MenuButtonIndicator:
+#ifdef Q_OS_MAC
+        ret = int(QStyleHelper::dpiScaled(18.));
+#else
         ret = int(QStyleHelper::dpiScaled(12.));
+#endif // Q_OS_MAC
         break;
 
     case PM_ButtonShiftHorizontal:
@@ -4998,8 +5024,6 @@ QSize QCommonStyle::sizeFromContents(ContentsType ct, const QStyleOption *opt,
             QRect decorationRect, displayRect, checkRect;
             d->viewItemLayout(vopt, &checkRect, &decorationRect, &displayRect, true);
             sz = (decorationRect|displayRect|checkRect).size();
-            if (decorationRect.isValid() && sz.height() == decorationRect.height())
-                sz.rheight() += 2; // Prevent icons from overlapping.
                       }
         break;
 #else

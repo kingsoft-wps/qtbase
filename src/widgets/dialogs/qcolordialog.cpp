@@ -133,7 +133,7 @@ public:
     void _q_pickScreenColor();
     void _q_updateColorPicking();
     void updateColorLabelText(const QPoint &);
-    void updateColorPicking(const QPoint &pos);
+    QColor updateColorPicking(const QPoint &pos);
     void releaseColorPicking();
     bool handleColorPickingMouseMove(QMouseEvent *e);
     bool handleColorPickingMouseButtonRelease(QMouseEvent *e);
@@ -169,6 +169,8 @@ public:
 #ifdef Q_OS_WIN32
     QTimer *updateTimer;
     QWindow dummyTransparentWindow;
+    QColor dummyTransparentBeforeColor;
+    QPoint dummyLastGlobalPos;
 #endif
 
 private:
@@ -1564,6 +1566,11 @@ bool QColorDialogPrivate::selectColor(const QColor &col)
 
 QColor QColorDialogPrivate::grabScreenColor(const QPoint &p)
 {
+#ifdef Q_OS_WIN32
+    if (p == dummyTransparentWindow.position() && dummyTransparentBeforeColor.isValid())
+        return dummyTransparentBeforeColor;
+#endif
+
     const QDesktopWidget *desktop = QApplication::desktop();
     const QPixmap pixmap = QGuiApplication::primaryScreen()->grabWindow(desktop->winId(), p.x(), p.y(), 1, 1);
     QImage i = pixmap.toImage();
@@ -1618,7 +1625,8 @@ void QColorDialogPrivate::_q_pickScreenColor()
 #ifdef Q_OS_WIN32 // excludes WinCE and WinRT
     // On Windows mouse tracking doesn't work over other processes's windows
     updateTimer->start(30);
-
+    dummyLastGlobalPos = QPoint();
+    dummyTransparentBeforeColor = QColor();
     // HACK: Because mouse grabbing doesn't work across processes, we have to have a dummy,
     // invisible window to catch the mouse click, otherwise we will click whatever we clicked
     // and loose focus.
@@ -1632,6 +1640,8 @@ void QColorDialogPrivate::_q_pickScreenColor()
 
     addCusBt->setDisabled(true);
     buttons->setDisabled(true);
+    standard->setFocus();
+
     screenColorPickerButton->setDisabled(true);
 
     const QPoint globalPos = QCursor::pos();
@@ -1655,6 +1665,8 @@ void QColorDialogPrivate::releaseColorPicking()
 #ifdef Q_OS_WIN32
     updateTimer->stop();
     dummyTransparentWindow.setVisible(false);
+    dummyLastGlobalPos = QPoint();
+    dummyTransparentBeforeColor = QColor();
 #endif
     q->releaseKeyboard();
     q->setMouseTracking(false);
@@ -1681,7 +1693,7 @@ void QColorDialogPrivate::init(const QColor &initial)
 
 #ifdef Q_OS_WIN32
     dummyTransparentWindow.resize(1, 1);
-    dummyTransparentWindow.setFlags(Qt::Tool | Qt::FramelessWindowHint);
+    dummyTransparentWindow.setFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
 #endif
 
     q->setCurrentColor(initial);
@@ -2217,30 +2229,29 @@ void QColorDialog::changeEvent(QEvent *e)
 void QColorDialogPrivate::_q_updateColorPicking()
 {
 #ifndef QT_NO_CURSOR
+#ifdef Q_OS_WIN32
     Q_Q(QColorDialog);
-    static QPoint lastGlobalPos;
     QPoint newGlobalPos = QCursor::pos();
-    if (lastGlobalPos == newGlobalPos)
+    if (dummyLastGlobalPos == newGlobalPos)
         return;
-    lastGlobalPos = newGlobalPos;
+    dummyLastGlobalPos = newGlobalPos;
 
     if (!q->rect().contains(q->mapFromGlobal(newGlobalPos))) { // Inside the dialog mouse tracking works, handleColorPickingMouseMove will be called
-        updateColorPicking(newGlobalPos);
-#ifdef Q_OS_WIN32
+        dummyTransparentBeforeColor = updateColorPicking(newGlobalPos);
         dummyTransparentWindow.setPosition(newGlobalPos);
-#endif
     }
+#endif
 #endif // ! QT_NO_CURSOR
 }
 
-void QColorDialogPrivate::updateColorPicking(const QPoint &globalPos)
+QColor QColorDialogPrivate::updateColorPicking(const QPoint &globalPos)
 {
     const QColor color = grabScreenColor(globalPos);
     // QTBUG-39792, do not change standard, custom color selectors while moving as
     // otherwise it is not possible to pre-select a custom cell for assignment.
     setCurrentColor(color, ShowColor);
     updateColorLabelText(globalPos);
-
+    return color;
 }
 
 bool QColorDialogPrivate::handleColorPickingMouseMove(QMouseEvent *e)

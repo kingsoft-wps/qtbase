@@ -93,7 +93,16 @@ QCocoaTheme::QCocoaTheme()
             if (__builtin_available(macOS 10.14, *))
                 NSAppearance.currentAppearance = NSApp.effectiveAppearance;
 
-            handleSystemThemeChange();
+            if (__builtin_available(macOS 10.14, *))
+            {
+                static NSAppearanceName lastAppearanceName;
+                NSAppearanceName curAppearanceName = NSApp.effectiveAppearance.name;
+                if (curAppearanceName != lastAppearanceName)
+                {
+                    handleSystemThemeChange();
+                    lastAppearanceName = curAppearanceName;
+                }
+            }
         });
     }
 #endif
@@ -130,6 +139,29 @@ void QCocoaTheme::handleSystemThemeChange()
     }
 
     QWindowSystemInterface::handleThemeChange(nullptr);
+
+    // Less than 14 systems do not need processing
+    bool bGreaterThen_10_14 = false;
+    if (@available(macOS 10.14, *)) {
+            bGreaterThen_10_14 = true;
+    } 
+	if (!bGreaterThen_10_14)
+		return ;
+
+	QAppThemeChangeEvent::ThemeMode mode;
+	if (qt_mac_applicationIsInDarkMode()) 
+    {
+		//If it is not dark mode skin, switch to darkmode skin
+		mode = QAppThemeChangeEvent::Dark;
+	}
+	else 
+    {
+		//If it is dark mode skin, switch to normal mode skin
+		mode = QAppThemeChangeEvent::Normal;
+	}
+
+	QAppThemeChangeEvent event(mode);
+	QGuiApplication::sendEvent(qApp, &event);
 }
 
 bool QCocoaTheme::usePlatformNativeDialog(DialogType dialogType) const

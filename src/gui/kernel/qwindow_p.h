@@ -100,6 +100,7 @@ public:
         , updateRequestPending(false)
         , transientParent(0)
         , topLevelScreen(0)
+        , initialized(false)
 #ifndef QT_NO_CURSOR
         , cursor(Qt::ArrowCursor)
         , hasCursor(false)
@@ -108,6 +109,7 @@ public:
 #if QT_CONFIG(vulkan)
         , vulkanInstance(nullptr)
 #endif
+        ,acceptEnforceDrops(false)
     {
         isWindow = true;
     }
@@ -140,6 +142,7 @@ public:
 
     enum SiblingPosition { PositionTop, PositionBottom };
     void updateSiblingPosition(SiblingPosition);
+    bool updateSiblingStackUnder(const QWindow* w);
 
     bool windowRecreationRequired(QScreen *newScreen) const;
     void create(bool recursive, WId nativeHandle = 0);
@@ -159,6 +162,8 @@ public:
     void setAutomaticPositionAndResizeEnabled(bool a)
     { positionAutomatic = resizeAutomatic = a; }
 
+    void resetDeviceDependentResources();
+
     static QWindowPrivate *get(QWindow *window) { return window->d_func(); }
 
     static Qt::WindowState effectiveState(Qt::WindowStates);
@@ -170,6 +175,7 @@ public:
     bool visible;
     bool visibilityOnDestroy;
     bool exposed;
+    bool initialized;
     QSurfaceFormat requestedFormat;
     QString windowTitle;
     QString windowFilePath;
@@ -214,6 +220,8 @@ public:
 #if QT_CONFIG(vulkan)
     QVulkanInstance *vulkanInstance;
 #endif
+
+    bool acceptEnforceDrops;
 };
 
 

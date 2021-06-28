@@ -828,7 +828,8 @@ bool QBmpHandler::write(const QImage &img)
 bool QBmpHandler::supportsOption(ImageOption option) const
 {
     return option == Size
-            || option == ImageFormat;
+            || option == ImageFormat
+            || option == DotsPerMeter;
 }
 
 QVariant QBmpHandler::option(ImageOption option) const
@@ -838,7 +839,7 @@ QVariant QBmpHandler::option(ImageOption option) const
             return QVariant();
         if (state == Ready && !const_cast<QBmpHandler*>(this)->readHeader())
             return QVariant();
-        return QSize(infoHeader.biWidth, infoHeader.biHeight);
+        return QSize(infoHeader.biWidth, qAbs(infoHeader.biHeight));
     } else if (option == ImageFormat) {
         if (state == Error)
             return QVariant();
@@ -862,6 +863,12 @@ QVariant QBmpHandler::option(ImageOption option) const
                 format = QImage::Format_Mono;
             }
         return format;
+    } else if (option == DotsPerMeter) {
+        if (state == Error)
+            return QVariant();
+        if (state == Ready && !const_cast<QBmpHandler *>(this)->readHeader())
+            return QVariant();
+        return QSizeF(infoHeader.biXPelsPerMeter, infoHeader.biYPelsPerMeter);
     }
     return QVariant();
 }

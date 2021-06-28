@@ -285,7 +285,11 @@ static QString locatePlugin(const QString& fileName)
     if (isAbsolute) {
         QFileInfo fi(fileName);
         if (fi.isFile()) {
+#ifdef Q_OS_WIN
+            return fi.absoluteFilePath();
+#else
             return fi.canonicalFilePath();
+#endif // Q_OS_WIN
         }
     }
     QStringList prefixes = QLibraryPrivate::prefixes_sys();

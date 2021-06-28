@@ -689,6 +689,18 @@ QBackingStore *QPlatformBackingStore::backingStore() const
     return d_ptr->backingStore;
 }
 
+
+void QPlatformBackingStore::beginFlush()
+{
+
+}
+
+
+void QPlatformBackingStore::endFlush()
+{
+
+}
+
 /*!
     This function is called before painting onto the surface begins,
     with the \a region in which the painting will occur.
@@ -696,8 +708,9 @@ QBackingStore *QPlatformBackingStore::backingStore() const
     \sa endPaint(), paintDevice()
 */
 
-void QPlatformBackingStore::beginPaint(const QRegion &)
+bool QPlatformBackingStore::beginPaint(const QRegion &)
 {
+    return true;
 }
 
 /*!

@@ -164,6 +164,11 @@ QWindowSystemInterfacePrivate::WindowSystemEvent *QWindowSystemInterfacePrivate:
     return windowSystemEventQueue.peekAtFirstOfType(t);
 }
 
+QWindowSystemInterfacePrivate::WindowSystemEvent *QWindowSystemInterfacePrivate::takeWindowSystemEvent(EventType t)
+{
+    return windowSystemEventQueue.takeAtFirstOfType(t);
+}
+
 void QWindowSystemInterfacePrivate::removeWindowSystemEvent(WindowSystemEvent *event)
 {
     windowSystemEventQueue.remove(event);
@@ -247,6 +252,12 @@ QT_DEFINE_QPA_EVENT_HANDLER(void, handleWindowActivated, QWindow *window, Qt::Fo
 {
     QWindowSystemInterfacePrivate::ActivatedWindowEvent *e =
         new QWindowSystemInterfacePrivate::ActivatedWindowEvent(window, r);
+
+#ifndef Q_OS_DARWIN
+    auto activatedEvent = QWindowSystemInterfacePrivate::takeWindowSystemEvent(QWindowSystemInterfacePrivate::ActivatedWindow);
+    delete activatedEvent;
+#endif
+
     QWindowSystemInterfacePrivate::handleWindowSystemEvent<Delivery>(e);
 }
 
@@ -1216,7 +1227,8 @@ Q_GUI_EXPORT void qt_handleKeyEvent(QWindow *window, QEvent::Type t, int k, Qt::
     QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(window, t, k, mods, text, autorep, count);
 }
 
-Q_GUI_EXPORT bool qt_sendShortcutOverrideEvent(QObject *o, ulong timestamp, int k, Qt::KeyboardModifiers mods, const QString &text = QString(), bool autorep = false, ushort count = 1)
+Q_GUI_EXPORT bool qt_sendShortcutOverrideEvent(QObject *o, ulong timestamp, int k, Qt::KeyboardModifiers mods, quint32 nativeScanCode,
+                                      quint32 nativeVirtualKey, quint32 nativeModifiers, const QString &text = QString(), bool autorep = false, ushort count = 1)
 {
 #ifndef QT_NO_SHORTCUT
 
@@ -1228,7 +1240,7 @@ Q_GUI_EXPORT bool qt_sendShortcutOverrideEvent(QObject *o, ulong timestamp, int 
 
     QGuiApplicationPrivate::modifier_buttons = mods;
 
-    QKeyEvent qevent(QEvent::ShortcutOverride, k, mods, text, autorep, count);
+    QKeyEvent qevent(QEvent::ShortcutOverride, k, mods, nativeScanCode, nativeVirtualKey, nativeModifiers, text, autorep, count);
     qevent.setTimestamp(timestamp);
 
     QShortcutMap &shortcutMap = QGuiApplicationPrivate::instance()->shortcutMap;

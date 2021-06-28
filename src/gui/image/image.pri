@@ -27,6 +27,8 @@ HEADERS += \
         image/qiconloader_p.h \
         image/qiconengine.h \
         image/qiconengineplugin.h \
+        image/qimageeffects.h \
+        image/qimageeffects_p.h \
 
 SOURCES += \
         image/qbitmap.cpp \
@@ -49,6 +51,7 @@ SOURCES += \
         image/qiconloader.cpp \
         image/qiconengine.cpp \
         image/qiconengineplugin.cpp \
+        image/qimageeffects.cpp \
 
 qtConfig(movie) {
     HEADERS += image/qmovie.h
@@ -84,5 +87,7 @@ qtConfig(png) {
 # SIMD
 SSSE3_SOURCES += image/qimage_ssse3.cpp
 NEON_SOURCES += image/qimage_neon.cpp
+SSE2_SOURCES += image/qimageeffects_sse2.cpp
+SSE4_1_SOURCES += image/qimageeffects_sse4.cpp
 MIPS_DSPR2_SOURCES += image/qimage_mips_dspr2.cpp
 MIPS_DSPR2_ASM += image/qimage_mips_dspr2_asm.S

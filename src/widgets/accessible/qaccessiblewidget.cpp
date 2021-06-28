@@ -70,6 +70,9 @@ QT_BEGIN_NAMESPACE
 static QList<QWidget*> childWidgets(const QWidget *widget)
 {
     QList<QWidget*> widgets;
+    if (!widget)
+        return widgets;
+
     for (QObject *o : widget->children()) {
         QWidget *w = qobject_cast<QWidget *>(o);
         if (w && !w->isWindow()
@@ -266,7 +269,7 @@ QObject *QAccessibleWidget::parentObject() const
 QRect QAccessibleWidget::rect() const
 {
     QWidget *w = widget();
-    if (!w->isVisible())
+    if (!w || !w->isVisible())
         return QRect();
     QPoint wpos = w->mapToGlobal(QPoint(0, 0));
 
@@ -501,6 +504,7 @@ QAccessible::State QAccessibleWidget::state() const
     QAccessible::State state;
 
     QWidget *w = widget();
+    if (!w) return state;
     if (w->testAttribute(Qt::WA_WState_Visible) == false)
         state.invisible = true;
     if (w->focusPolicy() != Qt::NoFocus)

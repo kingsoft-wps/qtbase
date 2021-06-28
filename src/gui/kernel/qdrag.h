@@ -86,6 +86,15 @@ public:
 
     static void cancel();
 
+#ifdef Q_OS_WIN
+    static bool getUseDropDescription();
+    static void setUseDropDescription(bool useDropDescription); // support os >= vista only
+    static QString getDropDescriptionInsert();
+    static void setDropDescriptionInsert(QString insertText);
+    static QString getDropDescriptionText();
+    static void setDropDescriptionText(QString text);
+#endif
+
 Q_SIGNALS:
     void actionChanged(Qt::DropAction action);
     void targetChanged(QObject *newTarget);

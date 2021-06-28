@@ -101,9 +101,13 @@ public:
     QFontEngine *fontEngine(const QFontDef &fontDef, void *handle) override;
     QFontEngine *fontEngine(const QByteArray &fontData, qreal pixelSize, QFont::HintingPreference hintingPreference) override;
     QStringList fallbacksForFamily(const QString &family, QFont::Style style, QFont::StyleHint styleHint, QChar::Script script) const override;
-    QStringList addApplicationFont(const QByteArray &fontData, const QString &fileName) override;
+    QStringList addApplicationFont(const QByteArray &fontData, const QString &fileName, void **handle) override;
+    bool removeApplicationFont(const QString &fileName, void *handle) override;
     void releaseHandle(void *handle) override;
     QString fontDir() const override;
+
+    Qt::HANDLE getFontHandle(QFontEngine* fontEngine) override;
+    bool clearTypeEnabled() const override;
 
     QFont defaultFont() const  override { return systemDefaultFont(); }
     bool fontsAlwaysScalable() const override;
@@ -115,7 +119,8 @@ public:
 
     static QFontEngine *createEngine(const QFontDef &request, const QString &faceName,
                                      int dpi,
-                                     const QSharedPointer<QWindowsFontEngineData> &data);
+                                     const QSharedPointer<QWindowsFontEngineData> &data,
+                                     bool bCheckColorFont);
 
     static HFONT systemFont();
     static QFont LOGFONT_to_QFont(const LOGFONT& lf, int verticalDPI = 0);
@@ -125,6 +130,7 @@ public:
 
     static QStringList extraTryFontsForFamily(const QString &family);
     static QString familyForStyleHint(QFont::StyleHint styleHint);
+    static QStringList defaultFontsForScript(QChar::Script script);
 
     static int defaultVerticalDPI();
 

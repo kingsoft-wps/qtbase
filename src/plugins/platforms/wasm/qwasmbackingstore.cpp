@@ -120,7 +120,7 @@ void QWasmBackingStore::updateTexture()
     m_dirty = QRegion();
 }
 
-void QWasmBackingStore::beginPaint(const QRegion &region)
+bool QWasmBackingStore::beginPaint(const QRegion &region)
 {
     m_dirty |= region;
     // Keep backing store device pixel ratio in sync with window
@@ -132,6 +132,8 @@ void QWasmBackingStore::beginPaint(const QRegion &region)
     const QColor blank = Qt::transparent;
     for (const QRect &rect : region)
         painter.fillRect(rect, blank);
+
+    return true;
 }
 
 void QWasmBackingStore::resize(const QSize &size, const QRegion &staticContents)

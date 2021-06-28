@@ -695,6 +695,14 @@ bool QWidgetItem::isEmpty() const
     return (wid->isHidden() && !wid->sizePolicy().retainSizeWhenHidden()) || wid->isWindow();
 }
 
+QSize QWidgetItem::layoutItemSize(const QSize &size) const
+{
+    QSize s = size;
+    if (!wid->testAttribute(Qt::WA_LayoutUsesWidgetRect))
+        s = toLayoutItemSize(wid->d_func(), s);
+    return s;
+}
+
 /*!
     Returns the control type associated with the widget for which
     this size policy applies.

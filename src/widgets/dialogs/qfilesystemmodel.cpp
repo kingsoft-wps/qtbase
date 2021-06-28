@@ -1334,7 +1334,7 @@ QModelIndex QFileSystemModel::mkdir(const QModelIndex &parent, const QString &na
     Q_ASSERT(parentNode->children.contains(name));
     QFileSystemModelPrivate::QFileSystemNode *node = parentNode->children[name];
 #if QT_CONFIG(filesystemwatcher)
-    node->populate(d->fileInfoGatherer.getInfo(QFileInfo(dir.absolutePath() + QDir::separator() + name)));
+    node->populate(d->fileInfoGatherer.getInfo(QFileInfo(dir.absoluteFilePath(name))));
 #endif
     d->addVisibleFiles(parentNode, QStringList(name));
     return d->index(node);

@@ -67,12 +67,13 @@ public:
     QFontEngine *fontEngine(const QFontDef &fontDef, void *handle) override;
     QFontEngine *fontEngine(const QByteArray &fontData, qreal pixelSize, QFont::HintingPreference hintingPreference) override;
     QStringList fallbacksForFamily(const QString &family, QFont::Style style, QFont::StyleHint styleHint, QChar::Script script) const override;
-    QStringList addApplicationFont(const QByteArray &fontData, const QString &fileName) override;
+    QStringList addApplicationFont(const QByteArray &fontData, const QString &fileName, void **handle) override;
     QString resolveFontFamilyAlias(const QString &family) const override;
     QFont defaultFont() const override;
 
 private:
     void setupFontEngine(QFontEngineFT *engine, const QFontDef &fontDef) const;
+    QFontEngine::FaceId faceId(const QFontDef &f, const QFontEngine::FaceId faceId);
 };
 
 QT_END_NAMESPACE

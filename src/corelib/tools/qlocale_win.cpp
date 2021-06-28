@@ -44,6 +44,9 @@
 #include "qstringlist.h"
 #include "qvariant.h"
 #include "qdatetime.h"
+
+#include "private/qsystemlibrary_p.h"
+
 #include "qdebug.h"
 
 #ifdef Q_OS_WIN
@@ -64,6 +67,7 @@ QT_BEGIN_NAMESPACE
 
 #ifndef Q_OS_WINRT
 static QByteArray getWinLocaleName(LCID id = LOCALE_USER_DEFAULT);
+static const char *winLangCodeToIsoName(int code);
 static QString winIso639LangName(LCID id = LOCALE_USER_DEFAULT);
 static QString winIso3116CtryName(LCID id = LOCALE_USER_DEFAULT);
 #else // !Q_OS_WINRT
@@ -596,31 +600,52 @@ QVariant QSystemLocalePrivate::toCurrencyString(const QSystemLocale::CurrencyToS
 QVariant QSystemLocalePrivate::uiLanguages()
 {
 #ifndef Q_OS_WINRT
-    unsigned long cnt = 0;
-    QVarLengthArray<wchar_t, 64> buf(64);
-#  if !defined(QT_BOOTSTRAPPED) && !defined(QT_BUILD_QMAKE) // Not present in MinGW 4.9/bootstrap builds.
-    unsigned long size = buf.size();
-    if (!GetUserPreferredUILanguages(MUI_LANGUAGE_NAME, &cnt, buf.data(), &size)) {
-        size = 0;
-        if (GetLastError() == ERROR_INSUFFICIENT_BUFFER &&
-                GetUserPreferredUILanguages(MUI_LANGUAGE_NAME, &cnt, NULL, &size)) {
-            buf.resize(size);
-            if (!GetUserPreferredUILanguages(MUI_LANGUAGE_NAME, &cnt, buf.data(), &size))
-                return QStringList();
+    if (QOperatingSystemVersion::current() >= QOperatingSystemVersion::WindowsVista){
+        unsigned long cnt = 0;
+        QVarLengthArray<wchar_t, 64> buf(64);
+#if !defined(QT_BOOTSTRAPPED) && !defined(QT_BUILD_QMAKE) // Not present in MinGW 4.9/bootstrap builds.
+        typedef BOOL (WINAPI *GetUserPreferredUILanguagesFunc) (
+                    DWORD dwFlags,
+                    PULONG pulNumLanguages,
+                    PWSTR pwszLanguagesBuffer,
+                    PULONG pcchLanguagesBuffer);
+        static GetUserPreferredUILanguagesFunc GetUserPreferredUILanguages_ptr = 0;
+
+        if (!GetUserPreferredUILanguages_ptr) {
+            QSystemLibrary lib(QLatin1String("kernel32"));
+            if (lib.load())
+                GetUserPreferredUILanguages_ptr = (GetUserPreferredUILanguagesFunc)lib.resolve("GetUserPreferredUILanguages");
         }
+
+        if (GetUserPreferredUILanguages_ptr) {
+            unsigned long size = buf.size();
+            if (!GetUserPreferredUILanguages_ptr(MUI_LANGUAGE_NAME, &cnt, buf.data(), &size)) {
+                size = 0;
+                if (GetLastError() == ERROR_INSUFFICIENT_BUFFER
+                    && GetUserPreferredUILanguages_ptr(MUI_LANGUAGE_NAME, &cnt, NULL, &size)) {
+                    buf.resize(size);
+                    if (!GetUserPreferredUILanguages_ptr(MUI_LANGUAGE_NAME, &cnt, buf.data(),
+                                                         &size))
+                        return QStringList();
+                }
+            }
+        }
+#endif // !QT_BOOTSTRAPPED && !QT_BUILD_QMAKE
+        QStringList result;
+        result.reserve(cnt);
+        const wchar_t *str = buf.constData();
+        for (; cnt > 0; --cnt) {
+            QString s = QString::fromWCharArray(str);
+            if (s.isEmpty())
+                break; // something is wrong
+            result.append(s);
+            str += s.size() + 1;
+        }
+        return result;
     }
-#  endif // !QT_BOOTSTRAPPED && !QT_BUILD_QMAKE
-    QStringList result;
-    result.reserve(cnt);
-    const wchar_t *str = buf.constData();
-    for (; cnt > 0; --cnt) {
-        QString s = QString::fromWCharArray(str);
-        if (s.isEmpty())
-            break; // something is wrong
-        result.append(s);
-        str += s.size() + 1;
-    }
-    return result;
+
+    // old Windows before Vista
+    return QStringList(QString::fromLatin1(winLangCodeToIsoName(GetUserDefaultUILanguage())));
 #else // !Q_OS_WINRT
     QStringList result;
 

@@ -210,6 +210,9 @@ public:
     int keyboardPageStep;
     int resizeTimerId;
     Operation currentOperation;
+#ifdef Q_OS_MAC
+    Qt::WindowStates windowStateBeforeMini; // Record the state before minimizing so that the state can be restored later
+#endif
     QStyle::SubControl hoveredSubControl;
     QStyle::SubControl activeSubControl;
     Qt::FocusReason focusInReason;

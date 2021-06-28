@@ -153,6 +153,7 @@ private:
 
     enum { WritePropertyIgnoreMargin = 1, WritePropertyIgnoreSpacing = 2, WritePropertyIgnoreObjectName = 4 };
     QString writeStringListProperty(const DomStringList *list) const;
+    QString writeStringListPropertyEx(const DomStringList *list) const;
     void writeProperties(const QString &varName, const QString &className, const DomPropertyList &lst, unsigned flags = 0);
     void writeColorGroup(DomColorGroup *colorGroup, const QString &group, const QString &paletteName);
     void writeBrush(const DomBrush *brush, const QString &brushName);

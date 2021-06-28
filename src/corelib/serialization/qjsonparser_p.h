@@ -91,6 +91,7 @@ private:
 
     bool parseObject();
     bool parseArray();
+    bool parseComment();
     bool parseMember(int baseOffset);
     bool parseString(bool *latin1);
     bool parseValue(QJsonPrivate::Value *val, int baseOffset);

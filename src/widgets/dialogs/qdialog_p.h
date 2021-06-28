@@ -92,6 +92,9 @@ public:
     QVariant styleHint(QPlatformDialogHelper::StyleHint hint) const;
     void deletePlatformHelper();
 
+    static QDialogPrivate* get(QDialog* d) { return d->d_func(); }
+    static const QDialogPrivate* get(const QDialog* d) { return d->d_func(); }
+
 #if QT_CONFIG(pushbutton)
     QPointer<QPushButton> mainDef;
 #endif

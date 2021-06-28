@@ -190,7 +190,7 @@ bool QXcbNativeBackingStore::scroll(const QRegion &area, int dx, int dy)
     return true;
 }
 
-void QXcbNativeBackingStore::beginPaint(const QRegion &region)
+bool QXcbNativeBackingStore::beginPaint(const QRegion &region)
 {
     QX11PlatformPixmap *x11pm = qt_x11Pixmap(m_pixmap);
     if (x11pm)
@@ -207,6 +207,7 @@ void QXcbNativeBackingStore::beginPaint(const QRegion &region)
 #else
     Q_UNUSED(region);
 #endif
+return true;
 }
 
 Display *QXcbNativeBackingStore::display() const

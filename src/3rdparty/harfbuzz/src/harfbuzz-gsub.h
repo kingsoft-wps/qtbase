@@ -132,7 +132,14 @@ HB_Error  HB_GSUB_Register_Alternate_Function( HB_GSUBHeader*  gsub,
 
 
 HB_Error  HB_GSUB_Apply_String( HB_GSUBHeader*   gsub,
-				HB_Buffer        buffer );
+										HB_Buffer        buffer );
+
+HB_Error HB_GSUB_AddFeature( HB_GSUBHeader* gsub,
+                          							HB_UInt script_tag,
+                           							HB_UInt feature_tag);
+
+HB_UInt HB_Apply_SingleSubstitute( HB_GSUBHeader* gsub, 
+											HB_UInt gindex);
 
 HB_END_HEADER
 
