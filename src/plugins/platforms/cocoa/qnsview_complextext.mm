@@ -293,8 +293,8 @@
     QRect mr = qApp->inputMethod()->cursorRectangle().toRect();
 
     // Modified to the topmost window to prevent the pre-input position from being wrong
-    //mr.moveBottomLeft(m_platformWindow->window()->mapToGlobal(mr.bottomLeft()));
-    mr.moveBottomLeft(window->mapToGlobal(mr.bottomLeft()));
+    //mr.moveBottomLeft(window->mapToGlobal(mr.bottomLeft()));
+    mr.moveBottomLeft(m_platformWindow->window()->mapToGlobal(mr.bottomLeft()));
     return QCocoaScreen::mapToNative(mr);
 }
 
