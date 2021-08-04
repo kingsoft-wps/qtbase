@@ -114,6 +114,8 @@ public:
     QFixed emSquareSize() const override;
     void doKerning(QGlyphLayout *g, ShaperFlags flags) const override;
 
+    bool drawGlyphOnImage(void *cgContext, int numGlyphs, const glyph_t *glyphs, const QFixedPoint *positions, const QTransform &matrix, QSize size, const QColor &color);
+
     bool supportsTransformation(const QTransform &transform) const override;
     bool expectsGammaCorrectedBlending() const override;
 

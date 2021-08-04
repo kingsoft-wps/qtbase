@@ -3337,6 +3337,18 @@ bool QRasterPaintEngine::drawCachedGlyphs(int numGlyphs, const glyph_t *glyphs,
                                           const QFixedPoint *positions, QFontEngine *fontEngine)
 {
     Q_D(QRasterPaintEngine);
+#ifdef Q_OS_MAC
+    QRasterPaintEngineState *s = state();
+    if (painter()->device()->devType() == QInternal::Image && painter()->getCGContext())
+    {
+        QImage *imgDevice = dynamic_cast<QImage*>(painter()->device());
+        if (imgDevice)
+        {
+            fontEngine->drawGlyphOnImage(painter()->getCGContext(), numGlyphs, glyphs, positions, s->matrix, imgDevice->size(), s->penData.solid.textColor);
+            return true;
+        }
+    }
+#endif
     QFontEngine::GlyphFormat glyphFormat = fontEngine->glyphFormat != QFontEngine::Format_None
             ? fontEngine->glyphFormat
             : d->glyphCacheFormat;
@@ -3714,7 +3726,11 @@ void QRasterPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textIte
     QRasterPaintEngineState *s = state();
     QTransform matrix = s->matrix;
     bool useColorFontDefaultColor = (ti.oprFlags & QTextItem::UseColorFontDefaultColor);
+#ifdef Q_OS_MAC
+    if (shouldDrawCachedGlyphs(ti.fontEngine, matrix) || (painter()->getCGContext() && !ti.fontEngine->fontDef.manualBolden)) {
+#else
     if (shouldDrawCachedGlyphs(ti.fontEngine, matrix)) {
+#endif
         QVarLengthArray<QFixedPoint> positions;
         QVarLengthArray<glyph_t> glyphs;
 
@@ -4019,8 +4035,8 @@ bool QRasterPaintEngine::shouldDrawCachedGlyphs(QFontEngine *fontEngine, const Q
         return false;
 
 #ifdef Q_OS_LINUX
-	if (fontEngine->forceDrawAsOutline())
-		return false;
+    if (fontEngine->forceDrawAsOutline())
+        return false;
 #endif
 
     return QPaintEngineEx::shouldDrawCachedGlyphs(fontEngine, m);
@@ -5239,6 +5255,9 @@ void QSpanData::setup(const QBrush &brush, int alpha, QPainter::CompositionMode 
         } else {
             solid.color = qPremultiply(combineAlpha256(c.rgba64(), alpha));
         }
+#ifdef Q_OS_MAC
+        solid.textColor = c.rgba64();
+#endif
         if (solid.color.isTransparent() && compositionMode == QPainter::CompositionMode_SourceOver)
             type = None;
         break;

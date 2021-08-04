@@ -68,6 +68,9 @@ QT_BEGIN_NAMESPACE
 class QPaintEngine;
 class QEmulationPaintEngine;
 class QPaintEngineEx;
+#ifdef Q_OS_MAC
+class QCGPainter;
+#endif
 struct QFixedPoint;
 
 struct QTLWExtra;
@@ -200,6 +203,7 @@ public:
         extended(0)
 #ifdef Q_OS_MAC
         ,manualBoldenSuccess(true)
+      , cgPainter(nullptr)
 #endif
 
     {
@@ -275,6 +279,7 @@ public:
     QBrush colorBrush;          // for fill with solid color
 #ifdef Q_OS_MAC
     bool manualBoldenSuccess;
+    QCGPainter *cgPainter;
 #endif
 
 };
