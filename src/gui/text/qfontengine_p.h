@@ -211,6 +211,9 @@ public:
     virtual Glyph *glyphDataForCustomBold(glyph_t glyph, QFixed subPixelPosition, GlyphFormat neededFormat,
                                           const QTransform &t, int wx, int wy);
     virtual bool hasInternalCaching() const { return false; }
+#ifdef Q_OS_MAC
+    virtual bool drawGlyphOnImage(void *cgContext, int numGlyphs, const glyph_t *glyphs, const QFixedPoint *positions, const QTransform &matrix, QSize size, const QColor &color) { return false;}
+#endif
 
     virtual bool isColorFont() const { return false; }
     virtual bool hasColorLayer(glyph_t) const { return false; }

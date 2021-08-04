@@ -231,6 +231,9 @@ class QRasterPaintEngine;
 struct QSolidData
 {
     QRgba64 color;
+#ifdef Q_OS_MAC
+    QRgba64 textColor;
+#endif
 };
 
 struct QLinearGradientData

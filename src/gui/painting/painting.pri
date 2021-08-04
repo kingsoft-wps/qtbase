@@ -115,8 +115,10 @@ RESOURCES += \
         webgradients
 
 darwin {
-    HEADERS += painting/qcoregraphics_p.h
-    SOURCES += painting/qcoregraphics.mm
+    HEADERS += painting/qcoregraphics_p.h \
+            painting/qpaintercg.h
+    SOURCES += painting/qcoregraphics.mm \
+            painting/qpaintercg.mm 
 }
 
 qtConfig(cssparser) {

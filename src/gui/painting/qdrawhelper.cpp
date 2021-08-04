@@ -4035,9 +4035,7 @@ static const uint *QT_FASTCALL fetchTransformedBilinear(uint *buffer, const Oper
                             fx += fdx;
                         }
                     }
-#ifndef Q_OS_MAC
                     length -= len;
-#endif
                     b += len;
                 }
             }
@@ -4081,9 +4079,8 @@ static const uint *QT_FASTCALL fetchTransformedBilinear(uint *buffer, const Oper
                         fy += fdy;
                     }
                 }
-#ifndef Q_OS_MAC
+
                 length -= len;
-#endif
                 b += len;
             }
         }
@@ -4154,9 +4151,7 @@ static const uint *QT_FASTCALL fetchTransformedBilinear(uint *buffer, const Oper
 
                 b[i] = interpolate_4_pixels(buf1 + i * 2, buf2 + i * 2, distx, disty);
             }
-#ifndef Q_OS_MAC
             length -= len;
-#endif
             b += len;
         }
     }

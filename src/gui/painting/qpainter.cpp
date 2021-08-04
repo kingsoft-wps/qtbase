@@ -59,6 +59,9 @@
 #include "qstatictext.h"
 #include "qglyphrun.h"
 #include "qimageeffects.h"
+#ifdef Q_OS_MAC
+#include "qpaintercg.h"
+#endif
 
 #include <qpa/qplatformtheme.h>
 #include <qpa/qplatformintegration.h>
@@ -1559,6 +1562,47 @@ bool QPainter::isActive() const
     return d->engine;
 }
 
+#ifdef Q_OS_MAC
+bool QPainter::enableCGPainting()
+{
+    if (nullptr == d_ptr->cgPainter)
+    {
+        d_ptr->cgPainter = new QCGPainter();
+        d_ptr->cgPainter->setPainterPrivate(d_ptr.get());
+        return d_ptr->cgPainter->begin(device());
+    }
+    return true;
+}
+
+bool QPainter::disableCGPainting()
+{
+    if (d_ptr->cgPainter)
+    {
+        d_ptr->cgPainter->end();
+        delete d_ptr->cgPainter;
+        d_ptr->cgPainter = nullptr;
+    }
+    return true;
+}
+
+void QPainter::setCGContext(void* context)
+{
+    if (d_ptr->cgPainter)
+    {
+        d_ptr->cgPainter->setContext(context);
+        d_ptr->cgPainter->setPainterPrivate(d_ptr.get());
+    }
+}
+
+void *QPainter::getCGContext()
+{
+    if (d_ptr->cgPainter)
+    {
+        return d_ptr->cgPainter->getContext();
+    }
+    return nullptr;
+}
+#endif
 /*!
     Initializes the painters pen, background and font to the same as
     the given \a device.
@@ -1603,6 +1647,14 @@ void QPainter::save()
         printf("QPainter::save()\n");
 #endif
     Q_D(QPainter);
+
+#ifdef Q_OS_MAC
+    if (d->cgPainter)
+    {
+        d->cgPainter->save();
+    }
+#endif
+
     if (!d->engine) {
         qWarning("QPainter::save: Painter not active");
         return;
@@ -1633,6 +1685,14 @@ void QPainter::restore()
         printf("QPainter::restore()\n");
 #endif
     Q_D(QPainter);
+
+#ifdef Q_OS_MAC
+    if (d->cgPainter)
+    {
+        d->cgPainter->restore();
+    }
+#endif
+
     if (d->states.size()<=1) {
         qWarning("QPainter::restore: Unbalanced save/restore");
         return;
@@ -2762,6 +2822,13 @@ void QPainter::setClipRect(const QRectF &rect, Qt::ClipOperation op)
 {
     Q_D(QPainter);
 
+#ifdef Q_OS_MAC
+    if (d->cgPainter)
+    {
+        d->cgPainter->setClipRect(rect, op);
+    }
+#endif
+
     if (d->extended) {
         if (!d->engine) {
             qWarning("QPainter::setClipRect: Painter not active");
@@ -2816,6 +2883,13 @@ void QPainter::setClipRect(const QRectF &rect, Qt::ClipOperation op)
 void QPainter::setClipRect(const QRect &rect, Qt::ClipOperation op)
 {
     Q_D(QPainter);
+
+#ifdef Q_OS_MAC
+    if (d->cgPainter)
+    {
+        d->cgPainter->setClipRect(rect, op);
+    }
+#endif
 
     if (!d->engine) {
         qWarning("QPainter::setClipRect: Painter not active");
@@ -2876,6 +2950,14 @@ void QPainter::setClipRegion(const QRegion &r, Qt::ClipOperation op)
         printf("QPainter::setClipRegion(), size=%d, [%d,%d,%d,%d]\n",
            r.rectCount(), rect.x(), rect.y(), rect.width(), rect.height());
 #endif
+
+#ifdef Q_OS_MAC
+    if (d->cgPainter)
+    {
+        d->cgPainter->setClipRegion(r, op);
+    }
+#endif
+
     if (!d->engine) {
         qWarning("QPainter::setClipRegion: Painter not active");
         return;
@@ -3296,6 +3378,12 @@ void QPainter::setClipPath(const QPainterPath &path, Qt::ClipOperation op)
             d->state->clipInfo.clear();
         d->state->clipInfo.append(QPainterClipInfo(path, op, d->state->matrix));
         d->state->clipOperation = op;
+#ifdef Q_OS_MAC
+        if (d->cgPainter)
+        {
+            d->cgPainter->setClipPath(path, op);
+        }
+#endif
         return;
     }
 
@@ -3310,6 +3398,12 @@ void QPainter::setClipPath(const QPainterPath &path, Qt::ClipOperation op)
     d->state->clipEnabled = true;
     d->state->dirtyFlags |= QPaintEngine::DirtyClipPath | QPaintEngine::DirtyClipEnabled;
     d->updateState(d->state);
+#ifdef Q_OS_MAC
+    if (d->cgPainter)
+    {
+        d->cgPainter->setClipPath(path, op);
+    }
+#endif
 }
 
 /*!
