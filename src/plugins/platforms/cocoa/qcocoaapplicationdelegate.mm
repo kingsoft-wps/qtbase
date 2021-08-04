@@ -254,10 +254,6 @@ QT_USE_NAMESPACE
                       andSelector:@selector(appleEventQuit:withReplyEvent:)
                     forEventClass:kCoreEventClass
                        andEventID:kAEQuitApplication];
-    [eventManager setEventHandler:self
-                      andSelector:@selector(getUrl:withReplyEvent:)
-                    forEventClass:kInternetEventClass
-                       andEventID:kAEGetURL];
 }
 
 // called by QCocoaIntegration's destructor before resetting the application delegate to nil
