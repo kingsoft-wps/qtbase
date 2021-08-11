@@ -157,18 +157,32 @@ QImage QWindowsDirect2DBackingStore::toImage() const
     return nativeWindow(window())->pixmap()->toImage();
 }
 
+bool QWindowsDirect2DBackingStoreNoPresenting::m_needManualCopy = false;
+
 QWindowsDirect2DBackingStoreNoPresenting::QWindowsDirect2DBackingStoreNoPresenting(QWindow* window)
     : QWindowsDirect2DBackingStore(window)
 {
-
 }
 
 QWindowsDirect2DBackingStoreNoPresenting::~QWindowsDirect2DBackingStoreNoPresenting()
 {
-    if (m_surface || m_surfaceHdc)
-        qCritical("Flushing is not ended before destroying the backing store");
-}
+    if (m_manualBitmap != 0) 
+    {
+        DeleteObject(m_manualBitmap);
+        m_manualBitmap = 0;
+    }
 
+    if (m_manualHdc != 0) 
+    {
+        DeleteDC(m_manualHdc);
+        m_manualHdc = 0;        
+    }
+
+    if (m_needManualCopy == false) {
+        if (m_surface || m_surfaceHdc)
+            qCritical("Flushing is not ended before destroying the backing store");
+    }
+}
 
 void QWindowsDirect2DBackingStoreNoPresenting::flush(QWindow* targetWindow, const QRegion& region, const QPoint& offset)
 {
@@ -206,18 +220,126 @@ void QWindowsDirect2DBackingStoreNoPresenting::flush(QWindow* targetWindow, cons
     nw->releaseDC();
 }
 
-void QWindowsDirect2DBackingStoreNoPresenting::beginFlush()
+template<typename Int>
+static inline Int pad4(Int v)
 {
-    Q_ASSERT(m_surface == nullptr);
-    Q_ASSERT(m_surfaceHdc == 0);
+    return (v + Int(3)) & ~Int(3);
+}
 
-    QWindowsDirect2DBitmap* bmp = nativeWindow(window())->bitmap();
+void QWindowsDirect2DBackingStoreNoPresenting::copyImageData(QImage& image)
+{
+    if (m_manualHdc == nullptr) 
+    {
+        auto window_handle = nativeWindow(window())->handle();
+        auto window_dc = GetDC(window_handle);
+
+        m_manualHdc = CreateCompatibleDC(window_dc);
+
+        ReleaseDC(window_handle, window_dc);
+    }
+
+    auto image_size = image.size();
+
+    int bitCount = 32;
+    const DWORD bytesPerLine = pad4(DWORD(image_size.width()) * bitCount / 8);
+    DWORD biSizeImage = bytesPerLine * DWORD(image_size.height());
+
+    if (m_manualBitmap == 0 || 
+        image_size.width() != m_manualSize.width() || 
+        image_size.height() != m_manualSize.height()
+    ) 
+    {
+        m_manualSize = image_size;
+
+        if (m_manualBitmap != 0) 
+        {
+            DeleteObject(m_manualBitmap);
+            m_manualBitmap = 0;
+        }
+
+        BITMAPINFO bmi;
+
+        bmi.bmiHeader.biSize = sizeof(bmi);
+        bmi.bmiHeader.biWidth = image_size.width();
+        bmi.bmiHeader.biHeight = -INT(image_size.height());
+        bmi.bmiHeader.biPlanes = 1;
+        bmi.bmiHeader.biBitCount = 32;
+        bmi.bmiHeader.biCompression = BI_RGB;
+        bmi.bmiHeader.biSizeImage = biSizeImage;
+        bmi.bmiHeader.biXPelsPerMeter = 10000;
+        bmi.bmiHeader.biYPelsPerMeter = 10000;
+        bmi.bmiHeader.biClrUsed = 0;
+        bmi.bmiHeader.biClrImportant = 0;
+
+        m_manualBitmap = CreateDIBSection(
+            m_surfaceHdc, 
+            &bmi, 
+            DIB_RGB_COLORS,
+            reinterpret_cast<void **>(&m_manualPixels), 
+            NULL, 
+            0);
+
+        SelectObject(m_manualHdc, m_manualBitmap);
+    }
+
+    memcpy(m_manualPixels, image.constBits(), image.sizeInBytes());
+}
+
+static bool memvcmp(void *memory, unsigned char val, unsigned int size)
+{
+    unsigned char *mm = (unsigned char *)memory;
+    return (*mm == val) && memcmp(mm, mm + 1, size - 1) == 0;
+}
+
+static bool IsBadDC(HDC Context, RECT Area)
+{
+    uint16_t BitsPerPixel = 32;
+    uint32_t Width = Area.right - Area.left;
+    uint32_t Height = Area.bottom - Area.top;
+
+    BITMAPINFO Info;
+    BITMAPFILEHEADER Header;
+
+    memset(&Info, 0, sizeof(Info));
+    memset(&Header, 0, sizeof(Header));
+
+    Info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    Info.bmiHeader.biWidth = Width;
+    Info.bmiHeader.biHeight = Height;
+    Info.bmiHeader.biPlanes = 1;
+    Info.bmiHeader.biBitCount = BitsPerPixel;
+    Info.bmiHeader.biCompression = BI_RGB;
+    Info.bmiHeader.biSizeImage = Width * Height * (BitsPerPixel > 24 ? 4 : 3);
+    Header.bfType = 0x4D42;
+    Header.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+
+    char *Pixels = NULL;
+    HDC MemDC = CreateCompatibleDC(Context);
+    HBITMAP Section = CreateDIBSection(Context, &Info, DIB_RGB_COLORS, (void **)&Pixels, 0, 0);
+    DeleteObject(SelectObject(MemDC, Section));
+    BitBlt(MemDC, 0, 0, Width, Height, Context, Area.left, Area.top, SRCCOPY);
+    DeleteDC(MemDC);
+
+    bool bad_dc_flag = true;
+    auto buffer_size = (((BitsPerPixel * Width + 31) & ~31) / 8) * Height;
+
+    bad_dc_flag = memvcmp(Pixels, 0, buffer_size);
+
+    DeleteObject(Section);
+
+    return bad_dc_flag;
+}
+
+bool QWindowsDirect2DBackingStoreNoPresenting::testGetDC()
+{ 
+    QWindowsDirect2DBitmap *bmp = nativeWindow(window())->bitmap();
     if (!bmp)
-        return;
+        return true;
 
     ComPtr<IDXGISurface> bitmapSurface;
     HRESULT hr = bmp->bitmap()->GetSurface(&bitmapSurface);
     Q_ASSERT(SUCCEEDED(hr));
+
     ComPtr<IDXGISurface1> dxgiSurface;
     hr = bitmapSurface.As(&dxgiSurface);
     Q_ASSERT(SUCCEEDED(hr));
@@ -226,11 +348,61 @@ void QWindowsDirect2DBackingStoreNoPresenting::beginFlush()
     hr = dxgiSurface->GetDC(FALSE, &hdc);
     if (FAILED(hr)) {
         qErrnoWarning(hr, "Failed to get DC for flushing the surface");
-        return;
+        return true;
     }
 
-    m_surface.Attach(dxgiSurface.Detach());
-    m_surfaceHdc = hdc;
+    auto bmp_size = bmp->size();
+    RECT hdc_rect = {0, 0, bmp_size.width(), bmp_size.height()};
+
+    auto retcode = IsBadDC(hdc, hdc_rect);
+
+    dxgiSurface->ReleaseDC(&RECT { 0, 0, 0, 0 });
+
+    return retcode;
+}
+
+void QWindowsDirect2DBackingStoreNoPresenting::beginFlush()
+{
+    static bool is_test_getdc = false;
+
+    if (is_test_getdc == false) 
+    {
+        m_needManualCopy = testGetDC();
+        is_test_getdc = true;
+    }
+
+    QWindowsDirect2DBitmap *bmp = nativeWindow(window())->bitmap();
+    if (!bmp)
+        return;
+
+    if (m_needManualCopy == true) 
+    {
+        auto image = bmp->toImage();
+        copyImageData(image);
+        m_surfaceHdc = m_manualHdc;
+    } 
+    else 
+    {
+        Q_ASSERT(m_surface == nullptr);
+        Q_ASSERT(m_surfaceHdc == 0);
+
+        ComPtr<IDXGISurface> bitmapSurface;
+        HRESULT hr = bmp->bitmap()->GetSurface(&bitmapSurface);
+        Q_ASSERT(SUCCEEDED(hr));
+        ComPtr<IDXGISurface1> dxgiSurface;
+        hr = bitmapSurface.As(&dxgiSurface);
+        Q_ASSERT(SUCCEEDED(hr));
+
+        HDC hdc = 0;
+        hr = dxgiSurface->GetDC(FALSE, &hdc);
+        if (FAILED(hr)) {
+            qErrnoWarning(hr, "Failed to get DC for flushing the surface");
+            return;
+        }
+
+        m_surface.Attach(dxgiSurface.Detach());
+        m_surfaceHdc = hdc;    
+    }
 }
 
 void QWindowsDirect2DBackingStoreNoPresenting::endFlush()
