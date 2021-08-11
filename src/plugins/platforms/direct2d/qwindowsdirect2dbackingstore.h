@@ -79,9 +79,21 @@ public:
     void beginFlush() override;
     void endFlush() override;
 
+    void copyImageData(
+        QImage& image);
+
+    bool testGetDC();
+
 private:
     Microsoft::WRL::ComPtr<IDXGISurface1> m_surface;
     HDC m_surfaceHdc = 0;
+
+    HDC m_manualHdc = nullptr;
+    HBITMAP m_manualBitmap = nullptr;
+    uchar *m_manualPixels = nullptr;
+    QSize m_manualSize = { 0, 0 };
+
+    static bool m_needManualCopy;
 };
 
 QT_END_NAMESPACE

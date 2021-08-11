@@ -129,10 +129,17 @@ public:
             qWarning("%s: Could not map: %#lx", __FUNCTION__, hr);
             return QImage();
         }
+        
+        auto result = QImage(
+            static_cast<const uchar *>(mappedRect.bits),
+            int(size.width), 
+            int(size.height), 
+            int(mappedRect.pitch),
+            QImage::Format_ARGB32_Premultiplied).copy(rect);
 
-        return QImage(static_cast<const uchar *>(mappedRect.bits),
-                      int(size.width), int(size.height), int(mappedRect.pitch),
-                      QImage::Format_ARGB32_Premultiplied).copy(rect);
+        mappingCopy->Unmap();
+
+        return result;
     }
 
     bool fromDxgiSurface(IDXGISurface *surface, bool isTarget, D2D1_ALPHA_MODE alphaMode)
