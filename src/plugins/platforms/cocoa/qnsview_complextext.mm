@@ -93,6 +93,36 @@
     [self tryToPerform:aSelector with:self];
 }
 
+// popup window or topLevelWindow
+- (QWindow *)complexTextWindow
+{
+    QWindow *window = [self topLevelWindow];
+    // This allows popups to e.g. intercept shortcuts and close the popup in response.
+    if (QCocoaWindow *popup = QCocoaIntegration::instance()->activePopupWindow())
+    {
+        if (!popup->window()->flags().testFlag(Qt::ToolTip))
+        {
+            QWindow *popWindow = popup->window();
+            if (!popWindow)
+                return window;
+
+            // Get whether the pre input will be processed. If not, follow the previous process
+            if (QObject *fo = popWindow->focusObject())
+            {
+                QInputMethodQueryEvent queryEvent(Qt::ImEnabled);
+                if (QCoreApplication::sendEvent(fo, &queryEvent))
+                {
+                    if (queryEvent.value(Qt::ImEnabled).toBool())
+                    {
+                        window = popWindow;
+                    }
+                }
+            }
+        }
+    }
+    return window;
+}
+
 - (void)insertText:(id)aString replacementRange:(NSRange)replacementRange
 {
     Q_UNUSED(replacementRange)
@@ -111,17 +141,21 @@
         };
     }
     if (m_platformWindow) {
-        QWindow *window = [self topLevelWindow];
+        QWindow *window = [self complexTextWindow];
+        if (!window) return ;
         QObject *fo = window->focusObject();
-	
-        QInputMethodQueryEvent queryEvent(Qt::ImEnabled);
-        if (QCoreApplication::sendEvent(fo, &queryEvent)) {
-            if (queryEvent.value(Qt::ImEnabled).toBool()) {
-                QInputMethodEvent e;
-                e.setCommitString(commitString);
-                QCoreApplication::sendEvent(fo, &e);
-                // prevent handleKeyEvent from sending a key event
-                m_sendKeyEvent = false;
+
+        if (fo)
+        {
+            QInputMethodQueryEvent queryEvent(Qt::ImEnabled);
+            if (QCoreApplication::sendEvent(fo, &queryEvent)) {
+                if (queryEvent.value(Qt::ImEnabled).toBool()) {
+                    QInputMethodEvent e;
+                    e.setCommitString(commitString);
+                    QCoreApplication::sendEvent(fo, &e);
+                    // prevent handleKeyEvent from sending a key event
+                    m_sendKeyEvent = false;
+                }
             }
         }
     }
@@ -183,7 +217,8 @@
 
     if (!m_platformWindow)
         return;
-    QWindow *window = [self topLevelWindow];
+    QWindow *window = [self complexTextWindow];
+    if (!window) return ;
 
     if (QObject *fo = window->focusObject()) {
         m_composingFocusObject = fo;
@@ -209,7 +244,10 @@
     Q_UNUSED(actualRange)
     if (!m_platformWindow)
         return nil;
-    QObject *fo = [self topLevelWindow]->focusObject();
+    QWindow *window = [self complexTextWindow];
+    if (!window)
+        return nil;
+    QObject *fo = window->focusObject();
 
     if (!fo)
         return nil;
@@ -247,7 +285,10 @@
     if (!m_platformWindow)
         return selectedRange;
 
-    QObject *fo = [self topLevelWindow]->focusObject();
+    QWindow *window = [self complexTextWindow];
+    if (!window)
+        return selectedRange;
+    QObject *fo = window->focusObject();
 
     if (!fo)
         return selectedRange;
@@ -273,8 +314,8 @@
 
     if (!m_platformWindow)
         return NSZeroRect;
-    
-    QWindow *window = [self topLevelWindow];
+
+    QWindow *window = [self complexTextWindow];
     if (!window)
         return NSZeroRect;
 
@@ -310,7 +351,7 @@
     if (!m_platformWindow)
         return nil;
 
-    QWindow *window = [self topLevelWindow];
+    QWindow *window = [self complexTextWindow];
     if (window != QGuiApplication::focusWindow())
         return nil;
 
