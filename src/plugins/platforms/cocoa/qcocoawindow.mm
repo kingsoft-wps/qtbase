@@ -219,7 +219,12 @@ QCocoaWindow::~QCocoaWindow()
     }
 
     [m_view release];
-    [m_nsWindow close];
+    @try {
+        [m_nsWindow close];
+    }
+    @catch (NSException *e) {
+        NSLog(@"%@", [e reason]);
+    }
     [m_nsWindow release];
 
     if (m_nsWindowTitleView)
