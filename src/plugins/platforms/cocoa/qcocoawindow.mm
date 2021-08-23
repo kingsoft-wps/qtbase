@@ -566,8 +566,10 @@ NSUInteger QCocoaWindow::windowStyleMask(Qt::WindowFlags flags)
     if (flags & Qt::WindowFullSizeContent)
         styleMask |= NSWindowStyleMaskFullSizeContentView;
 
+#ifndef Q_OS_MAC
     if (type == Qt::Tool)
         styleMask |= NSWindowStyleMaskUtilityWindow;
+#endif
 
     if (m_drawContentBorderGradient)
         styleMask |= NSWindowStyleMaskTexturedBackground;
