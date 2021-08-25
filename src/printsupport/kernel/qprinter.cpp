@@ -140,6 +140,13 @@ void QPrinterPrivate::initEngines(QPrinter::OutputFormat format, const QString &
     QString printerName = printer;
 
     Q_ASSERT(QPrinterInfo::availablePrinterNames().contains(printer));
+    // Only set NativeFormat if we have a valid plugin and printer to use
+    if (format == QPrinter::NativeFormat) {
+        ps = QPlatformPrinterSupportPlugin::get();
+        if (ps) {
+            outputFormat = QPrinter::NativeFormat;
+        }
+    }
 
     if (outputFormat == QPrinter::NativeFormat) {
         printEngine = ps->createNativePrintEngine(printerMode, printerName);
