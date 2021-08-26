@@ -95,8 +95,8 @@
     // by AppKit at a point where we've already set up other parts of the platform plugin
     // based on the presence of layers or not. Once we've rewritten these parts to support
     // dynamically picking up layer enablement we can let AppKit do its thing.
-    return QMacVersion::buildSDK() >= QOperatingSystemVersion::MacOSMojave
-        && QMacVersion::currentRuntime() >= QOperatingSystemVersion::MacOSMojave;
+    return QMacVersion::buildSDK() >= QOperatingSystemVersion::MacOSSierra
+        && QMacVersion::currentRuntime() >= QOperatingSystemVersion::MacOSSierra;
 }
 
 - (BOOL)layerExplicitlyRequested
