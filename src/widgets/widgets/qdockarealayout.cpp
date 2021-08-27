@@ -3225,8 +3225,7 @@ void QDockAreaLayout::apply(bool animate)
                                 animate);
     }
 #if QT_CONFIG(tabbar)
-    if (sep == 1)
-        updateSeparatorWidgets();
+    updateSeparatorWidgets();
 #endif // QT_CONFIG(tabbar)
 }
 
