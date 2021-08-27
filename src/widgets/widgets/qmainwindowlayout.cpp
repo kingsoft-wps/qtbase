@@ -2701,13 +2701,11 @@ void QMainWindowLayout::applyState(QMainWindowLayoutState &newState, bool animat
         unusedTabBars.append(tab_bar);
     }
 
-    if (sep == 1) {
-        const QSet<QWidget*> usedSeps = newState.dockAreaLayout.usedSeparatorWidgets();
-        const QSet<QWidget*> retiredSeps = usedSeparatorWidgets - usedSeps;
-        usedSeparatorWidgets = usedSeps;
-        for (QWidget *sepWidget : retiredSeps) {
-            unusedSeparatorWidgets.append(sepWidget);
-        }
+    const QSet<QWidget*> usedSeps = newState.dockAreaLayout.usedSeparatorWidgets();
+    const QSet<QWidget*> retiredSeps = usedSeparatorWidgets - usedSeps;
+    usedSeparatorWidgets = usedSeps;
+    for (QWidget* sepWidget : retiredSeps) {
+        unusedSeparatorWidgets.append(sepWidget);
     }
 
     for (int i = 0; i < QInternal::DockCount; ++i)
