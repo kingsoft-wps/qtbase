@@ -1659,10 +1659,12 @@ QWidget::~QWidget()
     d->layout = 0;
     // Remove myself from focus list
 
-    Q_ASSERT(d->focus_next->d_func()->focus_prev == this);
-    Q_ASSERT(d->focus_prev->d_func()->focus_next == this);
+	if (d->focus_next->d_func())
+		Q_ASSERT(d->focus_next->d_func()->focus_prev == this);
+	if (d->focus_prev->d_func())
+		Q_ASSERT(d->focus_prev->d_func()->focus_next == this);
 
-    if (d->focus_next != this) {
+    if (d->focus_next->d_func() && d->focus_prev->d_func() && d->focus_next != this) {
         d->focus_next->d_func()->focus_prev = d->focus_prev;
         d->focus_prev->d_func()->focus_next = d->focus_next;
         d->focus_next = d->focus_prev = 0;
