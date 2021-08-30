@@ -4300,10 +4300,12 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                         QStyleHelper::SizeLarge;
         const int hMargin = proxy()->pixelMetric(QStyle::PM_FocusFrameHMargin, opt, w);
         const int vMargin = proxy()->pixelMetric(QStyle::PM_FocusFrameVMargin, opt, w);
-#ifdef Q_OS_MAC
-        if (ffw && ffw->property("NoFocusRing").isValid() && ffw->property("NoFocusRing").toBool())
-#endif // Q_OS_MAC
-        d->drawFocusRing(p, opt->rect, hMargin, vMargin, QMacStylePrivate::CocoaControl(ct, cs));
+        if (ffw)
+        {
+            bool bNoFocusRing = ffw->property("NoFocusRing").isValid() && ffw->property("NoFocusRing").toBool();
+            if (!bNoFocusRing)
+                d->drawFocusRing(p, opt->rect, hMargin, vMargin, QMacStylePrivate::CocoaControl(ct, cs));
+        }
         break; }
     case CE_MenuEmptyArea:
         // Skip: PE_PanelMenu fills in everything
@@ -5682,8 +5684,12 @@ void QMacStyle::drawComplexControl(ComplexControl cc, const QStyleOptionComplex 
                 } else if (cw.type == QMacStylePrivate::ComboBox) {
                     focusRect = frameRect - comboBoxFocusRingMargins[cw.size];
                 }
-                if (widget && widget->property("NoFocusRing").toString() != QString("true"))
-                d->drawFocusRing(p, focusRect, hMargin, vMargin, cw);
+                if (widget)
+                {
+                    bool bNoFocusRing = widget->property("NoFocusRing").isValid() && widget->property("NoFocusRing").toBool();
+                    if (!bNoFocusRing)
+                        d->drawFocusRing(p, focusRect, hMargin, vMargin, cw);
+                }
             }
         }
         break;
