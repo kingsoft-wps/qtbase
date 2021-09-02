@@ -372,7 +372,7 @@ QWidget *QGraphicsProxyWidgetPrivate::findFocusChild(QWidget *child, bool next) 
 
     // Run around the focus chain until we find a widget that can take tab focus.
     if (!child) {
-        child = next ? (QWidget *)widget : widget->d_func()->focus_prev;
+        child = next ? (QWidget *)widget : (QWidget *)widget->d_func()->focus_prev;
     } else {
         child = next ? child->d_func()->focus_next : child->d_func()->focus_prev;
         if ((next && child == widget) || (!next && child == widget->d_func()->focus_prev)) {
