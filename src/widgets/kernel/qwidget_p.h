@@ -710,8 +710,8 @@ public:
     // Variables.
     // Regular pointers (keep them together to avoid gaps on 64 bit architectures).
     QWExtra *extra;
-    QWidget *focus_next;
-    QWidget *focus_prev;
+    QPointer<QWidget> focus_next;
+    QPointer<QWidget> focus_prev;
     QWidget *focus_child;
     QLayout *layout;
     QRegion *needsFlush;
