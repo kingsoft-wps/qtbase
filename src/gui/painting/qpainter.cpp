@@ -7695,19 +7695,6 @@ start_lengthVariant:
                     range.format.setFontUnderline(true);
                     underlineFormats.append(range);
                 }
-#ifdef Q_OS_MAC
-            } else if (hidemnmemonic && *cin == QLatin1Char('(') && l >= 4 &&
-                       cin[1] == QLatin1Char('&') && cin[2] != QLatin1Char('&') &&
-                       cin[3] == QLatin1Char(')')) {
-                int n = 0;
-                while ((cout - n) > cout0 && (cout - n - 1)->isSpace())
-                    ++n;
-                cout -= n;
-                cin += 4;
-                length -= n + 4;
-                l -= 4;
-                continue;
-#endif //Q_OS_MAC
             }
             *cout = *cin;
             ++cout;
