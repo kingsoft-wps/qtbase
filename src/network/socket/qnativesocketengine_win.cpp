@@ -694,6 +694,9 @@ bool QNativeSocketEnginePrivate::nativeConnect(const QHostAddress &address, quin
             int err = WSAGetLastError();
             WS_ERROR_DEBUG(err);
 
+            if (err == 0)
+                err = WSAEINPROGRESS;
+
             switch (err) {
             case WSANOTINITIALISED:
                 //###
