@@ -209,7 +209,7 @@ QCocoaIntegration::QCocoaIntegration(const QStringList &paramList)
 
     m_screensObserver = QMacNotificationObserver([NSApplication sharedApplication],
         NSApplicationDidChangeScreenParametersNotification, [&]() { updateScreensByObserver(); });
-    updateScreens();
+    updateScreensByObserver();
 
     QMacInternalPasteboardMime::initializeMimeTypes();
     QCocoaMimeTypes::initializeMimeTypes();

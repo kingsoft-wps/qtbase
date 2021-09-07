@@ -328,11 +328,22 @@
         return NSZeroRect;
 
     // The returned rect is always based on the internal cursor.
-    QRect mr = qApp->inputMethod()->cursorRectangle().toRect();
+    QRect mr = qApp->inputMethod()->cursorRectangle(fo).toRect();
+    if (window && window != [self topLevelWindow])
+    {
+        // If the height is too high, it should be displayed to the right to avoid being blocked by the pop-up dialog box
+        if (window->height() > 300)
+            mr.setLeft(window->width() + 20); // 20 add offset
+        else
+            mr.setBottom(window->height());
 
-    // Modified to the topmost window to prevent the pre-input position from being wrong
-    //mr.moveBottomLeft(window->mapToGlobal(mr.bottomLeft()));
-    mr.moveBottomLeft(m_platformWindow->window()->mapToGlobal(mr.bottomLeft()));
+        mr.moveBottomLeft(window->mapToGlobal(mr.bottomLeft()));
+    }
+    else
+    {
+        mr.moveBottomLeft(m_platformWindow->window()->mapToGlobal(mr.bottomLeft()));
+    }
+
     return QCocoaScreen::mapToNative(mr);
 }
 
