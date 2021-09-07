@@ -96,31 +96,28 @@
 // popup window or topLevelWindow
 - (QWindow *)complexTextWindow
 {
-    QWindow *window = [self topLevelWindow];
-    // This allows popups to e.g. intercept shortcuts and close the popup in response.
-    if (QCocoaWindow *popup = QCocoaIntegration::instance()->activePopupWindow())
-    {
-        if (!popup->window()->flags().testFlag(Qt::ToolTip))
-        {
-            QWindow *popWindow = popup->window();
-            if (!popWindow)
-                return window;
-
-            // Get whether the pre input will be processed. If not, follow the previous process
-            if (QObject *fo = popWindow->focusObject())
-            {
-                QInputMethodQueryEvent queryEvent(Qt::ImEnabled);
-                if (QCoreApplication::sendEvent(fo, &queryEvent))
-                {
-                    if (queryEvent.value(Qt::ImEnabled).toBool())
-                    {
-                        window = popWindow;
-                    }
-                }
-            }
-        }
-    }
-    return window;
+	QWindow *window = [self topLevelWindow];
+	// This allows popups to e.g. intercept shortcuts and close the popup in response.
+	if (QList<QCocoaWindow *> *popWindowList = QCocoaIntegration::instance()->popupWindowStack()) {
+		for (auto it = popWindowList->crbegin(); it != popWindowList->crend(); ++it) {
+			auto popup = *it;
+			if (popup && popup->window() && !popup->window()->flags().testFlag(Qt::ToolTip))
+			{
+				QWindow *popWindow = popup->window();
+				// Get whether the pre input will be processed. If not, follow the previous process
+				if (QObject *fo = popWindow->focusObject()) {
+					QInputMethodQueryEvent queryEvent(Qt::ImEnabled);
+					if (QCoreApplication::sendEvent(fo, &queryEvent)) {
+						if (queryEvent.value(Qt::ImEnabled).toBool()) {
+							window = popWindow;
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+	return window;
 }
 
 - (void)insertText:(id)aString replacementRange:(NSRange)replacementRange
