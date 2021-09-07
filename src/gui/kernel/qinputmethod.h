@@ -73,7 +73,7 @@ public:
     void setInputItemRectangle(const QRectF &rect);
 
     // in window coordinates
-    QRectF cursorRectangle() const; // ### what if we have rotations for the item?
+    QRectF cursorRectangle(QObject *focusObject = nullptr) const; // ### what if we have rotations for the item?
     QRectF anchorRectangle() const; // ### ditto
 
     // keyboard geometry in window coords

@@ -127,10 +127,15 @@ void QInputMethod::setInputItemRectangle(const QRectF &rect)
     d->inputRectangle = rect;
 }
 
-static QRectF inputMethodQueryRectangle_helper(Qt::InputMethodQuery imquery, const QTransform &xform)
+static QRectF inputMethodQueryRectangle_helper(Qt::InputMethodQuery imquery, const QTransform &xform, QObject *fo = nullptr)
 {
     QRectF r;
+#ifdef Q_OS_MAC
+    QObject *focusObject = fo ? fo : qGuiApp->focusObject();
+    if (focusObject) {
+#else
     if (QObject *focusObject = qGuiApp->focusObject()) {
+#endif
         QInputMethodQueryEvent query(imquery);
         QGuiApplication::sendEvent(focusObject, &query);
         r = query.value(imquery).toRectF();
@@ -147,10 +152,10 @@ static QRectF inputMethodQueryRectangle_helper(Qt::InputMethodQuery imquery, con
     Cursor rectangle is often used by various text editing controls
     like text prediction popups for following the text being typed.
 */
-QRectF QInputMethod::cursorRectangle() const
+QRectF QInputMethod::cursorRectangle(QObject *focusObject) const
 {
     Q_D(const QInputMethod);
-    return inputMethodQueryRectangle_helper(Qt::ImCursorRectangle, d->inputItemTransform);
+    return inputMethodQueryRectangle_helper(Qt::ImCursorRectangle, d->inputItemTransform, focusObject);
 }
 
 /*!
