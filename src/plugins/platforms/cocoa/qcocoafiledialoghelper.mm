@@ -482,9 +482,6 @@ QT_NAMESPACE_ALIAS_OBJC_CLASS(QNSOpenSavePanelDelegate);
     [self createSaveToCloudButton];
     [self createEncryptButton];
     [self createAccessory];
-    [self createPopUpButton:selectedVisualNameFilter hideDetails:options->testOption(QFileDialogOptions::HideNameFilterDetails)];
-    [self createTextField];
-    [self createAccessory];
     if (mSaveToCloudButton)
     {
         [mSavePanel setAccessoryView:mAccessoryView];
