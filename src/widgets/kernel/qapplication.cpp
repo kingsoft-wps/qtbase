@@ -3783,6 +3783,7 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
                     ge.spont = gestureEvent->spont;
                     ge.m_accept = wasAccepted;
                     ge.m_accepted = gestureEvent->m_accepted;
+                    ge.m_widget = gestureEvent->m_widget;
                     res = d->notify_helper(w, &ge);
                     gestureEvent->spont = false;
                     eventAccepted = ge.isAccepted();

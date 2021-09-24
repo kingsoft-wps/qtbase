@@ -706,6 +706,7 @@ void QGestureManager::deliverEvents(const QSet<QGesture *> &gestures,
                 << receiver
                 << "gestures:" << gestures;
         QGestureEvent event(gestures);
+        event.setWidget(receiver);
         event.t = QEvent::GestureOverride;
         // mark event and individual gestures as ignored
         event.ignore();
@@ -739,6 +740,7 @@ void QGestureManager::deliverEvents(const QSet<QGesture *> &gestures,
             qCDebug(lcGestureManager) << "QGestureManager::deliverEvents: sending to" << it.key()
                     << "gestures:" << it.value();
             QGestureEvent event(it.value());
+            event.setWidget(it.key());
             QApplication::sendEvent(it.key(), &event);
             bool eventAccepted = event.isAccepted();
             const auto eventGestures = event.gestures();
