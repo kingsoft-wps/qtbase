@@ -10,6 +10,9 @@ force_bootstrap|!qtConfig(commandlineparser): \
 src_qtzlib.file = $$PWD/corelib/qtzlib.pro
 src_qtzlib.target = sub-zlib
 
+src_qtxinput.file = $$PWD/corelib/qtxinput.pro
+src_qtxinput.target = sub-xinput
+
 src_tools_bootstrap.subdir = tools/bootstrap
 src_tools_bootstrap.target = sub-bootstrap
 
@@ -167,6 +170,7 @@ TOOLS = src_tools_moc src_tools_rcc src_tools_qlalr src_tools_qfloat16_tables
     TOOLS += src_tools_tracegen
 }
 SUBDIRS += src_corelib src_tools_qlalr
+linux:SUBDIRS += src_qtxinput
 win32:SUBDIRS += src_winmain
 qtConfig(network) {
     SUBDIRS += src_network
