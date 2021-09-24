@@ -32,9 +32,11 @@
     "QtZlib" => "!>$basedir/src/corelib;$basedir/src/3rdparty/zlib",
     "QtOpenGLExtensions" => "$basedir/src/openglextensions",
     "QtEglFSDeviceIntegration" => "$basedir/src/plugins/platforms/eglfs",
+    "QtXinput" => "!>$basedir/src/corelib;$basedir/src/3rdparty/xcb",
 );
 %moduleheaders = ( # restrict the module headers to those found in relative path
     "QtEglFSDeviceIntegration" => "api",
+    "QtXinput" => "include/xcb;sysinclude",
 );
 @allmoduleheadersprivate = (
 );
