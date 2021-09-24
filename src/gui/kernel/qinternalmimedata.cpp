@@ -96,7 +96,7 @@ bool QInternalMimeData::hasFormat(const QString &mimeType) const
 QStringList QInternalMimeData::formats() const
 {
     QStringList realFormats = formats_sys();
-    if (!realFormats.contains(QLatin1String("application/x-qt-image"))) {
+    if (!realFormats.isEmpty() && !realFormats.contains(QLatin1String("application/x-qt-image"))) {
         QStringList imageFormats = imageReadMimeFormats();
         for (int i = 0; i < imageFormats.size(); ++i) {
             if (realFormats.contains(imageFormats.at(i))) {
