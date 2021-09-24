@@ -186,6 +186,7 @@ struct QWindowsShell32DLL
     typedef HRESULT (WINAPI *SHGetStockIconInfo)(int , int , _SHSTOCKICONINFO *);
     typedef HRESULT (WINAPI *SHGetImageList)(int, REFIID , void **);
     typedef HRESULT (WINAPI *SHCreateItemFromIDList)(PCIDLIST_ABSOLUTE, REFIID, void **);
+    typedef HRESULT (WINAPI *SHCreateShellItemArrayFromIDLists)(UINT,PCIDLIST_ABSOLUTE_ARRAY,IShellItemArray **);
     typedef HRESULT(WINAPI *Shell_NotifyIconGetRect)(const Q_NOTIFYICONIDENTIFIER *identifier,
                                                         RECT *iconLocation);
     SHCreateItemFromParsingName sHCreateItemFromParsingName = nullptr;
@@ -194,6 +195,7 @@ struct QWindowsShell32DLL
     SHGetImageList sHGetImageList = nullptr;
     SHCreateItemFromIDList sHCreateItemFromIDList = nullptr;
     Shell_NotifyIconGetRect shell_NotifyIconGetRect = nullptr;
+    SHCreateShellItemArrayFromIDLists sHCreateShellItemArrayFromIDLists = nullptr;
 };
 
 // Shell scaling library (Windows 8.1 onwards)

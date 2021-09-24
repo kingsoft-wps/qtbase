@@ -242,16 +242,8 @@ QWindowsOleDataObject::EnumDAdvise(LPENUMSTATDATA FAR*)
 
 //QWindowsOleDataObjectEx
 QWindowsOleDataObjectEx::QWindowsOleDataObjectEx(QMimeData *mimeData)
-    : QWindowsOleDataObject(mimeData),
-      m_pDragSourceHelper(nullptr),
-      m_pDropDescription(nullptr),
-      m_bUseDescription(false)
+    : QWindowsOleDataObject(mimeData)
 {
-    m_pDataCache = NULL;
-    m_nMaxSize = 0;
-    m_nSize = 0;
-    m_nGrowBy = 10;
-
     init();
 }
 
@@ -259,15 +251,13 @@ QWindowsOleDataObjectEx::~QWindowsOleDataObjectEx()
 {
     if (m_pDragSourceHelper)
         m_pDragSourceHelper->Release();
-
-    if (m_pDropDescription)
-        delete m_pDropDescription;
-    EmptyCacheEntry();
+    if (m_dataObj)
+        m_dataObj->Release();
 }
 
 bool QWindowsOleDataObjectEx::init()
 {
-    m_pDropDescription = new QDropDescription();
+
 #if defined(IID_PPV_ARGS)
     ::CoCreateInstance(CLSID_DragDropHelper, NULL, CLSCTX_INPROC_SERVER,
                        IID_PPV_ARGS(&m_pDragSourceHelper));
@@ -292,21 +282,6 @@ bool QWindowsOleDataObjectEx::init()
         Q_ASSERT(hr == S_OK);
     }
 
-    m_bUseDescription = (pDragSourceHelper2 != NULL) && QDragDropHelper::isAppThemed();
-    if (m_bUseDescription) {
-        CLIPFORMAT cfDS = QDragDropHelper::RegisterFormat(CFSTR_DROPDESCRIPTION);
-        HGLOBAL hGlobal = NULL;
-        if (cfDS
-            && (hGlobal = ::GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, sizeof(DROPDESCRIPTION)))) {
-            DROPDESCRIPTION *pDropDescription =
-                    static_cast<DROPDESCRIPTION *>(::GlobalLock(hGlobal));
-            pDropDescription->type = DROPIMAGE_INVALID;
-            ::GlobalUnlock(hGlobal);
-            CacheGlobalData(cfDS, hGlobal);
-        }
-    }
-
-    // CACHE drop data
     ParseDraggedData();
     QPoint hotPoint(-1, -1);
     QDragManager *manager = QDragManager::self();
@@ -317,36 +292,12 @@ bool QWindowsOleDataObjectEx::init()
     return true;
 }
 
-//---------------------------------------------------------------------
-//                    IDataObject Methods
-//
-// The following methods are NOT supported for data transfer using the
-// clipboard or drag-drop:
-//
-//      IDataObject::SetData    -- return E_NOTIMPL
-//      IDataObject::DAdvise    -- return OLE_E_ADVISENOTSUPPORTED
-//                 ::DUnadvise
-//                 ::EnumDAdvise
-//      IDataObject::GetCanonicalFormatEtc -- return E_NOTIMPL
-//                     (NOTE: must set pformatetcOut->ptd = NULL)
-//---------------------------------------------------------------------
 
 STDMETHODIMP
 QWindowsOleDataObjectEx::GetData(LPFORMATETC pformatetc, LPSTGMEDIUM pmedium)
 {
-    if (!data)
-        return ResultFromScode(DATA_E_FORMATETC);
-
-    AFX_DATACACHE_ENTRY *pCache = Lookup(pformatetc, DATADIR_GET);
-    if (pCache == NULL)
-        return ResultFromScode(DATA_E_FORMATETC);
-
-    memset(pmedium, 0, sizeof(STGMEDIUM));
-    if (pCache->m_stgMedium.tymed != TYMED_NULL) {
-        if (!QDragDropHelper::CopyStgMedium(pformatetc->cfFormat, pmedium, &pCache->m_stgMedium)) {
-            return ResultFromScode(DATA_E_FORMATETC);
-        }
-        return ResultFromScode(S_OK);
+    if (m_dataObj) {
+        return m_dataObj->GetData(pformatetc, pmedium);
     }
 
     return ResultFromScode(DATA_E_FORMATETC);
@@ -355,51 +306,27 @@ QWindowsOleDataObjectEx::GetData(LPFORMATETC pformatetc, LPSTGMEDIUM pmedium)
 STDMETHODIMP
 QWindowsOleDataObjectEx::GetDataHere(LPFORMATETC pformatetc, LPSTGMEDIUM pmedium)
 {
-    if (!data)
-        return ResultFromScode(DATA_E_FORMATETC);
-
-    pformatetc->tymed = pmedium->tymed; // just in case.
-    AFX_DATACACHE_ENTRY *pCache = Lookup(pformatetc, DATADIR_GET);
-    if (pCache == NULL)
-        return ResultFromScode(DATA_E_FORMATETC);
-
-    if (pCache->m_stgMedium.tymed != TYMED_NULL) {
-        Q_ASSERT(pCache->m_stgMedium.tymed == pmedium->tymed);
-        if (!QDragDropHelper::CopyStgMedium(pformatetc->cfFormat, pmedium, &pCache->m_stgMedium)) {
-            return ResultFromScode(DATA_E_FORMATETC);
-        }
-
-        return ResultFromScode(S_OK);
+    if (m_dataObj) {
+        return m_dataObj->GetDataHere(pformatetc, pmedium);
     }
+
     return ResultFromScode(DATA_E_FORMATETC);
 }
 
 STDMETHODIMP
 QWindowsOleDataObjectEx::QueryGetData(LPFORMATETC pformatetc)
 {
-    if (!data)
-        return ResultFromScode(DATA_E_FORMATETC);
-
-    AFX_DATACACHE_ENTRY *pCache = Lookup(pformatetc, DATADIR_GET);
-    if (pCache)
-        return ResultFromScode(S_OK);
-
+    if (m_dataObj) {
+        return m_dataObj->QueryGetData(pformatetc);
+    }
     return ResultFromScode(DATA_E_FORMATETC);
 }
 
 STDMETHODIMP
 QWindowsOleDataObjectEx::SetData(LPFORMATETC pFormatetc, STGMEDIUM *pMedium, BOOL fRelease)
 {
-    UNREFERENCED_PARAMETER(fRelease);
-    if (pFormatetc == NULL || pMedium == NULL)
-        return E_INVALIDARG;
-
-    Q_ASSERT(pFormatetc->tymed == pMedium->tymed);
-    AFX_DATACACHE_ENTRY *pCache = Lookup(pFormatetc, DATADIR_SET);
-    if (NULL == pCache && // Error: Invalid FORMATETC structure
-        (pFormatetc->tymed & (TYMED_HGLOBAL | TYMED_ISTREAM)) && pFormatetc->cfFormat >= 0xC000) {
-        CacheData(pFormatetc->cfFormat, pMedium, pFormatetc);
-        return ResultFromScode(S_OK);
+    if (m_dataObj) {
+        return m_dataObj->SetData(pFormatetc, pMedium, fRelease);
     }
     return ResultFromScode(E_NOTIMPL);
 }
@@ -407,182 +334,63 @@ QWindowsOleDataObjectEx::SetData(LPFORMATETC pFormatetc, STGMEDIUM *pMedium, BOO
 STDMETHODIMP
 QWindowsOleDataObjectEx::EnumFormatEtc(DWORD dwDirection, LPENUMFORMATETC FAR *ppenumFormatEtc)
 {
-    if (!data)
-        return ResultFromScode(DATA_E_FORMATETC);
-
-    SCODE sc = S_OK;
-    QVector<FORMATETC> fmtetcs;
-    for (UINT nIndex = 0; nIndex < m_nSize; nIndex++) {
-        AFX_DATACACHE_ENTRY *pCache = &m_pDataCache[nIndex];
-        if ((DWORD)pCache->m_nDataDir & dwDirection) {
-            // entry should be enumerated -- add it to the list
-            FORMATETC formatEtc;
-            QDragDropHelper::CopyFormatEtc(&formatEtc, &pCache->m_formatEtc);
-            fmtetcs.append(formatEtc);
-        }
+    if (m_dataObj) {
+        m_dataObj->EnumFormatEtc(dwDirection, ppenumFormatEtc);
     }
 
-    QWindowsOleEnumFmtEtc *enumFmtEtc = new QWindowsOleEnumFmtEtc(fmtetcs);
-    *ppenumFormatEtc = enumFmtEtc;
-    if (enumFmtEtc->isNull()) {
-        delete enumFmtEtc;
-        *ppenumFormatEtc = NULL;
-        sc = E_OUTOFMEMORY;
-    }
-
-    return ResultFromScode(sc);
+   return ResultFromScode(DATA_E_FORMATETC);
 }
 
-AFX_DATACACHE_ENTRY *QWindowsOleDataObjectEx::Lookup(LPFORMATETC lpFormatEtc, DATADIR nDataDir) const
-{
-    AFX_DATACACHE_ENTRY *pLast = NULL;
-    for (UINT nIndex = 0; nIndex < m_nSize; nIndex++) {
-        AFX_DATACACHE_ENTRY *pCache = &m_pDataCache[nIndex];
-        FORMATETC *pCacheFormat = &pCache->m_formatEtc;
-        if (pCacheFormat->cfFormat == lpFormatEtc->cfFormat
-            && (pCacheFormat->tymed & lpFormatEtc->tymed) != 0
-            && (pCacheFormat->dwAspect == DVASPECT_THUMBNAIL
-                || pCacheFormat->dwAspect == DVASPECT_ICON
-                || pCache->m_stgMedium.tymed == TYMED_NULL
-                || pCacheFormat->lindex == lpFormatEtc->lindex
-                || (pCacheFormat->lindex == 0 && lpFormatEtc->lindex == -1)
-                || (pCacheFormat->lindex == -1 && lpFormatEtc->lindex == 0))
-            && pCacheFormat->dwAspect == lpFormatEtc->dwAspect && pCache->m_nDataDir == nDataDir) {
-            pLast = pCache;
-            DVTARGETDEVICE *ptd1 = pCacheFormat->ptd;
-            DVTARGETDEVICE *ptd2 = lpFormatEtc->ptd;
-
-            if (ptd1 == NULL && ptd2 == NULL)
-                break;
-            if (ptd1 != NULL && ptd2 != NULL && ptd1->tdSize == ptd2->tdSize
-                && memcmp(ptd1, ptd2, ptd1->tdSize) == 0) {
-                break;
-            }
-        }
-    }
-    return pLast;
-}
-
-void QWindowsOleDataObjectEx::CacheGlobalData(CLIPFORMAT cfFormat, HGLOBAL hGlobal,
-                                       LPFORMATETC lpFormatEtc)
-{
-    FORMATETC formatEtc;
-    lpFormatEtc = QDragDropHelper::FillFormatEtc(lpFormatEtc, cfFormat, &formatEtc);
-    lpFormatEtc->tymed = TYMED_HGLOBAL;
-
-    AFX_DATACACHE_ENTRY *pEntry = GetCacheEntry(lpFormatEtc, DATADIR_GET);
-    pEntry->m_stgMedium.tymed = TYMED_HGLOBAL;
-    pEntry->m_stgMedium.hGlobal = hGlobal;
-    pEntry->m_stgMedium.pUnkForRelease = NULL;
-}
-
-void QWindowsOleDataObjectEx::CacheData(CLIPFORMAT cfFormat, LPSTGMEDIUM lpStgMedium,
-                                 LPFORMATETC lpFormatEtc)
-{
-    FORMATETC formatEtc;
-    lpFormatEtc = QDragDropHelper::FillFormatEtc(lpFormatEtc, cfFormat, &formatEtc);
-    Q_ASSERT(lpStgMedium->tymed != TYMED_GDI || lpFormatEtc->cfFormat == CF_METAFILEPICT
-             || lpFormatEtc->cfFormat == CF_PALETTE || lpFormatEtc->cfFormat == CF_BITMAP);
-    lpFormatEtc->tymed = lpStgMedium->tymed;
-
-    AFX_DATACACHE_ENTRY *pEntry = GetCacheEntry(lpFormatEtc, DATADIR_GET);
-    pEntry->m_stgMedium = *lpStgMedium;
-}
-
-AFX_DATACACHE_ENTRY *QWindowsOleDataObjectEx::GetCacheEntry(LPFORMATETC lpFormatEtc, DATADIR nDataDir)
-{
-    AFX_DATACACHE_ENTRY *pEntry = Lookup(lpFormatEtc, nDataDir);
-    if (pEntry != NULL) {
-        CoTaskMemFree(pEntry->m_formatEtc.ptd);
-        ::ReleaseStgMedium(&pEntry->m_stgMedium);
-    } else {
-        if (m_pDataCache == NULL || m_nSize == m_nMaxSize) {
-            Q_ASSERT(m_nGrowBy != 0);
-            AFX_DATACACHE_ENTRY *pCache = new AFX_DATACACHE_ENTRY[m_nMaxSize + m_nGrowBy];
-            m_nMaxSize += m_nGrowBy;
-            if (m_pDataCache != NULL) {
-                memcpy_s(pCache, (m_nMaxSize + m_nGrowBy) * sizeof(AFX_DATACACHE_ENTRY),
-                         m_pDataCache, m_nSize * sizeof(AFX_DATACACHE_ENTRY));
-                delete[] m_pDataCache;
-            }
-            m_pDataCache = pCache;
-        }
-        Q_ASSERT(m_pDataCache != NULL);
-        Q_ASSERT(m_nMaxSize != 0);
-
-        pEntry = &m_pDataCache[m_nSize++];
-    }
-
-    pEntry->m_nDataDir = nDataDir;
-    pEntry->m_formatEtc = *lpFormatEtc;
-    return pEntry;
-}
-
-void QWindowsOleDataObjectEx::EmptyCacheEntry()
-{
-    if (m_pDataCache != NULL) {
-        Q_ASSERT(m_nMaxSize != 0);
-        Q_ASSERT(m_nSize != 0);
-
-        for (UINT nIndex = 0; nIndex < m_nSize; nIndex++) {
-            CoTaskMemFree(m_pDataCache[nIndex].m_formatEtc.ptd);
-            ::ReleaseStgMedium(&m_pDataCache[nIndex].m_stgMedium);
-        }
-
-        // delete the cache
-        delete[] m_pDataCache;
-        m_pDataCache = NULL;
-        m_nMaxSize = 0;
-        m_nSize = 0;
-    }
-    Q_ASSERT(m_pDataCache == NULL);
-    Q_ASSERT(m_nMaxSize == 0);
-    Q_ASSERT(m_nSize == 0);
-}
 
 void QWindowsOleDataObjectEx::ParseDraggedData()
 {
     QList<QUrl> urls = data->urls();
-    if (!urls.size())
+    int fileCount = urls.size();
+    if (fileCount == 0)
         return;
 
-    QStringList fileNames;
-    int size = sizeof(DROPFILES) + 2;
+    QMap<QString, int> systemItem;
+    QString computerGuid = QStringLiteral("{20D04FE0-3AEA-1069-A2D8-08002B30309D}");
+    QString recycleGuid =  QStringLiteral("{645FF040-5081-101B-9F08-00AA002F954E}");
+    QString documentGuid = QStringLiteral("{59031a47-3f72-44a7-89c5-5595fe6b30ee}");
+    QString controlPaneGuid = QStringLiteral("{5399E694-6CE5-4D6C-8FCE-1D8870FDCBA0}");
+    QString networkGuid = QStringLiteral("{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}");
+
+    systemItem.insert(computerGuid,CSIDL_DRIVES); 
+    systemItem.insert(recycleGuid,CSIDL_BITBUCKET);
+    systemItem.insert(documentGuid,CSIDL_PROFILE);
+    systemItem.insert(controlPaneGuid,CSIDL_CONTROLS);
+    systemItem.insert(networkGuid,CSIDL_COMPUTERSNEARME);
+
+    QVector<PCIDLIST_ABSOLUTE> pidls;
+    pidls.reserve(fileCount);
     for (int i = 0; i < urls.size(); i++) {
         QString fn = QDir::toNativeSeparators(urls.at(i).toLocalFile());
-        if (!fn.isEmpty()) {
-            size += sizeof(ushort) * (fn.length() + 1);
-            fileNames.append(fn);
+        if (systemItem.contains(fn)) {
+            PIDLIST_ABSOLUTE pidl = NULL;
+            if (SUCCEEDED(SHGetFolderLocation(NULL, systemItem.value(fn), NULL, 0, &pidl))) {
+                pidls.append(pidl);
+            }
+           
+        }
+        else if (!fn.isEmpty()) {
+            pidls.append(::ILCreateFromPathW(fn.toStdWString().c_str()));
         }
     }
 
-    QByteArray result(size, '\0');
-    DROPFILES *d = (DROPFILES *)result.data();
-    d->pFiles = sizeof(DROPFILES);
-    GetCursorPos(&d->pt);
-    d->fNC = true;
-    char *files = ((char *)d) + d->pFiles;
 
-    d->fWide = true;
-    wchar_t *f = (wchar_t *)files;
-    for (int i = 0; i < fileNames.size(); i++) {
-        int l = fileNames.at(i).length();
-        memcpy(f, fileNames.at(i).utf16(), l * sizeof(ushort));
-        f += l;
-        *f++ = 0;
+    IShellItemArray *shellItemArray = nullptr;
+    if (QWindowsContext::shell32dll.sHCreateShellItemArrayFromIDLists) {
+        QWindowsContext::shell32dll.sHCreateShellItemArrayFromIDLists(static_cast<UINT>(pidls.size()), pidls.data(), &shellItemArray);
     }
-    *f = 0;
 
-    HGLOBAL hData = GlobalAlloc(0, result.size());
-    if (!hData)
-        return;
-
-    void *out = GlobalLock(hData);
-    memcpy(out, result.data(), result.size());
-    GlobalUnlock(hData);
-
-    FORMATETC etc = { CF_HDROP, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-    CacheGlobalData(CF_HDROP, hData, &etc);
+    if (shellItemArray) {
+        shellItemArray->BindToHandler(nullptr, BHID_DataObject,IID_PPV_ARGS(&m_dataObj));
+        shellItemArray->Release();
+    }
+    for (size_t i = 0; i < pidls.size(); ++i) {
+        ::ILFree((PIDLIST_RELATIVE)pidls[i]);
+    }
 }
 
 Q_GUI_EXPORT HBITMAP qt_pixmapToWinHBITMAP(const QPixmap &p, int hbitmapFormat = 0);
