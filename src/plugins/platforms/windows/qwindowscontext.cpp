@@ -305,6 +305,7 @@ void QWindowsShell32DLL::init()
     sHGetImageList = (SHGetImageList)library.resolve("SHGetImageList");
     sHCreateItemFromIDList = (SHCreateItemFromIDList)library.resolve("SHCreateItemFromIDList");
     shell_NotifyIconGetRect = (Shell_NotifyIconGetRect)library.resolve("Shell_NotifyIconGetRect");
+    sHCreateShellItemArrayFromIDLists = (SHCreateShellItemArrayFromIDLists)library.resolve("SHCreateShellItemArrayFromIDLists");
 }
 
 bool QWindowsUser32DLL::supportsPointerApi()

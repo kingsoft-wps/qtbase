@@ -85,20 +85,12 @@ protected:
     DWORD performedEffect = DROPEFFECT_NONE;
 };
 
-struct AFX_DATACACHE_ENTRY {
-    FORMATETC m_formatEtc;
-    STGMEDIUM m_stgMedium;
-    DATADIR m_nDataDir;
-};
 
 class QWindowsOleDataObjectEx : public QWindowsOleDataObject
 {
 public:
     explicit QWindowsOleDataObjectEx(QMimeData *mimeData);
     virtual ~QWindowsOleDataObjectEx();
-
-    inline bool getUseDescription() const { return m_bUseDescription; }
-    inline QDropDescription *getDropDescription() const { return m_pDropDescription; }
 
     // IDataObject methods
     STDMETHOD(GetData)(LPFORMATETC pformatetcIn, LPSTGMEDIUM pmedium);
@@ -111,22 +103,9 @@ private:
     bool init();
     void ParseDraggedData();
     bool SetDragImage(const QPoint &);
-
-    AFX_DATACACHE_ENTRY *Lookup(LPFORMATETC lpFormatEtc, DATADIR nDataDir) const;
-    void CacheGlobalData(CLIPFORMAT cfFormat, HGLOBAL hGlobal, LPFORMATETC lpFormatEtc = NULL);
-    void CacheData(CLIPFORMAT cfFormat, LPSTGMEDIUM lpStgMedium, LPFORMATETC lpFormatEtc = NULL);
-    AFX_DATACACHE_ENTRY *GetCacheEntry(LPFORMATETC lpFormatEtc, DATADIR nDataDir);
-    void EmptyCacheEntry();
-
 private:
-    IDragSourceHelper *m_pDragSourceHelper;
-    QDropDescription *m_pDropDescription;
-    bool m_bUseDescription;
-
-    AFX_DATACACHE_ENTRY *m_pDataCache;
-    UINT m_nMaxSize;
-    UINT m_nSize;
-    UINT m_nGrowBy;
+    IDragSourceHelper *m_pDragSourceHelper = nullptr;
+    IDataObject *m_dataObj = nullptr;
 };
 
 class QWindowsOleEnumFmtEtc : public QWindowsComBase<IEnumFORMATETC>
