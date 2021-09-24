@@ -265,8 +265,10 @@ QSystemLocalePrivate::SubstitutionType QSystemLocalePrivate::substitution()
                 substitutionType = QSystemLocalePrivate::SNever;
                 return substitutionType;
             }
-            const wchar_t zero = digits[0];
-            if (buf[0] == zero + 2)
+            const QChar zero = QChar(ushort(digits[0]));
+            const QChar::Direction direction = zero.direction();
+            if (buf[0] == zero.unicode() + 2 && zero.isDigit() && QChar::DirR != direction
+                && QChar::DirAL != direction)
                 substitutionType = QSystemLocalePrivate::SAlways;
             else
                 substitutionType = QSystemLocalePrivate::SNever;
@@ -288,8 +290,27 @@ QString &QSystemLocalePrivate::substituteDigits(QString &string)
 
 QChar QSystemLocalePrivate::zeroDigit()
 {
-    if (zero.isNull())
-        zero = getLocaleInfo_qchar(LOCALE_SNATIVEDIGITS);
+    if (zero.isNull()) {
+        bool useFirst = false;
+        wchar_t buf[8] = { 0 };
+        if (getLocaleInfo(LOCALE_IDIGITSUBSTITUTION, buf, 8)) {
+            if (buf[0] != '1' && buf[0] != '0') {
+                wchar_t digits[11] = { 0 };
+                if (getLocaleInfo(LOCALE_SNATIVEDIGITS, digits, 11)) {
+                    const QChar nativeZero = QChar(ushort(digits[0]));
+                    const QChar::Direction direction = nativeZero.direction();
+                    if ((buf[0] == '2' || buf[0] == 2 + nativeZero.unicode()) && nativeZero.isDigit()
+                        && QChar::DirR != direction && QChar::DirAL != direction) {
+                        zero = nativeZero;
+                        useFirst = true;
+                    }
+                }
+            }
+        }
+
+        if (!useFirst)
+            zero = QLatin1Char('0');
+    }
     return zero;
 }
 
