@@ -176,6 +176,10 @@ public:
         BlockNonBreakableLines = 0x1050,
         BlockTrailingHorizontalRulerWidth = 0x1060,
         HeadingLevel = 0x1070,
+        BlockQuoteLevel = 0x1080,
+        BlockCodeLanguage = 0x1090,
+        BlockCodeFence = 0x1091,
+        BlockMarker = 0x10A0,
 
         // character properties
         FirstFontProperty = 0x1FE0,
@@ -248,6 +252,8 @@ public:
 
         // image properties
         ImageName = 0x5000,
+        ImageTitle = 0x5001,
+        ImageAltText = 0x5002,
         ImageWidth = 0x5010,
         ImageHeight = 0x5011,
         ImageQuality = 0x5014,
@@ -589,6 +595,12 @@ public:
         LineDistanceHeight = 4
     };
 
+    enum MarkerType {
+        NoMarker = 0,
+        Unchecked = 1,
+        Checked = 2
+    };
+
     QTextBlockFormat();
 
     bool isValid() const { return isBlockFormat(); }
@@ -651,6 +663,11 @@ public:
 
     void setTabPositions(const QList<QTextOption::Tab> &tabs);
     QList<QTextOption::Tab> tabPositions() const;
+
+    inline void setMarker(MarkerType marker)
+    { setProperty(BlockMarker, int(marker)); }
+    inline MarkerType marker() const
+    { return MarkerType(intProperty(BlockMarker)); }
 
 protected:
     explicit QTextBlockFormat(const QTextFormat &fmt);

@@ -159,6 +159,9 @@ void QTextEditPrivate::init(const QString &html)
     QObject::connect(control, SIGNAL(copyAvailable(bool)), q, SIGNAL(copyAvailable(bool)));
     QObject::connect(control, SIGNAL(selectionChanged()), q, SIGNAL(selectionChanged()));
     QObject::connect(control, SIGNAL(cursorPositionChanged()), q, SLOT(_q_cursorPositionChanged()));
+#if QT_CONFIG(cursor)
+    QObject::connect(control, SIGNAL(blockMarkerHovered(QTextBlock)), q, SLOT(_q_hoveredBlockWithMarkerChanged(QTextBlock)));
+#endif
 
     QObject::connect(control, SIGNAL(textChanged()), q, SLOT(updateMicroFocus()));
 
@@ -219,6 +222,23 @@ void QTextEditPrivate::_q_cursorPositionChanged()
     QAccessible::updateAccessibility(&event);
 #endif
 }
+
+#if QT_CONFIG(cursor)
+void QTextEditPrivate::_q_hoveredBlockWithMarkerChanged(const QTextBlock &block)
+{
+    Q_Q(QTextEdit);
+    Qt::CursorShape cursor = cursorToRestoreAfterHover;
+    if (block.isValid() && !q->isReadOnly()) {
+        QTextBlockFormat::MarkerType marker = block.blockFormat().marker();
+        if (marker != QTextBlockFormat::MarkerType::NoMarker) {
+            if (viewport->cursor().shape() != Qt::PointingHandCursor)
+                cursorToRestoreAfterHover = viewport->cursor().shape();
+            cursor = Qt::PointingHandCursor;
+        }
+    }
+    viewport->setCursor(cursor);
+}
+#endif
 
 void QTextEditPrivate::pageUpDown(QTextCursor::MoveOperation op, QTextCursor::MoveMode moveMode)
 {

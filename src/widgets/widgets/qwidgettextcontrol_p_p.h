@@ -55,6 +55,7 @@
 #include "QtGui/qtextdocumentfragment.h"
 #include "QtGui/qtextcursor.h"
 #include "QtGui/qtextformat.h"
+#include "QtGui/qtextobject.h"
 #if QT_CONFIG(menu)
 #include "QtWidgets/qmenu.h"
 #endif
@@ -228,6 +229,7 @@ public:
 
     QString highlightedAnchor; // Anchor below cursor
     QString anchorOnMousePress;
+    QTextBlock blockWithMarkerUnderMouse;
     bool hadSelectionOnMousePress;
 
     bool ignoreUnusedNavigationEvents;

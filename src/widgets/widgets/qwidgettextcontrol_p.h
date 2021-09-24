@@ -143,6 +143,8 @@ public:
 
     QString anchorAtCursor() const;
 
+    QTextBlock blockWithMarkerAt(const QPointF &pos) const;
+
     bool overwriteMode() const;
     void setOverwriteMode(bool overwrite);
 
@@ -232,6 +234,7 @@ Q_SIGNALS:
     void microFocusChanged();
     void linkActivated(const QString &link);
     void linkHovered(const QString &);
+    void blockMarkerHovered(const QTextBlock &block);
     void modificationChanged(bool m);
 
 public:
