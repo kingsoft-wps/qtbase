@@ -124,7 +124,7 @@ QHostInfo QHostInfoAgent::fromName(const QString &hostName)
         return results;
     }
 
-    addrinfo *res;
+    addrinfo *res = nullptr;
     int err = getaddrinfo(aceHostname.constData(), 0, 0, &res);
     if (err == 0) {
         QList<QHostAddress> addresses;
