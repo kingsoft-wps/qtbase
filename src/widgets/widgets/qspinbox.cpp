@@ -203,8 +203,6 @@ QSpinBox::QSpinBox(QWidget *parent)
 {
     Q_D(QSpinBox);
     d->init();
-    if (QLocale::Thai == locale().language())
-        setLocale(QLocale::English);
 }
 
 /*!
@@ -665,8 +663,6 @@ QDoubleSpinBox::QDoubleSpinBox(QWidget *parent)
 {
     Q_D(QDoubleSpinBox);
     d->init();
-     if (QLocale::Thai == locale().language())
-        setLocale(QLocale::English);   
 }
 
 /*!
