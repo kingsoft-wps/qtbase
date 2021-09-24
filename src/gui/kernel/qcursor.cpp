@@ -557,14 +557,14 @@ void QCursor::setShape(Qt::CursorShape shape)
 {
     if (!QCursorData::initialized)
         QCursorData::initialize();
-    QCursorData *c = uint(shape) <= Qt::LastCursor ? qt_cursorTable[shape] : 0;
-    if (!c) {
-        if (shape != Qt::CustomCursor)
+    QCursorData *c = uint(shape) <= Qt::LastCursor ? qt_cursorTable[shape] : nullptr;
+    if (!c && Qt::CustomCursor == shape) {
+        c = new QCursorData(Qt::CustomCursor);
+    } else {
+        if (!c)
             c = qt_cursorTable[0];
-        else
-            c = new QCursorData(Qt::CustomCursor);
+        c->ref.ref();
     }
-    c->ref.ref();
     if (!d) {
         d = c;
     } else {
