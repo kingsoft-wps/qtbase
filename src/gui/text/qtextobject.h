@@ -138,6 +138,7 @@ public:
     QTextFrame *parentFrame() const;
 
     class Q_GUI_EXPORT iterator {
+    public:
         QTextFrame *f;
         int b;
         int e;
