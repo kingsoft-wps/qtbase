@@ -432,6 +432,11 @@ void clearDirect2DBrushCache(ID2D1DeviceContext* dc)
         f->reset();
 }
 
+template<typename T, size_t N>
+char (&ArraySizeHelper(T (&array)[N]))[N];
+
+#define arraysize(array) (sizeof(ArraySizeHelper(array)))
+
 class QWindowsDirect2DPaintEnginePrivate : public QPaintEngineExPrivate
 {
     Q_DECLARE_PUBLIC(QWindowsDirect2DPaintEngine)
@@ -1330,24 +1335,68 @@ public:
                 || src == QFont::UltraExpanded && dest == DWRITE_FONT_STRETCH_ULTRA_EXPANDED;
     }
 
-    static bool matchDWriteFont(const QFontEngine *fontEngine, IDWriteFontFace **ppFontFace)
+    static bool findDirectWriteFontForLOGFONT(const QFontEngine *fontEngine, LOGFONT *pLogicFont, IDWriteFontFace **ppFontFace)
     {
-        QFontDef fontDef = fontEngine->fontDef;
+        ComPtr<IDWriteGdiInterop> spGdiInterop;
+        HRESULT hr = QWindowsDirect2DContext::instance()->dwriteFactory()->GetGdiInterop(&spGdiInterop);
+        if (FAILED(hr) || !spGdiInterop)
+            return false;
+
+        ComPtr<IDWriteFontCollection> spFontCol;
+        hr = QWindowsDirect2DContext::instance()->dwriteFactory()->GetSystemFontCollection(&spFontCol);
+        if (FAILED(hr) && !spFontCol)
+            return false;
+
+        HDC hDC = GetDC(NULL);
+        HFONT hFont = CreateFontIndirect(pLogicFont);
+        HGDIOBJ hOldGdiObj = SelectObject(hDC, hFont);
+
+        ComPtr<IDWriteFontFace> spGdiFontFace;
+        hr = spGdiInterop->CreateFontFaceFromHdc(hDC, &spGdiFontFace);
+
+        ComPtr<IDWriteFontFace> spCollectionFontFace;
+
+        auto createFontFaceFromCollection = [&] {
+            if (FAILED(hr) || !spGdiFontFace)
+                return E_FAIL;
+
+            ComPtr<IDWriteFont> spCollectionFont;
+            hr = spFontCol->GetFontFromFontFace(spGdiFontFace.Get(), &spCollectionFont);
+            if (FAILED(hr) || !spCollectionFont)
+                return E_FAIL;
+
+            hr = spCollectionFont->CreateFontFace(&spCollectionFontFace);
+            return SUCCEEDED(hr) && spCollectionFontFace ? S_OK : E_FAIL;
+        };
+        hr = createFontFaceFromCollection();
+
+        SelectObject(hDC, hOldGdiObj);
+
+        DeleteObject(hFont);
+        ReleaseDC(NULL, hDC);
+
+        if (FAILED(hr)
+            || !spCollectionFontFace
+            || spCollectionFontFace->GetGlyphCount() != fontEngine->glyphCount()) {
+            return false;
+        }
+
+#ifdef DEBUG_FONT_INFO
+        qDebug() << "font path : " << getDWriteFontPath(spGdiFontFace.Get());
+#endif
+        *ppFontFace = spCollectionFontFace.Detach();
+        return true;
+    }
+
+    static bool findFontInSysCollection(const QFontEngine *fontEngine, QFontDef &fontDef, IDWriteFontFace **ppFontFace)
+    {
         QString &fam = fontDef.family;
         if (fam.startsWith(QLatin1Char('@')))
             fam.remove(0, 1);
-        static const QString msyhl = QString::fromWCharArray(L"微软雅黑 Light");
-        if (fam == msyhl) {
-            // From the traversal result of DWrite, it is either DWRITE_FONT_WEIGHT_LIGHT or 290, without bold
-            if (fontDef.weight == QFont::DemiBold || fontDef.weight == QFont::Bold)
-                return false;
-
-            fam.remove(4, 6);
-            fontDef.weight = QFont::Light;
-        }
 
         ComPtr<IDWriteFontCollection> spFontCol;
-        HRESULT hr = QWindowsDirect2DContext::instance()->dwriteFactory()->GetSystemFontCollection(&spFontCol);
+        HRESULT hr = QWindowsDirect2DContext::instance()->dwriteFactory()->GetSystemFontCollection(
+                &spFontCol);
         if (!spFontCol)
             return false;
 
@@ -1357,7 +1406,7 @@ public:
 
         UINT32 i = 0;
         BOOL exsists = FALSE;
-        hr = spFontCol->FindFamilyName((const WCHAR* )fam.utf16(), &i, &exsists);
+        hr = spFontCol->FindFamilyName((const WCHAR *)fam.utf16(), &i, &exsists);
         if (!exsists)
             return false;
 
@@ -1396,6 +1445,36 @@ public:
                 *ppFontFace = spFace.Detach();
                 return true;
             }
+        }
+        return false;
+    }
+
+    static bool matchDWriteFont(const QFontEngine *fontEngine, IDWriteFontFace **ppFontFace)
+    {
+        QFontDef fontDef = fontEngine->fontDef;
+        // First, get a matching font from the system font collection exposed by
+        // DirectWrite.
+        if (findFontInSysCollection(fontEngine, fontDef, ppFontFace))
+            return true;
+
+        LOGFONT logicFont = QWindowsFontDatabase::fontDefToLOGFONT(fontDef, QString());
+        // Second try to find the logic font by using GDI interface.
+        // If that fails then try and find a match from the DirectWrite font collection.
+        if (findDirectWriteFontForLOGFONT(fontEngine, &logicFont, ppFontFace))
+            return true;
+
+        // If we fail to find a match then try fallback to the default font on the system.
+        NONCLIENTMETRICS metrics = { 0 };
+        metrics.cbSize = sizeof(metrics);
+        if (!SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(metrics), &metrics, 0)) {
+            return false;
+        }
+
+        if (wcsncmp(logicFont.lfFaceName, metrics.lfMessageFont.lfFaceName,
+                    arraysize(logicFont.lfFaceName))) {
+            wcscpy_s(logicFont.lfFaceName, arraysize(logicFont.lfFaceName),
+                     metrics.lfMessageFont.lfFaceName);
+            return findDirectWriteFontForLOGFONT(fontEngine, &logicFont, ppFontFace);
         }
         return false;
     }
