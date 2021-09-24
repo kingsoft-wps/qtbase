@@ -341,7 +341,7 @@ bool QShortcutMap::tryShortcut(QKeyEvent *e)
         if (text.length()) {
             QChar qChar = text.at(0);
             //if the txt and the navtive virtual key is different, this demonstrates the altgr key is working 
-            if (qChar != e->nativeVirtualKey())
+            if (qChar != e->nativeVirtualKey() && qChar != '=')
                 return false;
         }
     }
