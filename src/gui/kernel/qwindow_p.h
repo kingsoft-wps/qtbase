@@ -105,6 +105,9 @@ public:
         , cursor(Qt::ArrowCursor)
         , hasCursor(false)
 #endif
+#ifdef Q_OS_MAC
+        , isFullScreen(false)
+#endif
         , compositing(false)
 #if QT_CONFIG(vulkan)
         , vulkanInstance(nullptr)
@@ -212,6 +215,10 @@ public:
 #ifndef QT_NO_CURSOR
     QCursor cursor;
     bool hasCursor;
+#endif
+
+#ifdef Q_OS_MAC
+    bool isFullScreen;
 #endif
 
     bool compositing;

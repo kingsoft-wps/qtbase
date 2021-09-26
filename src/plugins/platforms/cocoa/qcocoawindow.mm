@@ -233,7 +233,7 @@ void QCocoaWindow::createWindowTitleView()
     NSRect boundsRect = [[[m_nsWindow contentView] superview] bounds];
     m_nsWindowTitleView = [[QCocoaWindowTitleView alloc] initWithFrame:boundsRect];
     [m_nsWindowTitleView setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
-	[m_nsWindow setTitle:@""];
+    [m_nsWindow setTitle:@""];
 
     if (m_backgroundClr.isValid())
     {
@@ -784,6 +784,9 @@ void QCocoaWindow::windowWillEnterFullScreen()
     if (!isContentView())
         return;
 
+    if (window())
+        window()->willEnterFullScreen();
+
     // The NSWindow needs to be resizable, otherwise we'll end up with
     // the normal window geometry, centered in the middle of the screen
     // on a black background. The styleMask will be reset below.
@@ -816,6 +819,9 @@ void QCocoaWindow::windowWillExitFullScreen()
 {
     if (!isContentView())
         return;
+
+    if (window())
+        window()->willExitFullScreen();
 
     // The NSWindow needs to be resizable, otherwise we'll end up with
     // a weird zoom animation. The styleMask will be reset below.
@@ -947,7 +953,7 @@ void QCocoaWindow::setBackgroundColor(const QColor &clr)
     NSColor *color = [NSColor colorWithRed:clr.red() / 255.0 green:clr.green() / 255.0
             blue:clr.blue() / 255.0 alpha:1];
     m_backgroundClr = clr;
-	m_nsWindow.backgroundColor = color;
+    m_nsWindow.backgroundColor = color;
     if (m_nsWindowTitleView)
     {
         [m_nsWindowTitleView setBackgroundColor:color];

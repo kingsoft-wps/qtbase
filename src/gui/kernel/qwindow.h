@@ -305,6 +305,14 @@ public:
     void createWindowTitleView();
     // Switch form full screen state
     void toggleFullScreen();
+    // Set full screen state in advance to avoid traffic light position error
+    bool isFullScreenState();
+    void willEnterFullScreen();
+    void willExitFullScreen();
+    void didEndLiveResize();
+
+    // Resizing
+    void didResize();
 #endif
 
     static QWindow *fromWinId(WId id);
@@ -367,6 +375,10 @@ Q_SIGNALS:
     void minimumHeightChanged(int arg);
     void maximumWidthChanged(int arg);
     void maximumHeightChanged(int arg);
+    void notifyWillEnterFullScreen();
+    void notifyWillExitFullScreen();
+    void notifyDidResize();
+    void notifyDidEndLiveResize();
 
     void visibleChanged(bool arg);
     Q_REVISION(1) void visibilityChanged(QWindow::Visibility visibility);

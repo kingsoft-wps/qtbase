@@ -2702,7 +2702,7 @@ QPoint QWindow::mapToGlobal(const QPoint &pos) const
     Q_D(const QWindow);
     // QTBUG-43252, prefer platform implementation for foreign windows.
     if (d->platformWindow
-		&& (d->platformWindow->isForeignWindow() || d->platformWindow->isEmbedded() || d->platformWindow->isMapGlobalRT())) {
+        && (d->platformWindow->isForeignWindow() || d->platformWindow->isEmbedded() || d->platformWindow->isMapGlobalRT())) {
         return QHighDpi::fromNativeLocalPosition(d->platformWindow->mapToGlobal(QHighDpi::toNativeLocalPosition(pos, this)), this);
     }
 
@@ -2795,6 +2795,38 @@ void QWindow::toggleFullScreen()
     if (d->platformWindow)
         d->platformWindow->toggleFullScreen();
 }
+void QWindow::willEnterFullScreen()
+{
+    Q_D(QWindow);
+    d->isFullScreen = true;
+
+    emit notifyWillEnterFullScreen();
+}
+
+void QWindow::willExitFullScreen()
+{
+    Q_D(QWindow);
+    d->isFullScreen = false;
+
+    emit notifyWillExitFullScreen();
+}
+
+void QWindow::didEndLiveResize()
+{
+    emit notifyDidEndLiveResize();
+}
+
+bool QWindow::isFullScreenState()
+{
+    Q_D(const QWindow);
+    return d->isFullScreen;
+}
+
+void QWindow::didResize()
+{
+    // do other thing
+    emit notifyDidResize();
+}
 #endif
 /*!
     \fn QPoint QWindow::mapFromGlobal(const QPoint &pos) const
@@ -2809,7 +2841,7 @@ QPoint QWindow::mapFromGlobal(const QPoint &pos) const
     Q_D(const QWindow);
     // QTBUG-43252, prefer platform implementation for foreign windows.
     if (d->platformWindow
-		&& (d->platformWindow->isForeignWindow() || d->platformWindow->isEmbedded() || d->platformWindow->isMapGlobalRT())) {
+        && (d->platformWindow->isForeignWindow() || d->platformWindow->isEmbedded() || d->platformWindow->isMapGlobalRT())) {
         return QHighDpi::fromNativeLocalPosition(d->platformWindow->mapFromGlobal(QHighDpi::toNativeLocalPosition(pos, this)), this);
     }
 
