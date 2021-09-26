@@ -81,6 +81,8 @@ QT_USE_NAMESPACE
     //Pass to the kernel the current drawing page number and the size of the paper to be drawn, the kernel will draw, we get the corresponding QImage
     CGFloat rectWidth = paperSize.width*qGuiApp->devicePixelRatio();
     CGFloat rectHeight = paperSize.height*qGuiApp->devicePixelRatio();
+    if (!fatherPrintDialog)
+        return NO;
     int pageNum = fatherPrintDialog->GetPageCount(paperOrientationLand, rectWidth, rectHeight, selOnly);
 
     range->location = 1;
@@ -121,6 +123,8 @@ QT_USE_NAMESPACE
     info.isOrientationLand = paperOrientationLand;
     info.isSelectionOnly = selOnly;
     info.isPrintPreviewer = isPrintPreview;
+    if (!fatherPrintDialog)
+        return;
     fatherPrintDialog->PrintPage((void*)myContext, curPage, info);
 }
 @end
