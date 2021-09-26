@@ -717,7 +717,10 @@ QList<QTreeWidgetItem*>::iterator QTreeModel::sortedInsertionIterator(
 
 QStringList QTreeModel::mimeTypes() const
 {
-    return view()->mimeTypes();
+    auto v = view();
+    if (v)
+        return v->mimeTypes();
+    return QStringList();
 }
 
 QMimeData *QTreeModel::internalMimeData()  const
