@@ -1732,7 +1732,7 @@ QCocoaNSWindow *QCocoaWindow::createNSWindow(bool shouldBePanel)
 
     QScreen *targetScreen = nullptr;
     for (QScreen *screen : QGuiApplication::screens()) {
-        if (screen->geometry().contains(rect.topLeft())) {
+        if (screen && screen->geometry().contains(rect.topLeft())) {
             targetScreen = screen;
             break;
         }
