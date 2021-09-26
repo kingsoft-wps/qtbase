@@ -487,17 +487,18 @@ protected:
     bool m_bNeedClosed;
 };
 
-class Q_CORE_EXPORT QSaveToCloudEvent : public QEvent
+// The status of the query pop-up dialog determines the subsequent operation
+class Q_CORE_EXPORT QEnableCloudBackupEvent : public QEvent
 {
 public:
 
     enum Type
     {
-        SaveToCloud = QEvent::User + 670
+        EnableCloudBackupEvent = QEvent::User + 670
     };
 
-    explicit QSaveToCloudEvent();
-    ~QSaveToCloudEvent();
+    explicit QEnableCloudBackupEvent();
+    ~QEnableCloudBackupEvent();
 };
 #endif
 QT_END_NAMESPACE

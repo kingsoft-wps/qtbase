@@ -735,19 +735,16 @@ QPopupWindowStateQueryEvent::~QPopupWindowStateQueryEvent()
 /*!
     \internal
 */
-QSaveToCloudEvent::QSaveToCloudEvent()
-    : QEvent((QEvent::Type)QSaveToCloudEvent::SaveToCloud)
+QEnableCloudBackupEvent::QEnableCloudBackupEvent()
+    : QEvent((QEvent::Type)QEnableCloudBackupEvent::EnableCloudBackupEvent)
 {
-
 }
 
 /*!
     \internal
 */
-QSaveToCloudEvent::~QSaveToCloudEvent()
-{
-
-}
+QEnableCloudBackupEvent::~QEnableCloudBackupEvent()
+{ }
 #endif
 QT_END_NAMESPACE
 

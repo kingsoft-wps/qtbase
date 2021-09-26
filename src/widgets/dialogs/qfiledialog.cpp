@@ -2165,11 +2165,11 @@ void QFileDialog::onEncryptFileButtonClick()
 }
 void QFileDialog::onSaveToCloudButtonClick()
 {
-    // emit cloudFileButtonClicked();
-    // Show cloud document save box
-    QGuiApplication::postEvent(parent(), new QSaveToCloudEvent());
     // close
     this->reject();
+    // emit cloudFileButtonClicked();
+    // Show cloud document save box
+    this->setResult(QFileDialog::SaveToCloudClicked);
 }
 void QFileDialog::setExtraArgument(const QVariant &v)
 {
@@ -2691,7 +2691,14 @@ void QFileDialog::done(int result)
 {
     Q_D(QFileDialog);
 
+#ifdef Q_OS_MAC
+    int oldResult = result();
+#endif
     QDialog::done(result);
+#ifdef Q_OS_MAC
+    if (oldResult == QFileDialog::SaveToCloudClicked)
+        setResult(QFileDialog::SaveToCloudClicked);
+#endif
 
     if (d->receiverToDisconnectOnClose) {
         disconnect(this, d->signalToDisconnectOnClose,

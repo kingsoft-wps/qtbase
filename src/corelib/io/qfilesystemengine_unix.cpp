@@ -1416,12 +1416,12 @@ bool QFileSystemEngine::setFileTime(int fd, const QDateTime &newDate, QAbstractF
         ts[1].tv_sec = msecs / 1000;
         ts[1].tv_nsec = (msecs % 1000) * 1000000;
     }
-
+#ifndef Q_OS_MAC
     if (futimens(fd, ts) == -1) {
         error = QSystemError(errno, QSystemError::StandardLibraryError);
         return false;
     }
-
+#endif
     return true;
 #elif QT_CONFIG(futimes)
     struct timeval tv[2];
