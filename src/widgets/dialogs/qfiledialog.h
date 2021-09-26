@@ -86,7 +86,8 @@ public:
     enum DialogLabel { LookIn, FileName, FileType, Accept, Reject };
 #ifdef Q_OS_MAC
     Q_ENUM(DialogLabel)
-    enum AccessoryButton { Encrypt, SaveToCloud };
+    enum DialogCode {SaveToCloudClicked = QDialog::Accepted + 1, SaveToCloudSwitchClicked};
+    enum AccessoryButton { Encrypt, SaveToCloud, SaveToCloudSwitch, SaveToCloudEnabled };
     Q_ENUM(AccessoryButton)
 #endif // Q_OS_MAC
     enum Option
