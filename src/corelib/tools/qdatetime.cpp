@@ -3018,6 +3018,7 @@ inline qint64 QDateTimePrivate::zoneMSecsToEpochMSecs(qint64 zoneMSecs, const QT
                                                       DaylightStatus hint,
                                                       QDate *zoneDate, QTime *zoneTime)
 {
+    Q_ASSERT(zone.isValid());
     // Get the effective data from QTimeZone
     QTimeZonePrivate::Data data = zone.d->dataForLocalTime(zoneMSecs, int(hint));
     // Docs state any time before 1970-01-01 will *not* have any DST applied
@@ -3387,8 +3388,9 @@ QTimeZone QDateTime::timeZone() const
     case Qt::OffsetFromUTC:
         return QTimeZone(d->m_offsetFromUtc);
     case Qt::TimeZone:
-        Q_ASSERT(d->m_timeZone.isValid());
-        return d->m_timeZone;
+        if (d->m_timeZone.isValid())
+            return d->m_timeZone;
+        break;
     case Qt::LocalTime:
         return QTimeZone::systemTimeZone();
     }
@@ -3469,6 +3471,7 @@ QString QDateTime::timeZoneAbbreviation() const
 #if !QT_CONFIG(timezone)
         break;
 #else
+        Q_ASSERT(d->m_timeZone.isValid());
         return d->m_timeZone.d->abbreviation(toMSecsSinceEpoch());
 #endif // timezone
     case Qt::LocalTime:  {
@@ -3502,6 +3505,7 @@ bool QDateTime::isDaylightTime() const
 #if !QT_CONFIG(timezone)
         break;
 #else
+        Q_ASSERT(d->m_timeZone.isValid());
         return d->m_timeZone.d->isDaylightTime(toMSecsSinceEpoch());
 #endif // timezone
     case Qt::LocalTime: {
@@ -3626,6 +3630,10 @@ void QDateTime::setTimeZone(const QTimeZone &toZone)
 */
 qint64 QDateTime::toMSecsSinceEpoch() const
 {
+    // Note: QDateTimeParser relies on this producing a useful result, even when
+    // !isValid(), at least when the invalidity is a time in a fall-back (that
+    // we'll have adjusted to lie outside it, but marked invalid because it's
+    // not what was asked for). Other things may be doing similar.
     switch (getSpec(d)) {
     case Qt::UTC:
         return getMSecs(d);
@@ -3640,12 +3648,13 @@ qint64 QDateTime::toMSecsSinceEpoch() const
     }
 
     case Qt::TimeZone:
-#if !QT_CONFIG(timezone)
-        return 0;
-#else
-        return QDateTimePrivate::zoneMSecsToEpochMSecs(d->m_msecs, d->m_timeZone,
-                                                       extractDaylightStatus(getStatus(d)));
+        Q_ASSERT(!d.isShort());
+#if QT_CONFIG(timezone)
+        // Use offset refreshZonedDateTime() saved creation:
+        if (d->m_timeZone.isValid())
+            return d->m_msecs - d->m_offsetFromUtc * 1000;
 #endif
+        return 0;
     }
     Q_UNREACHABLE();
     return 0;
@@ -3740,9 +3749,11 @@ void QDateTime::setMSecsSinceEpoch(qint64 msecs)
     case Qt::TimeZone:
         Q_ASSERT(!d.isShort());
 #if QT_CONFIG(timezone)
+        d.detach();
+        if (!d->m_timeZone.isValid())
+            break;
         // Docs state any LocalTime before 1970-01-01 will *not* have any DST applied
         // but all affected times afterwards will have DST applied.
-        d.detach();
         if (msecs >= 0) {
             status = mergeDaylightStatus(status,
                                          d->m_timeZone.d->isDaylightTime(msecs)
@@ -4077,7 +4088,7 @@ static inline void massageAdjustedDateTime(const QDateTimeData &d, QDate *date, 
         QDateTimePrivate::DaylightStatus status = QDateTimePrivate::UnknownDaylightTime;
         localMSecsToEpochMSecs(timeToMSecs(*date, *time), &status, date, time);
 #if QT_CONFIG(timezone)
-    } else if (spec == Qt::TimeZone) {
+    } else if (spec == Qt::TimeZone && d->m_timeZone.isValid()) {
         QDateTimePrivate::zoneMSecsToEpochMSecs(timeToMSecs(*date, *time),
                                                 d->m_timeZone,
                                                 QDateTimePrivate::UnknownDaylightTime,
@@ -4730,7 +4741,8 @@ QDateTime QDateTime::fromMSecsSinceEpoch(qint64 msecs, const QTimeZone &timeZone
 {
     QDateTime dt;
     dt.setTimeZone(timeZone);
-    dt.setMSecsSinceEpoch(msecs);
+    if (timeZone.isValid())
+        dt.setMSecsSinceEpoch(msecs);
     return dt;
 }
 
