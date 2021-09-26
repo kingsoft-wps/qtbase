@@ -219,6 +219,7 @@ QCocoaWindow::~QCocoaWindow()
     }
 
     [m_view release];
+    [m_nsWindow close];
     [m_nsWindow release];
 
     if (m_nsWindowTitleView)
@@ -1758,6 +1759,8 @@ QCocoaNSWindow *QCocoaWindow::createNSWindow(bool shouldBePanel)
         styleMask = NSWindowStyleMaskBorderless;
     }
 
+    if (!targetScreen)
+        return nullptr;
     rect.translate(-targetScreen->geometry().topLeft());
     auto *targetCocoaScreen = static_cast<QCocoaScreen *>(targetScreen->handle());
     NSRect contentRect = QCocoaScreen::mapToNative(rect, targetCocoaScreen);

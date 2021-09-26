@@ -1556,9 +1556,6 @@ void QWidgetPrivate::create()
         Q_ASSERT(id != WId(0));
         setWinId(id);
     }
-#ifdef Q_OS_MAC
-    data.windowid = win->windowId();
-#endif
     // Check children and create windows for them if necessary
     q_createNativeChildrenAndSetParent(q);
 
