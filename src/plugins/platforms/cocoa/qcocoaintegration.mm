@@ -208,7 +208,7 @@ QCocoaIntegration::QCocoaIntegration(const QStringList &paramList)
     cocoaApplication.presentationOptions = NSApplicationPresentationDefault;
 
     m_screensObserver = QMacNotificationObserver([NSApplication sharedApplication],
-        NSApplicationDidChangeScreenParametersNotification, [&]() { updateScreens(); });
+        NSApplicationDidChangeScreenParametersNotification, [&]() { updateScreensByObserver(); });
     updateScreens();
 
     QMacInternalPasteboardMime::initializeMimeTypes();
@@ -258,6 +258,12 @@ QCocoaIntegration *QCocoaIntegration::instance()
 QCocoaIntegration::Options QCocoaIntegration::options() const
 {
     return mOptions;
+}
+
+void QCocoaIntegration::updateScreensByObserver()
+{
+    updateScreens();
+    mRemovedScreens.clear();
 }
 
 /*!
@@ -317,11 +323,14 @@ void QCocoaIntegration::updateScreens()
 
     // Now the leftovers in remainingScreens are no longer current, so we can delete them.
     foreach (QCocoaScreen* screen, remainingScreens) {
+        if (mRemovedScreens.indexOf(screen) != -1)
+            continue ;
         mScreens.removeOne(screen);
         // Prevent stale references to NSScreen during destroy
         screen->m_screenIndex = -1;
         qCDebug(lcQpaScreen) << "Removing" << screen;
         QWindowSystemInterface::handleScreenRemoved(screen);
+        mRemovedScreens.append(screen);
     }
 }
 

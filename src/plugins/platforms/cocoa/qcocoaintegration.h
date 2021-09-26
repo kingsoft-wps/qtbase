@@ -114,6 +114,7 @@ public:
     QList<int> possibleKeys(const QKeyEvent *event) const override;
 
     void updateScreens();
+    void updateScreensByObserver();
     QCocoaScreen *screenForNSScreen(NSScreen *nsScreen);
 
     void setToolbar(QWindow *window, NSToolbar *toolbar);
@@ -144,6 +145,7 @@ private:
 #endif
     QScopedPointer<QPlatformTheme> mPlatformTheme;
     QList<QCocoaScreen *> mScreens;
+    QList<QCocoaScreen *> mRemovedScreens; 
     QMacNotificationObserver m_screensObserver;
 #ifndef QT_NO_CLIPBOARD
     QCocoaClipboard  *mCocoaClipboard;
