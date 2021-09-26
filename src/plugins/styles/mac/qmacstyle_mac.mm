@@ -1930,6 +1930,9 @@ NSView *QMacStylePrivate::cocoaControl(CocoaControl widget) const
             bc.title = @"";
             if (widget.type == Button_PullDown)
                 bc.pullsDown = YES;
+            if (widget.type == Button_PullDown) {
+                bc.pullsDown = YES;
+            }    
             bv = bc;
             break;
         }
@@ -2056,7 +2059,7 @@ NSCell *QMacStylePrivate::cocoaCell(CocoaControl widget) const
             cell = bc;
             break;
         }
- 	case Button_PushButton: {
+        case Button_PushButton: {
             CustomNSButtonCell *bc = [[CustomNSButtonCell alloc] init];
             bc.buttonType = NSPushOnPushOffButton;
             cell = bc;
@@ -2266,7 +2269,7 @@ void QMacStyle::unpolish(QWidget* w)
     QCommonStyle::unpolish(w);
 
     if (qobject_cast<QScrollBar*>(w)) {
-	// Avoid the transparent background of the scroll bar after switching from dark to dark
+        // Avoid the transparent background of the scroll bar after switching from dark to dark
         w->setAttribute(Qt::WA_OpaquePaintEvent, false);
         w->setAttribute(Qt::WA_Hover, false);
         w->setMouseTracking(false);
@@ -3372,7 +3375,7 @@ void QMacStyle::drawPrimitive(PrimitiveElement pe, const QStyleOption *opt, QPai
 
     case PE_Frame: {
         QPen oldPen = p->pen();
-	// First set it to a color close to the default border of macOS
+        // First set it to a color close to the default border of macOS
         QString normalLineColor = "#949494";
         QString darkLineColor = "#7B7B7B";
         if (w)
@@ -3867,12 +3870,11 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                         focusRect -= pullDownButtonShadowMargins[cw.size];
                 }
                 // Ignore the focus ring of PushButton for now
-				if (w)
-				{
-					QVariant varProp = w->property("FocusRing");
-					if (varProp.isValid() && varProp.toBool())
-						d->drawFocusRing(p, focusRect, hMargin, vMargin, cw);
-				}
+                if (w) {
+                    QVariant varProp = w->property("FocusRing");
+                    if (varProp.isValid() && varProp.toBool())
+                        d->drawFocusRing(p, focusRect, hMargin, vMargin, cw);
+                }
             }
         }
         break;
