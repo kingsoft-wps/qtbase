@@ -597,6 +597,12 @@ Q_STATIC_ASSERT(sizeof(scriptForWritingSystem) / sizeof(scriptForWritingSystem[0
 Q_GUI_EXPORT int qt_script_for_writing_system(QFontDatabase::WritingSystem writingSystem)
 {
     // AppStore crash it may be that the scriptforwritingsystem is used before it is generated, resulting in a crash and no local recurrence
+#ifdef Q_OS_MAC
+    if (writingSystem < QFontDatabase::Any)
+        writingSystem = QFontDatabase::Any;
+    if (writingSystem >= QFontDatabase::WritingSystemsCount)
+        writingSystem = QFontDatabase::Any;
+#endif
     return scriptForWritingSystem ? scriptForWritingSystem[writingSystem]
                                     : QChar::Script_Common;
 }
