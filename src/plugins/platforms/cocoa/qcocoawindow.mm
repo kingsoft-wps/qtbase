@@ -1341,6 +1341,9 @@ void QCocoaWindow::windowDidEndLiveResize()
     if (!isContentView())
         return;
 
+    if (window())
+        window()->didEndLiveResize();
+
     handleWindowStateChanged();
 }
 
