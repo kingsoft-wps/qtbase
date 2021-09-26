@@ -1749,10 +1749,11 @@ QCocoaNSWindow *QCocoaWindow::createNSWindow(bool shouldBePanel)
     }
 
     NSWindowStyleMask styleMask = windowStyleMask(flags);
-
+    bool usePrimaryScreen = false;
     if (!targetScreen) {
         qCWarning(lcQpaWindow) << "Window position" << rect << "outside any known screen, using primary screen";
         targetScreen = QGuiApplication::primaryScreen();
+        usePrimaryScreen = true;
         // Unless the window is created as borderless AppKit won't find a position and
         // screen that's close to the requested invalid position, and will always place
         // the window on the primary screen.
@@ -1795,7 +1796,7 @@ QCocoaNSWindow *QCocoaWindow::createNSWindow(bool shouldBePanel)
     // But may not always be resolved at this point, in which case we fall back
     // to the target screen. The real screen will be delivered as a screen change
     // when resolved as part of ordering the window on screen.
-    if (!resultingScreen)
+    if (!resultingScreen && !usePrimaryScreen)
         resultingScreen = targetCocoaScreen;
 
     if (resultingScreen) {
@@ -1805,8 +1806,19 @@ QCocoaNSWindow *QCocoaWindow::createNSWindow(bool shouldBePanel)
         }
     }
     else {
-        QWindowSystemInterface::handleWindowScreenChanged<
-            QWindowSystemInterface::SynchronousDelivery>(window(), nullptr);
+        // Avoid crashes caused by pointer release in the middle
+        QScreen *firstScreen = QGuiApplication::primaryScreen();
+        if (firstScreen) {
+            if (firstScreen != window()->screen()) {
+                QWindowSystemInterface::handleWindowScreenChanged<
+                    QWindowSystemInterface::SynchronousDelivery>(window(), firstScreen);
+            }
+        }
+        else
+        {
+            QWindowSystemInterface::handleWindowScreenChanged<
+                QWindowSystemInterface::SynchronousDelivery>(window(), nullptr);
+        }
     }
 
     static QSharedPointer<QNSWindowDelegate> sharedDelegate([[QNSWindowDelegate alloc] init],
