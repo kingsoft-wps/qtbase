@@ -1327,6 +1327,9 @@ void QCocoaWindow::windowDidResize()
     if (!isContentView())
         return;
 
+    // notify resize
+    if (window())
+        window()->didResize();
     handleGeometryChange();
 
     if (!m_view.inLiveResize)
