@@ -84,3 +84,7 @@ qtConfig(whatsthis) {
     HEADERS += kernel/qwhatsthis.h
     SOURCES += kernel/qwhatsthis.cpp
 }
+qtConfig(xcb) {
+    HEADERS += kernel/qxembedcontainer.h
+    SOURCES += kernel/qxembedcontainer.cpp
+}

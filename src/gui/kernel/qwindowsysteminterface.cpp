@@ -943,6 +943,34 @@ bool QWindowSystemInterface::handleNativeEvent(QWindow *window, const QByteArray
     return QGuiApplicationPrivate::processNativeEvent(window, eventType, message, result);
 }
 
+void QWindowSystemInterface::handleNativeEnterLeaveEvent(QWindow *enter, QWindow *leave, const QPointF &local, const QPointF& global)
+{
+    if (!handleNativeLeaveEvent(leave))
+        handleLeaveEvent<AsynchronousDelivery>(leave);
+
+    if (!handleNativeEnterEvent(enter, local, global))
+        handleEnterEvent(enter, local, global);
+}
+
+bool QWindowSystemInterface::handleNativeEnterEvent(QWindow *window, const QPointF &local, const QPointF &global)
+{
+    return QGuiApplicationPrivate::processNativeEnterEvent(window, local, global);
+}
+
+bool QWindowSystemInterface::handleNativeLeaveEvent(QWindow *window)
+{
+    return QGuiApplicationPrivate::processNativeLeaveEvent(window);
+}
+
+bool QWindowSystemInterface::handleNativeMouseEvent(QWindow *window, ulong timestamp,
+                                                    const QPointF &local, const QPointF &global, Qt::MouseButtons state,
+                                                    Qt::MouseButton button, QEvent::Type type, Qt::KeyboardModifiers mods,
+                                                    Qt::MouseEventSource source)
+{
+    return QGuiApplicationPrivate::processNativeMouseEvent(window, timestamp, local, global, state, button,
+                                                            type, mods, source);
+}
+
 void QWindowSystemInterface::handleFileOpenEvent(const QString& fileName)
 {
     QWindowSystemInterfacePrivate::FileOpenEvent e(fileName);

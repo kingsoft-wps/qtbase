@@ -36,55 +36,33 @@
 ** $QT_END_LICENSE$
 **
 ****************************************************************************/
-
-#ifndef QSPLASHSCREEN_H
-#define QSPLASHSCREEN_H
-
+#ifndef __QXEMBEDCONTAINER_H__
+#define __QXEMBEDCONTAINER_H__
 #include <QtWidgets/qtwidgetsglobal.h>
-#include <QtGui/qpixmap.h>
 #include <QtWidgets/qwidget.h>
-
-QT_REQUIRE_CONFIG(splashscreen);
+#include <QtGui/qwindowdefs.h>
 
 QT_BEGIN_NAMESPACE
-
-class QSplashScreenPrivate;
-
-class Q_WIDGETS_EXPORT QSplashScreen : public QWidget
+class QXEmbedContainerPrivate;
+class Q_WIDGETS_EXPORT QXEmbedContainer : public QWidget
 {
     Q_OBJECT
+    Q_DECLARE_PRIVATE(QXEmbedContainer)
 public:
-    explicit QSplashScreen(const QPixmap &pixmap = QPixmap(), Qt::WindowFlags f = Qt::WindowFlags());
-    QSplashScreen(QWidget *parent, const QPixmap &pixmap = QPixmap(), Qt::WindowFlags f = Qt::WindowFlags());
-    virtual ~QSplashScreen();
+    explicit QXEmbedContainer(QWidget *parent = 0, Qt::WindowFlags flags = 0);
+    ~QXEmbedContainer();
 
-    void setPixmap(const QPixmap &pixmap);
-    const QPixmap pixmap() const;
-    void finish(QWidget *w);
-    void repaint();
-    QString message() const;
-
-public Q_SLOTS:
-    void showMessage(const QString &message, int alignment = Qt::AlignLeft,
-                  const QColor &color = Qt::black);
-    void clearMessage();
-
-Q_SIGNALS:
-    void messageChanged(const QString &message);
+    void embedClient(WId id);
+    void discardClient();
+    WId clientWinId() const;
 
 protected:
-    bool event(QEvent *e) override;
-    virtual void drawContents(QPainter *painter);
-    void mousePressEvent(QMouseEvent *) override;
-
-public:
-     void setVisible(bool visible) override;
+    void paintEvent(QPaintEvent*) override;
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
-    Q_DISABLE_COPY(QSplashScreen)
-    Q_DECLARE_PRIVATE(QSplashScreen)
+    Q_DISABLE_COPY(QXEmbedContainer)
 };
 
 QT_END_NAMESPACE
-
-#endif // QSPLASHSCREEN_H
+#endif

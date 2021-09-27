@@ -147,6 +147,9 @@ public:
 
     void setDrawCustomTextBold(bool bCustomBold);
     bool isDrawCustomTextBold() const;
+
+    void setCustomBoldFactor(qreal factor);
+    qreal customBoldFactor();
     
 private:
     friend Q_GUI_EXPORT QDataStream &operator>>(QDataStream &, QPen &);

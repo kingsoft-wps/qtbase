@@ -2739,13 +2739,9 @@ QFontEngineFT::QGlyphSet *QFontEngineFT::loadGlyphSet(const QTransform &matrix)
         gs = &transformedGlyphSets[0];
         gs->clear();
         gs->transformationMatrix = m;
-#ifdef Q_OS_LINUX
-        gs->outline_drawing = fontDef.pixelSize * fontDef.pixelSize * qAbs(matrix.det()) > QT_MAX_CACHED_GLYPH_SIZE * QT_MAX_CACHED_GLYPH_SIZE;
-#else                       
         const qreal horzScale = (fontDef.stretch == QFont::AnyStretch) ? 1.0 : fontDef.stretch / 100.0;
         gs->outline_drawing = fontDef.pixelSize * fontDef.pixelSize * horzScale * qAbs(matrix.det())
                 > QT_MAX_CACHED_GLYPH_SIZE * QT_MAX_CACHED_GLYPH_SIZE;
-#endif 
         if (fontDef.verticalMetrics) {
             FT_Matrix m;
             m.xx = 0;
@@ -3789,13 +3785,9 @@ QFontEngineFT::QGlyphSet* QFontEngineFT::loadCustomBoldGlyphSet(int wx, int wy, 
         gs->customBoldWidthx = wx;
         gs->customBoldWidthy = wy;
         gs->transformationMatrix = m;
-#ifdef Q_OS_LINUX
-        gs->outline_drawing = fontDef.pixelSize * fontDef.pixelSize * qAbs(matrix.det()) > QT_MAX_CACHED_GLYPH_SIZE * QT_MAX_CACHED_GLYPH_SIZE;
-#else                       
         const qreal horzScale = (fontDef.stretch == QFont::AnyStretch) ? 1.0 : fontDef.stretch / 100.0;
         gs->outline_drawing = fontDef.pixelSize * fontDef.pixelSize * horzScale * qAbs(matrix.det())
                 > QT_MAX_CACHED_GLYPH_SIZE * QT_MAX_CACHED_GLYPH_SIZE;
-#endif                
 
         if (fontDef.verticalMetrics) {
             FT_Matrix m;

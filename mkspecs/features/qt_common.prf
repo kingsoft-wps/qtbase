@@ -133,7 +133,7 @@ warnings_are_errors:warning_clean {
         # GCC 4.6-4.9, 5.x, ...
         ver = $${QT_GCC_MAJOR_VERSION}.$${QT_GCC_MINOR_VERSION}
         contains(ver, "(4\\.[6789]|[5-9]\\..)") {
-            QMAKE_CXXFLAGS_WARN_ON += -Werror -Wno-error=cpp -Wno-error=deprecated-declarations $$WERROR
+            # QMAKE_CXXFLAGS_WARN_ON += -Werror -Wno-error=cpp -Wno-error=deprecated-declarations $$WERROR
 
             # GCC prints this bogus warning, after it has inlined a lot of code
             # error: assuming signed overflow does not occur when assuming that (X + c) < X is always false

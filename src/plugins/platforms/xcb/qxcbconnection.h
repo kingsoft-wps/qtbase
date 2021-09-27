@@ -103,6 +103,7 @@ public:
     virtual void handleFocusInEvent(const xcb_focus_in_event_t *) {}
     virtual void handleFocusOutEvent(const xcb_focus_out_event_t *) {}
     virtual void handlePropertyNotifyEvent(const xcb_property_notify_event_t *) {}
+    virtual void handleReparentNotifyEvent(const xcb_reparent_notify_event_t *) {}
 #if QT_CONFIG(xcb_xinput)
     virtual void handleXIMouseEvent(xcb_ge_event_t *, Qt::MouseEventSource = Qt::MouseEventNotSynthesized) {}
     virtual void handleXIEnterLeave(xcb_ge_event_t *) {}

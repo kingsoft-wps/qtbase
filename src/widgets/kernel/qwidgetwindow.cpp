@@ -757,6 +757,10 @@ void QWidgetWindow::handleFocusInEvent(QFocusEvent *e)
         focusWidget = getFocusWidget(LastFocusWidget);
     else if (e->reason() == Qt::TabFocusReason)
         focusWidget = getFocusWidget(FirstFocusWidget);
+#ifdef Q_OS_LINUX
+    else if (e->reason() == Qt::MouseFocusReason)
+        focusWidget = widget();
+#endif
 
     if (focusWidget != 0)
         focusWidget->setFocus();
@@ -1385,6 +1389,34 @@ void QWidgetWindow::handleWindowStateChangedEvent(QWindowStateChangeEvent *event
 bool QWidgetWindow::nativeEvent(const QByteArray &eventType, void *message, long *result)
 {
     return m_widget->nativeEvent(eventType, message, result);
+}
+
+bool QWidgetWindow::nativeEnterEvent(const QPointF &local, const QPointF &global)
+{
+    auto localPos  = QHighDpi::fromNativeLocalPosition(local, this);
+    auto globalPos = QHighDpi::fromNativePixels(global, this);
+    auto windowPos = mapFromGlobal(globalPos.toPoint());
+
+    QEnterEvent e(localPos, windowPos, globalPos);
+    return m_widget->nativeEnterEvent(&e);
+}
+
+bool QWidgetWindow::nativeLeaveEvent()
+{
+    return m_widget->nativeLeaveEvent();
+}
+
+bool QWidgetWindow::nativeMouseEvent(ulong timestamp, const QPointF &local, const QPointF &global,
+                                           Qt::MouseButtons state, Qt::MouseButton button, QEvent::Type type,
+                                           Qt::KeyboardModifiers mods, Qt::MouseEventSource source)
+{
+    auto localPos  = QHighDpi::fromNativeLocalPosition(local, this);
+    auto globalPos = QHighDpi::fromNativePixels(global, this);
+    auto windowPos = mapFromGlobal(globalPos.toPoint());
+
+    QMouseEvent e(type, localPos, windowPos, globalPos,
+        button, state, mods, source);
+    return m_widget->nativeMouseEvent(&e);
 }
 
 #if QT_CONFIG(tabletevent)

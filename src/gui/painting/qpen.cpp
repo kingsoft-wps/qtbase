@@ -237,7 +237,8 @@ inline QPenPrivate::QPenPrivate(const QBrush &_brush, qreal _width, Qt::PenStyle
       endCap(_capStyle),
       dashCap(_capStyle),
       cosmetic(false), defaultWidth(_defaultWidth),
-      bDrawCustomTextBold(false)
+      bDrawCustomTextBold(false),
+      boldFactor(1)
 {
     width = _width;
     brush = _brush;
@@ -1037,6 +1038,16 @@ void QPen::setDrawCustomTextBold(bool bCustomBold)
 bool QPen::isDrawCustomTextBold() const
 {
     return d->bDrawCustomTextBold;
+}
+
+void QPen::setCustomBoldFactor(qreal factor)
+{
+    d->boldFactor = factor;
+}
+
+qreal QPen::customBoldFactor()
+{
+    return d->boldFactor;
 }
 
 /*****************************************************************************

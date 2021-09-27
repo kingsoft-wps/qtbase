@@ -181,6 +181,11 @@ public:
 #endif
 
     static bool processNativeEvent(QWindow *window, const QByteArray &eventType, void *message, long *result);
+    static bool processNativeEnterEvent(QWindow *window, const QPointF &local, const QPointF &global);
+    static bool processNativeLeaveEvent(QWindow *window);
+    static bool processNativeMouseEvent(QWindow *window, ulong timestamp, const QPointF &local, const QPointF &global,
+                                        Qt::MouseButtons state, Qt::MouseButton button, QEvent::Type type,
+                                        Qt::KeyboardModifiers mods, Qt::MouseEventSource source);
 
     static bool sendQWindowEventToQPlatformWindow(QWindow *window, QEvent *event);
 
