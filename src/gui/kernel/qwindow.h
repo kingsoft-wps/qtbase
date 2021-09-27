@@ -415,6 +415,12 @@ protected:
     virtual void tabletEvent(QTabletEvent *);
 #endif
     virtual bool nativeEvent(const QByteArray &eventType, void *message, long *result);
+    virtual bool nativeEnterEvent(const QPointF &local, const QPointF &global);
+    virtual bool nativeLeaveEvent();
+    virtual bool nativeMouseEvent(ulong timestamp,
+                                  const QPointF &local, const QPointF &global, Qt::MouseButtons state,
+                                  Qt::MouseButton button, QEvent::Type type, Qt::KeyboardModifiers mods,
+                                  Qt::MouseEventSource source);
 
     virtual void activateParent();
 

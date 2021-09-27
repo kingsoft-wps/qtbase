@@ -56,6 +56,7 @@ QT_BEGIN_NAMESPACE
 class QXcbScreen;
 class QXcbSyncWindowRequest;
 class QIcon;
+class QXcbKeyEventFilter;
 
 class Q_XCB_EXPORT QXcbWindow : public QXcbObject, public QXcbWindowEventListener, public QPlatformWindow
 {
@@ -77,7 +78,7 @@ public:
     QXcbWindow(QWindow *window);
     ~QXcbWindow();
 
-	virtual bool isMapGlobalRT() const { return true; };
+    virtual bool isMapGlobalRT() const { return true; };
     void setGeometry(const QRect &rect) override;
 
     QMargins frameMargins() const override;
@@ -139,6 +140,8 @@ public:
     void handleFocusInEvent(const xcb_focus_in_event_t *event) override;
     void handleFocusOutEvent(const xcb_focus_out_event_t *event) override;
     void handlePropertyNotifyEvent(const xcb_property_notify_event_t *event) override;
+    void handleReparentNotifyEvent(const xcb_reparent_notify_event_t *event) override;
+    void handleDestroyNotifyEvent(const xcb_destroy_notify_event_t *event) override;
 #if QT_CONFIG(xcb_xinput)
     void handleXIMouseEvent(xcb_ge_event_t *, Qt::MouseEventSource source = Qt::MouseEventNotSynthesized) override;
     void handleXIEnterLeave(xcb_ge_event_t *) override;
@@ -188,6 +191,25 @@ public:
 
     int swapInterval() const { return m_swapInterval; }
     void setSwapInterval(int swapInterval) { m_swapInterval = swapInterval; }
+
+/******xembed ******/
+public:
+    bool embedClient(WId id) override;
+    void discardClient() override;
+    bool isEmbedContainer();
+
+private:
+    QXcbWindow* topEmbedWindow();
+    void createInputProxy();
+    void moveInputToProxy();
+    void cleanEmbedInfo();
+    QXcbWindow* topLevelWindow();
+
+    xcb_window_t m_client = XCB_NONE;
+    xcb_window_t m_container = XCB_NONE;
+    xcb_window_t m_inputFocusProxy= XCB_NONE;
+    QXcbKeyEventFilter *m_keyEventFilter { nullptr };
+/******xembed ******/
 
 public Q_SLOTS:
     void updateSyncRequestCounter();

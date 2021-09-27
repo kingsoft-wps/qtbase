@@ -127,6 +127,17 @@ enum QX11EmbedMessageType {
 
 const quint32 XEMBED_VERSION = 0;
 
+static unsigned long xcbAppTime()
+{
+    if (!qApp)
+        return 0;
+    QPlatformNativeInterface *native = qApp->platformNativeInterface();
+    if (!native)
+        return 0;
+    QScreen* screen = QGuiApplication::primaryScreen();
+    return static_cast<xcb_timestamp_t>(reinterpret_cast<quintptr>(native->nativeResourceForScreen("apptime", screen)));
+}
+
 QXcbScreen *QXcbWindow::parentScreen()
 {
     return parent() ? static_cast<QXcbWindow*>(parent())->parentScreen() : xcbScreen();
@@ -241,6 +252,35 @@ static QWindow *childWindowAt(QWindow *win, const QPoint &p)
 
 static const char *wm_window_type_property_id = "_q_xcb_wm_window_type";
 static const char *wm_window_role_property_id = "_q_xcb_wm_window_role";
+
+class QXcbKeyEventFilter : public QAbstractNativeEventFilter
+{
+public:
+    QXcbKeyEventFilter () {
+        QCoreApplication::eventDispatcher()->installNativeEventFilter(this);
+    }
+    ~QXcbKeyEventFilter () {
+        QCoreApplication::eventDispatcher()->removeNativeEventFilter(this);
+    }
+    bool nativeEventFilter(const QByteArray &eventType, void *message, long *result) {
+        Q_UNUSED(eventType);
+        Q_UNUSED(result);
+        auto event = reinterpret_cast<xcb_generic_event_t*>(message);
+        auto type = event->response_type & ~0x80;
+        if (type == XCB_KEY_PRESS) {
+            auto keyPress = reinterpret_cast<xcb_key_press_event_t*>(event);
+            pressEvent = *keyPress;
+        }
+        else if (type == XCB_KEY_RELEASE) {
+            auto keyRelease = reinterpret_cast<xcb_key_release_event_t*>(event);
+            releaseEvent = *keyRelease;
+        }
+        return false;
+    }
+public:
+    xcb_key_press_event_t pressEvent;
+    xcb_key_release_event_t releaseEvent;
+};
 
 QXcbWindow::QXcbWindow(QWindow *window)
     : QPlatformWindow(window)
@@ -557,6 +597,8 @@ QXcbForeignWindow::~QXcbForeignWindow()
 
 void QXcbWindow::destroy()
 {
+    cleanEmbedInfo();
+
     if (connection()->focusWindow() == this)
         doFocusOut();
     if (connection()->mouseGrabber() == this)
@@ -628,6 +670,14 @@ void QXcbWindow::setGeometry(const QRect &rect)
         }
     }
 
+    if (m_client) {
+        const quint32 mask = XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
+        const qint32 values[] = {
+            qBound<qint32>(1,           rect.width(),  XCOORD_MAX),
+            qBound<qint32>(1,           rect.height(), XCOORD_MAX),
+        };
+        xcb_configure_window(xcb_connection(), m_client, mask, reinterpret_cast<const quint32*>(values));
+    }
     xcb_flush(xcb_connection());
 }
 
@@ -734,6 +784,13 @@ void QXcbWindow::show()
                                     XCB_ATOM_WM_TRANSIENT_FOR, XCB_ATOM_WINDOW, 32,
                                     1, &transientXcbParent);
             }
+            auto transientWid = window()->property("_q_platform_CustomTransientForHint").toULongLong(0);
+            if (0 != transientWid)
+                xcb_icccm_set_wm_transient_for(xcb_connection(), xcb_window(), transientWid);
+            else if (tp)
+                xcb_icccm_set_wm_transient_for(xcb_connection(), xcb_window(), tp->winId());
+            else
+                xcb_icccm_set_wm_transient_for(xcb_connection(), xcb_window(), connection()->clientLeader());
         }
         if (!transientXcbParent)
             xcb_delete_property(xcb_connection(), m_window, XCB_ATOM_WM_TRANSIENT_FOR);
@@ -758,6 +815,35 @@ void QXcbWindow::show()
         requestActivateWindow();
 
     xcbScreen()->windowShown(this);
+
+#ifdef Q_OS_LINUX
+    if (window()->type() == Qt::SplashScreen)
+    {
+	auto conn = xcb_connection();
+	auto screen = xcbScreen();
+	QPixmap pixmap = window()->property("pixmap").value<QPixmap>();
+	QImage image = pixmap.toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+	const int width = image.width();
+	const int height = image.height();
+
+	xcb_image_t *xi = xcb_image_create_native(conn, width, height, XCB_IMAGE_FORMAT_Z_PIXMAP, m_depth, NULL, 0, NULL);
+	xi->data = image.bits();
+
+	xcb_pixmap_t pix = xcb_generate_id(conn);
+	xcb_create_pixmap(conn, m_depth, pix, screen->root(), width, height);
+
+	xcb_gcontext_t gc = xcb_generate_id(conn);
+	xcb_create_gc(conn, gc, pix, 0, 0);
+	xcb_image_put(conn, pix, gc, xi, 0, 0, 0);
+
+	quint32 values[] = { pix };
+	xcb_change_window_attributes(xcb_connection(), m_window, XCB_CW_BACK_PIXMAP, values);
+
+	xcb_free_gc(conn, gc);
+	xcb_image_destroy(xi);
+	xcb_free_pixmap(conn, pix);
+    }
+#endif
 
     connection()->sync();
 }
@@ -1459,10 +1545,17 @@ void QXcbWindow::requestActivateWindow()
 
     updateNetWmUserTime(connection()->time());
     QWindow *focusWindow = QGuiApplication::focusWindow();
+    auto isForceFocusWindow = [&](QWindow *focusWindow) -> bool {
+	    auto var = focusWindow->property("forceAllowFocus");
+	    if (var.isValid() && var.toBool())
+		    return true;
+
+	    return false;
+	};
 
     if (window()->isTopLevel()
         && !(window()->flags() & Qt::X11BypassWindowManagerHint)
-        && (!focusWindow || !window()->isAncestorOf(focusWindow))
+        && (!focusWindow || !window()->isAncestorOf(focusWindow) || isForceFocusWindow(focusWindow))
         && connection()->wmSupport()->isSupportedByWM(atom(QXcbAtom::_NET_ACTIVE_WINDOW))) {
         xcb_client_message_event_t event;
 
@@ -1480,6 +1573,8 @@ void QXcbWindow::requestActivateWindow()
         xcb_send_event(xcb_connection(), 0, xcbScreen()->root(),
                        XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
                        (const char *)&event);
+
+        moveInputToProxy();
     } else {
         xcb_set_input_focus(xcb_connection(), XCB_INPUT_FOCUS_PARENT, m_window, connection()->time());
     }
@@ -1916,12 +2011,18 @@ void QXcbWindow::handleButtonPressEvent(int event_x, int event_y, int root_x, in
 
     updateNetWmUserTime(timestamp);
 
-    if (m_embedded && !m_trayIconWindow) {
-        if (window() != QGuiApplication::focusWindow()) {
-            const QXcbWindow *container = static_cast<const QXcbWindow *>(parent());
-            Q_ASSERT(container != 0);
-
-            sendXEmbedMessage(container->xcb_window(), XEMBED_REQUEST_FOCUS);
+    if (!m_trayIconWindow) {
+        QXcbWindow *embedWindow = topEmbedWindow();
+        if (embedWindow) {
+            if (embedWindow->window() !=  QGuiApplication::focusWindow()) {
+                xcb_window_t containerId = embedWindow->m_container;
+                if (!containerId) {
+                    const QXcbWindow *container = static_cast<const QXcbWindow *>(embedWindow->parent());
+                    containerId = container ? container->xcb_window() : 0;
+                }
+                Q_ASSERT(containerId != 0);
+                sendXEmbedMessage(containerId, XEMBED_REQUEST_FOCUS);
+            }
         }
     }
     QPoint local(event_x, event_y);
@@ -2025,6 +2126,8 @@ void QXcbWindow::handleEnterNotifyEvent(int event_x, int event_y, int root_x, in
 #endif
 
     const QPoint local(event_x, event_y);
+    bool filtered = QWindowSystemInterface::handleNativeEnterEvent(window(), local, global);
+    if (!filtered)
     QWindowSystemInterface::handleEnterEvent(window(), local, global);
 }
 
@@ -2049,8 +2152,10 @@ void QXcbWindow::handleLeaveNotifyEvent(int root_x, int root_y,
     if (enterWindow) {
         QPoint local(enter->event_x, enter->event_y);
         QPoint global = QPoint(root_x, root_y);
-        QWindowSystemInterface::handleEnterLeaveEvent(enterWindow->window(), window(), local, global);
+        QWindowSystemInterface::handleNativeEnterLeaveEvent(enterWindow->window(), window(), local, global);
     } else {
+        bool filtered = QWindowSystemInterface::handleNativeLeaveEvent(window());
+        if (!filtered)
         QWindowSystemInterface::handleLeaveEvent(window());
     }
 
@@ -2207,6 +2312,10 @@ void QXcbWindow::handleMouseEvent(xcb_timestamp_t time, const QPoint &local, con
 {
     connection()->setTime(time);
     Qt::MouseButton button = type == QEvent::MouseMove ? Qt::NoButton : connection()->button();
+    bool filtered = QWindowSystemInterface::handleNativeMouseEvent(window(), time, local, global,
+                                            connection()->buttonState(), button,
+                                            type, modifiers, source);
+    if (!filtered)
     QWindowSystemInterface::handleMouseEvent(window(), time, local, global,
                                              connection()->buttonState(), button,
                                              type, modifiers, source);
@@ -2296,6 +2405,34 @@ void QXcbWindow::handleFocusOutEvent(const xcb_focus_out_event_t *event)
     doFocusOut();
 }
 
+void QXcbWindow::handleReparentNotifyEvent(const xcb_reparent_notify_event_t *event)
+{
+    if (isEmbedContainer()) {
+        if (event->window == m_client && event->parent != xcb_window()) {
+            m_client = 0;
+            auto topWindow = topLevelWindow();
+            if (topWindow)
+                topWindow->m_inputFocusProxy = XCB_NONE;
+        }
+    }
+    else if (m_embedded && m_container) {
+        if (event->parent != m_container) {
+            m_container = XCB_NONE;
+            m_embedded = false;
+        }
+    }
+}
+
+void QXcbWindow::handleDestroyNotifyEvent(const xcb_destroy_notify_event_t *event)
+{
+    if (isEmbedContainer()) {
+        if (event->window == m_client) {
+            m_client = XCB_NONE;
+            setGeometry(window()->geometry());
+        }
+    }
+}
+
 void QXcbWindow::updateSyncRequestCounter()
 {
     if (m_syncState != SyncAndConfigureReceived) {
@@ -2323,13 +2460,16 @@ bool QXcbWindow::setKeyboardGrabEnabled(bool grab)
     if (grab && !connection()->canGrab())
         return false;
 
+    Qt::WindowFlags flags = this->window()->flags();
+    xcb_timestamp_t timestamp_t = flags & Qt::Popup ? xcbAppTime() : XCB_TIME_CURRENT_TIME;
+
     if (!grab) {
-        xcb_ungrab_keyboard(xcb_connection(), connection()->time());
+        xcb_ungrab_keyboard(xcb_connection(), timestamp_t);
         return true;
     }
 
     auto reply = Q_XCB_REPLY(xcb_grab_keyboard, xcb_connection(), false,
-                             m_window, connection()->time(),
+                             m_window, timestamp_t,
                              XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
     return reply && reply->status == XCB_GRAB_STATUS_SUCCESS;
 }
@@ -2372,6 +2512,62 @@ bool QXcbWindow::setMouseGrabEnabled(bool grab)
 
 bool QXcbWindow::windowEvent(QEvent *event)
 {
+#undef KeyPress
+#undef KeyRelease
+#undef FocusOut
+    if (isEmbedContainer()) {
+        switch (event->type()) {
+        case QEvent::WindowActivate:
+            moveInputToProxy();
+            sendXEmbedMessage(m_client, XEMBED_WINDOW_ACTIVATE);
+            break;
+        case QEvent::WindowDeactivate:
+            sendXEmbedMessage(m_client, XEMBED_WINDOW_DEACTIVATE);
+            break;
+        case QEvent::KeyPress:
+            if (m_keyEventFilter) {
+                m_keyEventFilter->pressEvent.event = m_client;
+                xcb_send_event(xcb_connection(), 0, m_client, XCB_EVENT_MASK_KEY_PRESS, (const char*)&m_keyEventFilter->pressEvent);
+                event->accept();
+            }
+            break;
+        case QEvent::KeyRelease:
+            if (m_keyEventFilter) {
+                m_keyEventFilter->releaseEvent.event = m_client;
+                xcb_send_event(xcb_connection(), 0, m_client, XCB_EVENT_MASK_KEY_RELEASE, (const char*)&m_keyEventFilter->releaseEvent);
+                event->accept();
+            }
+            break;
+        case QEvent::FocusOut: {
+            if (QGuiApplicationPrivate::focus_window)
+                moveInputToProxy();
+            sendXEmbedMessage(m_client, XEMBED_FOCUS_OUT);
+            event->accept();
+        }
+            break;
+        case QEvent::FocusIn: {
+            moveInputToProxy();
+            QFocusEvent *fe = (QFocusEvent *)event;
+            switch (fe->reason()) {
+            case Qt::TabFocusReason:
+                sendXEmbedMessage(m_client, XEMBED_FOCUS_IN, XEMBED_FOCUS_FIRST);
+                break;
+            case Qt::BacktabFocusReason:
+                sendXEmbedMessage(m_client, XEMBED_FOCUS_IN, XEMBED_FOCUS_LAST);
+                break;
+            default:
+                sendXEmbedMessage(m_client, XEMBED_FOCUS_IN, XEMBED_FOCUS_CURRENT);
+                break;
+            }
+            event->accept();
+        }
+           break;
+        default:
+            break;
+        }
+        return QPlatformWindow::windowEvent(event);
+    }
+
     switch (event->type()) {
     case QEvent::FocusIn:
         if (m_embedded && !m_trayIconWindow && !event->spontaneous()) {
@@ -2382,7 +2578,8 @@ bool QXcbWindow::windowEvent(QEvent *event)
                 {
                 const QXcbWindow *container =
                     static_cast<const QXcbWindow *>(parent());
-                sendXEmbedMessage(container->xcb_window(),
+                auto receiver = container ? container->xcb_window() : m_container;
+                sendXEmbedMessage(receiver,
                                   focusEvent->reason() == Qt::TabFocusReason ?
                                   XEMBED_FOCUS_NEXT : XEMBED_FOCUS_PREV);
                 event->accept();
@@ -2506,8 +2703,19 @@ void QXcbWindow::handleXEmbedMessage(const xcb_client_message_event_t *event)
     case XEMBED_WINDOW_DEACTIVATE:
         break;
     case XEMBED_EMBEDDED_NOTIFY:
+        if (!m_embedded && !m_client) {
+            m_embedded = true;
+            xcb_window_t container = event->data.data32[2];
+            m_container = container;
         xcb_map_window(xcb_connection(), m_window);
         xcbScreen()->windowShown(this);
+        }
+        break;
+    case XEMBED_REQUEST_FOCUS:
+        if (isEmbedContainer()) {
+            QFocusEvent focusEvent(QEvent::FocusIn, Qt::MouseFocusReason);
+            QGuiApplication::sendEvent(window(), &focusEvent);
+        }
         break;
     case XEMBED_FOCUS_IN:
         Qt::FocusReason reason;
@@ -2531,6 +2739,15 @@ void QXcbWindow::handleXEmbedMessage(const xcb_client_message_event_t *event)
             && !activeWindowChangeQueued(window())) {
             connection()->setFocusWindow(nullptr);
             QWindowSystemInterface::handleWindowActivated(nullptr);
+        }
+        break;
+    case XEMBED_FOCUS_NEXT:
+    case XEMBED_FOCUS_PREV:
+        if (isEmbedContainer()) {
+            auto reason = event->data.data32[1] == XEMBED_FOCUS_NEXT ?
+                Qt::TabFocusReason : Qt::BacktabFocusReason;
+            QFocusEvent focusEvent(QEvent::FocusIn, reason);
+            QGuiApplication::sendEvent(window(), &focusEvent);
         }
         break;
     }
@@ -2663,6 +2880,251 @@ QString QXcbWindow::windowTitle(const QXcbConnection *conn, xcb_window_t window)
     }
 
     return QString();
+}
+
+bool QXcbWindow::embedClient(WId id)
+{
+    if (!id)
+        return false;
+    if (m_client)
+        return true;
+
+    xcb_window_t client = id;
+    xcb_window_t thisId = xcb_window();
+    xcb_window_t rootReturn = 0;
+    // Walk up the tree of parent windows to prevent embedding of ancestors.
+    do {
+        auto reply = Q_XCB_REPLY_UNCHECKED(xcb_query_tree, xcb_connection(), thisId);
+        if (!reply)
+            return false;
+        thisId = reply->parent;
+        rootReturn = reply->root;
+        if (thisId == client)
+            return false;
+    } while (thisId != rootReturn);
+
+    createInputProxy();
+
+    auto topWindow = topLevelWindow();
+    if (topWindow->m_inputFocusProxy != this->m_inputFocusProxy)
+        topWindow->m_inputFocusProxy = this->m_inputFocusProxy;
+
+    if (!m_keyEventFilter)
+        m_keyEventFilter = new QXcbKeyEventFilter;
+
+    {
+        connection()->grabServer();
+
+        auto reply = Q_XCB_REPLY(xcb_get_window_attributes, xcb_connection(), client);
+        if (reply) {
+            const quint32 values[] = {
+                XCB_EVENT_MASK_PROPERTY_CHANGE
+                | XCB_EVENT_MASK_STRUCTURE_NOTIFY
+                | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY
+            };
+            xcb_change_window_attributes(xcb_connection(), client, XCB_CW_EVENT_MASK, values);
+        }
+
+        connection()->ungrabServer();
+
+        //Put the window into WithdrawnState
+        xcb_unmap_window(xcb_connection(), client);
+        connection()->sync();
+
+        QElapsedTimer t;
+        t.start();
+        bool clearedWmState = false;
+        QXcbEventQueue *queue = connection()->eventQueue();
+        do {
+            if (t.elapsed() > 500) // time-out after 500 ms
+                break;
+            auto e = queue->peek([&](xcb_generic_event_t *event, int eventType) {
+                if (eventType == XCB_PROPERTY_NOTIFY) {
+                    auto propertyNotify = reinterpret_cast<xcb_property_notify_event_t*>(event);
+                    if (!clearedWmState &&
+                        propertyNotify->window == client &&
+                        propertyNotify->atom == atom(QXcbAtom::WM_STATE)) {
+                        if (propertyNotify->state == XCB_PROPERTY_DELETE) {
+                            clearedWmState = true;
+                            return true;
+                        }
+                    }
+                }
+                auto reply = Q_XCB_REPLY(xcb_get_property, xcb_connection(),0,
+                                       client, atom(QXcbAtom::WM_STATE), XCB_ATOM_ANY, 0, 1024);
+                if (reply && reply->format == 32 && reply->type == atom(QXcbAtom::WM_STATE)) {
+                    const quint32 *state = (const quint32 *)xcb_get_property_value(reply.get());
+                    if (reply->length != 0) {
+                        if (state[0] == XCB_ICCCM_WM_STATE_WITHDRAWN) {
+                            clearedWmState = true;
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            });
+            if (e) {
+                free(e);
+                break;
+            }
+            else {
+                connection()->sync();
+                usleep(50000);
+                continue;
+            }
+        } while(!clearedWmState);
+
+        quint32 restore[] = {reply->your_event_mask};
+        xcb_change_window_attributes(xcb_connection(), client, XCB_CW_EVENT_MASK, restore);
+    }
+    xcb_reparent_window(xcb_connection(), client, xcb_window(), 0, 0);
+    m_client = client;
+    const quint32 mask = XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
+    const qint32 values[] = {
+        qBound<qint32>(1,           geometry().width(),  XCOORD_MAX),
+        qBound<qint32>(1,           geometry().height(), XCOORD_MAX),
+    };
+
+    xcb_configure_window(xcb_connection(), m_client, mask, reinterpret_cast<const quint32*>(values));
+    xcb_change_save_set(xcb_connection(), XCB_SET_MODE_INSERT, m_client);
+    xcb_map_window(xcb_connection(), m_client);
+
+    QWindowSystemInterface::handleExposeEvent(window(), parent()->geometry());
+
+    quint32 version = XEMBED_VERSION;
+    auto reply = Q_XCB_REPLY(xcb_get_property, xcb_connection(),
+                 0, m_client, atom(QXcbAtom::_XEMBED_INFO),
+                 XCB_GET_PROPERTY_TYPE_ANY, 0, 32 * 2);
+
+    if (reply && reply->format == 32 && reply->type == atom(QXcbAtom::_XEMBED_INFO)) {
+        const quint32 *xembed = (const quint32 *)xcb_get_property_value(reply.get());
+        quint32 clientversion = xembed[0];
+        version = version > clientversion ? clientversion : version;
+    }
+
+    sendXEmbedMessage(m_client, XEMBED_EMBEDDED_NOTIFY, xcb_window(), version);
+
+    {
+        auto reply = Q_XCB_REPLY(xcb_get_window_attributes, xcb_connection(), xcb_window());
+        if (reply) {
+            const quint32 values[] = { reply->your_event_mask | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY };
+            xcb_change_window_attributes(xcb_connection(), xcb_window(), XCB_CW_EVENT_MASK, values);
+        }
+    }
+    return true;
+ }
+
+void QXcbWindow::discardClient()
+{
+    if (m_client) {
+        xcb_change_save_set(xcb_connection(), XCB_SET_MODE_DELETE, m_client);
+        xcb_reparent_window(xcb_connection(), m_client, connection()->rootWindow(), 0, 0);
+    }
+}
+
+bool QXcbWindow::isEmbedContainer()
+{
+    return m_client && !m_embedded;
+}
+
+QXcbWindow * QXcbWindow::topEmbedWindow()
+{
+    QXcbWindow *w = this;
+    while (w && !w->isEmbedded())
+        w = static_cast<QXcbWindow*>(w->parent());
+    return w;
+}
+
+void QXcbWindow::cleanEmbedInfo()
+{
+    if (m_container) {
+        m_container = XCB_NONE;
+    }
+    if (m_inputFocusProxy) {
+        connection()->removeWindowEventListener(m_inputFocusProxy);
+        xcb_destroy_window(xcb_connection(), m_inputFocusProxy);
+        m_inputFocusProxy = XCB_NONE;
+    }
+
+    auto topWindow = topLevelWindow();
+    if (topWindow)
+        topWindow->m_inputFocusProxy = XCB_NONE;
+
+    if (m_keyEventFilter) {
+        delete m_keyEventFilter;
+        m_keyEventFilter = nullptr;
+    }
+    if (m_client) {
+        xcb_unmap_window(xcb_connection(), m_client);
+        xcb_reparent_window(xcb_connection(), m_client, connection()->rootWindow(), 0, 0);
+        connection()->sync();
+        m_client = XCB_NONE;
+    }
+}
+
+void QXcbWindow::moveInputToProxy()
+{
+    if (m_inputFocusProxy) {
+        xcb_set_input_focus(xcb_connection(), XCB_INPUT_FOCUS_PARENT, m_inputFocusProxy, CurrentTime);
+    }
+}
+
+void QXcbWindow::createInputProxy()
+{
+    if (m_inputFocusProxy)
+        return;
+    QXcbScreen *platformScreen = parent() ? parentScreen() : initialScreen();
+    xcb_window_t xcb_parent_id = platformScreen->root();
+    if (parent())
+        xcb_parent_id = static_cast<QXcbWindow *>(parent())->xcb_window();
+    const xcb_visualtype_t *visual = nullptr;
+    if (connection()->hasDefaultVisualId())
+        visual = platformScreen->visualForId(connection()->defaultVisualId());
+
+    if (!visual)
+        visual = createVisual();
+
+    if (!visual)
+        visual = platformScreen->visualForId(platformScreen->screen()->root_visual);
+
+    Q_ASSERT(visual);
+
+    auto visualId = visual->visual_id;
+    auto depth = platformScreen->depthOfVisual(m_visualId);
+
+    quint32 mask = XCB_CW_BACK_PIXMAP | XCB_CW_EVENT_MASK;
+
+    quint32 values[] = {
+        XCB_BACK_PIXMAP_NONE,
+        defaultEventMask
+    };
+
+    m_inputFocusProxy = xcb_generate_id(xcb_connection());
+    xcb_create_window(xcb_connection(),
+              depth,
+              m_inputFocusProxy,                        // window id
+              xcb_parent_id,                   // parent window id
+              -1,
+              -1,
+              1,
+              1,
+              0,                               // border width
+              XCB_WINDOW_CLASS_INPUT_OUTPUT,   // window class
+              visualId,                      // visual
+              mask,
+              values);
+
+    connection()->addWindowEventListener(m_inputFocusProxy, this);
+    xcb_map_window(xcb_connection(), m_inputFocusProxy);
+    connection()->sync();
+}
+
+QXcbWindow * QXcbWindow::topLevelWindow()
+{
+    auto *topWindow = this->window();
+    while (topWindow && !topWindow->isTopLevel())
+        topWindow = topWindow->parent();
+    return static_cast<QXcbWindow*>(topWindow->handle());
 }
 
 QT_END_NAMESPACE

@@ -130,11 +130,15 @@ bool QGtk3Dialog::show(Qt::WindowFlags flags, Qt::WindowModality modality, QWind
 
     GdkWindow *gdkWindow = gtk_widget_get_window(gtkWidget);
     if (parent) {
+        auto transientWid = parent->winId();
+        auto hostTransientWid = parent->property("_CustomTransientGtk").toULongLong();
+        if (hostTransientWid != 0)
+            transientWid = hostTransientWid;
         if (GDK_IS_X11_WINDOW(gdkWindow)) {
             GdkDisplay *gdkDisplay = gdk_window_get_display(gdkWindow);
             XSetTransientForHint(gdk_x11_display_get_xdisplay(gdkDisplay),
                                  gdk_x11_window_get_xid(gdkWindow),
-                                 parent->winId());
+                                 transientWid);
         }
     }
 
@@ -337,8 +341,19 @@ QList<QUrl> QGtk3FileDialogHelper::selectedFiles() const
     QList<QUrl> selection;
     GtkDialog *gtkDialog = d->gtkDialog();
     GSList *filenames = gtk_file_chooser_get_filenames(GTK_FILE_CHOOSER(gtkDialog));
-    for (GSList *it  = filenames; it; it = it->next)
-        selection += QUrl::fromLocalFile(QString::fromUtf8((const char*)it->data));
+    if (filenames) {
+        for (GSList *it  = filenames; it; it = it->next)
+            selection += QUrl::fromLocalFile(QString::fromUtf8((const char*)it->data));
+    } else {
+        GFile *gFile = gtk_file_chooser_get_current_folder_file(GTK_FILE_CHOOSER(gtkDialog));
+        if (gFile) {
+            QString pLocalFile(g_file_get_uri(gFile));
+            if (pLocalFile.startsWith(QLatin1String("trash:///"))) {
+                QString path = QDir::homePath() + QLatin1String("/.local/share/Trash/files");
+                selection += QUrl::fromLocalFile(path);
+            }
+        }
+    }
     g_slist_free(filenames);
     return selection;
 }

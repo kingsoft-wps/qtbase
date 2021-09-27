@@ -3529,6 +3529,48 @@ void QPainterPath::computeControlPointRect() const
     d->controlBounds = QRectF(minx, miny, maxx - minx, maxy - miny);
 }
 
+#if defined(__loongarch64)
+const QPainterPath QVectorPath::convertToPainterPath() const
+{
+        QPainterPath path;
+        path.ensureData();
+        QPainterPathData *data = path.d_func();
+        data->elements.reserve(m_count);
+        int index = 0;
+        data->elements[0].x = m_points[index++];
+        data->elements[0].y = m_points[index++];
+
+        if (m_elements) {
+            data->elements[0].type = m_elements[0];
+            for (int i=1; i<m_count; ++i) {
+                QPainterPath::Element element;
+                element.x = m_points[index++];
+                element.y = m_points[index++];
+                element.type = m_elements[i];
+                data->elements << element;
+            }
+        } else {
+            data->elements[0].type = QPainterPath::MoveToElement;
+            for (int i=1; i<m_count; ++i) {
+                QPainterPath::Element element;
+                element.x = m_points[index++];
+                element.y = m_points[index++];
+                element.type = QPainterPath::LineToElement;
+                data->elements << element;
+            }
+        }
+
+        if (m_hints & OddEvenFill)
+            data->fillRule = Qt::OddEvenFill;
+        else
+            data->fillRule = Qt::WindingFill;
+
+        path.setDirty(true);
+
+        return path;
+}
+#endif
+
 #ifndef QT_NO_DEBUG_STREAM
 QDebug operator<<(QDebug s, const QPainterPath &p)
 {

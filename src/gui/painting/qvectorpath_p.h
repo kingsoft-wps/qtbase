@@ -134,7 +134,11 @@ public:
     inline bool isEmpty() const { return m_points == 0; }
 
     inline int elementCount() const { return m_count; }
+#if defined(__loongarch64)
+    const QPainterPath convertToPainterPath() const;
+#else
     inline const QPainterPath convertToPainterPath() const;
+#endif
 
     static inline uint polygonFlags(QPaintEngine::PolygonDrawMode mode)
     {

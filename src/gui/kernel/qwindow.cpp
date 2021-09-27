@@ -2681,6 +2681,34 @@ bool QWindow::nativeEvent(const QByteArray &eventType, void *message, long *resu
     return false;
 }
 
+bool QWindow::nativeEnterEvent(const QPointF &local, const QPointF &global)
+{
+    Q_UNUSED(local);
+    Q_UNUSED(global);
+    return false;
+}
+
+bool QWindow::nativeLeaveEvent()
+{
+    return false;
+}
+
+bool QWindow::nativeMouseEvent(ulong timestamp,
+                                     const QPointF &local, const QPointF &global, Qt::MouseButtons state,
+                                     Qt::MouseButton button, QEvent::Type type, Qt::KeyboardModifiers mods,
+                                     Qt::MouseEventSource source)
+{
+    Q_UNUSED(timestamp);
+    Q_UNUSED(local);
+    Q_UNUSED(global);
+    Q_UNUSED(state);
+    Q_UNUSED(button);
+    Q_UNUSED(type);
+    Q_UNUSED(mods);
+    Q_UNUSED(source);
+    return  false;
+}
+
 /*!
     Activate parent when hidden
 */

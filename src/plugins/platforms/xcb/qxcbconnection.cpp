@@ -539,6 +539,8 @@ void QXcbConnection::handleXcbEvent(xcb_generic_event_t *event)
 
     bool handled = true;
     switch (response_type) {
+    case XCB_REPARENT_NOTIFY:
+        HANDLE_PLATFORM_WINDOW_EVENT(xcb_reparent_notify_event_t, event, handleReparentNotifyEvent);
     case XCB_EXPOSE:
         HANDLE_PLATFORM_WINDOW_EVENT(xcb_expose_event_t, window, handleExposeEvent);
     case XCB_BUTTON_PRESS: {

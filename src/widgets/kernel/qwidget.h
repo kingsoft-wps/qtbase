@@ -678,7 +678,9 @@ protected:
     virtual void showEvent(QShowEvent *event);
     virtual void hideEvent(QHideEvent *event);
     virtual bool nativeEvent(const QByteArray &eventType, void *message, long *result);
-
+    virtual bool nativeEnterEvent(QEvent *event);
+    virtual bool nativeLeaveEvent();
+    virtual bool nativeMouseEvent(QMouseEvent *event);
     // Misc. protected functions
     virtual void changeEvent(QEvent *);
 

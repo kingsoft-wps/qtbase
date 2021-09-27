@@ -215,7 +215,7 @@ public:
     QVectorPathConverter *pathConverter;
 };
 
-
+#if !defined(__loongarch64)
 inline const QPainterPath QVectorPath::convertToPainterPath() const
 {
         QPainterPath path;
@@ -255,7 +255,7 @@ inline const QPainterPath QVectorPath::convertToPainterPath() const
 
         return path;
 }
-
+#endif
 void Q_GUI_EXPORT qt_find_ellipse_coords(const QRectF &r, qreal angle, qreal length,
                                          QPointF* startPoint, QPointF *endPoint);
 

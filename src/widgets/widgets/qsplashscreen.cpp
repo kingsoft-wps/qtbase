@@ -168,6 +168,21 @@ void QSplashScreen::mousePressEvent(QMouseEvent *)
     hide();
 }
 
+void QSplashScreen::setVisible(bool visible)
+{
+#ifdef Q_OS_LINUX
+    if (visible)
+    {
+	if (!windowHandle())
+	    this->winId();
+
+	if (windowHandle())
+	    windowHandle()->setProperty("pixmap", QVariant(pixmap()));
+    }
+#endif
+    QWidget::setVisible(visible);
+}
+
 /*!
     This overrides QWidget::repaint(). It differs from the standard repaint
     function in that it also calls QApplication::processEvents() to ensure

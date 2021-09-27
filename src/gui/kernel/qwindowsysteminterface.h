@@ -231,6 +231,12 @@ public:
 #endif // QT_CONFIG(draganddrop)
 
     static bool handleNativeEvent(QWindow *window, const QByteArray &eventType, void *message, long *result);
+    static void handleNativeEnterLeaveEvent(QWindow *enter, QWindow *leave, const QPointF &local, const QPointF& global);
+    static bool handleNativeEnterEvent(QWindow *window, const QPointF &local, const QPointF &global);
+    static bool handleNativeLeaveEvent(QWindow *window);
+    static bool handleNativeMouseEvent(QWindow *window, ulong timestamp, const QPointF &local, const QPointF &global,
+                                       Qt::MouseButtons state, Qt::MouseButton button, QEvent::Type type,
+                                       Qt::KeyboardModifiers mods, Qt::MouseEventSource source);
 
     // Changes to the screen
     static void handleScreenAdded(QPlatformScreen *screen, bool isPrimary = false);

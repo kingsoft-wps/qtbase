@@ -1138,14 +1138,9 @@ bool QPaintEngineEx::shouldDrawCachedGlyphs(QFontEngine *fontEngine, const QTran
             2);
 
     qreal pixelSize = fontEngine->fontDef.pixelSize;
-
-#ifdef Q_OS_LINUX 
-    return (pixelSize * pixelSize * qAbs(m.determinant())) < maxCachedGlyphSizeSquared;;
-#else
     uint stretch = fontEngine->fontDef.stretch;
     qreal horzScale = (stretch == QFont::AnyStretch) ? 1.0 : stretch / 100.0;
     return (pixelSize * pixelSize * horzScale * qAbs(m.determinant())) < maxCachedGlyphSizeSquared;
-#endif
 }
 
 QT_END_NAMESPACE

@@ -290,8 +290,13 @@ createUnnamedFile(NativeFileHandle &file, QTemporaryFileName &tfn, quint32 mode,
         p = tfn.path.data();
     }
 
+#if defined(__mips__) || defined(mips) || defined (_mips) || (__mips)
+    file = ::open(p, O_TMPFILE | QT_OPEN_RDWR | QT_OPEN_LARGEFILE,
+            static_cast<mode_t>(mode));
+#else
     file = QT_OPEN(p, O_TMPFILE | QT_OPEN_RDWR | QT_OPEN_LARGEFILE,
             static_cast<mode_t>(mode));
+#endif
     if (file != -1)
         return CreateUnnamedFileStatus::Success;
 

@@ -81,6 +81,7 @@ public:
     uint cosmetic : 1;
     uint defaultWidth : 1; // default-constructed width? used for cosmetic pen compatibility
     bool bDrawCustomTextBold;
+    qreal boldFactor;
 };
 
 inline bool qpen_is_complex(const QPen &pen)

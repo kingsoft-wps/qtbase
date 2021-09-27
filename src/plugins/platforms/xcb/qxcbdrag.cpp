@@ -904,6 +904,8 @@ void QXcbDrag::handlePosition(QPlatformWindow * w, const xcb_client_message_even
 
 void QXcbDrag::handle_xdnd_status(const xcb_client_message_event_t *event)
 {
+    if (canceled)
+        return;
     // The source receives XdndStatus. It can use the action to change the cursor to indicate
     // whether or not the user's requested action will be performed.
     qCDebug(lcQpaXDnd) << "source:" << event->window << "received XdndStatus";
@@ -1176,6 +1178,11 @@ void QXcbDrag::cancel()
     qCDebug(lcQpaXDnd) << "dnd was canceled";
 
     QBasicDrag::cancel();
+
+    QPoint cursorPos;
+    QXcbCursor::queryPointer(connection(), 0, &cursorPos);
+    QDragManager::self()->notifyCanceled(currentDrag(), cursorPos);
+
     if (current_target)
         send_leave();
 

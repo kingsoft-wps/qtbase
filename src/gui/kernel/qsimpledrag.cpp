@@ -118,6 +118,12 @@ static inline QPoint getNativeMousePos(QEvent *e, QWindow *window)
     return QHighDpi::toNativePixels(static_cast<QMouseEvent *>(e)->globalPos(), window);
 }
 
+static inline QPoint getNativeTouchPos(QEvent *e, QWindow *window)
+{
+    // QTouchEvent always has more than one touchPoint
+    return QHighDpi::toNativePixels(static_cast<QTouchEvent *>(e)->touchPoints().at(0).screenPos().toPoint(), window);
+}
+
 bool QBasicDrag::eventFilter(QObject *o, QEvent *e)
 {
     Q_UNUSED(o);
@@ -148,6 +154,42 @@ bool QBasicDrag::eventFilter(QObject *o, QEvent *e)
 
             }
             return true; // Eat all key events
+        }
+
+        case QEvent::TouchUpdate:
+        {
+            // Same as 'QEvent::MouseMove' but using QTouchEvent
+            QPoint nativePosition = getNativeTouchPos(e, m_drag_icon_window);
+            move(nativePosition, Qt::LeftButton, Qt::NoModifier);
+            return true;
+        }
+
+        case QEvent::TouchEnd:
+        {
+            // Same as 'QEvent::MouseButtonRelease' but using QTouchEvent
+            disableEventFilter();
+            if (canDrop()) {
+                QPoint nativePosition = getNativeTouchPos(e, m_drag_icon_window);
+                drop(nativePosition, Qt::LeftButton, Qt::NoModifier);
+            } else {
+                cancel();
+            }
+            exitDndEventLoop();
+
+            // QTBUG-66103, see 'QEvent::MouseButtonRelease'
+            QTouchEvent::TouchPoint pos = static_cast<QTouchEvent*>(e)->touchPoints().at(0);
+            QPoint touchScreenPos = pos.screenPos().toPoint();
+            const QWindow *releaseWindow = topLevelAt(touchScreenPos);
+            qCDebug(lcDnd) << "touch end over" << releaseWindow << "after drag from" << m_sourceWindow << "globalPos" << touchScreenPos;
+            if (!releaseWindow)
+                releaseWindow = m_sourceWindow;
+            QPoint releaseWindowPos = (releaseWindow ? releaseWindow->mapFromGlobal(touchScreenPos) : touchScreenPos);
+            QMouseEvent *newRelease = new QMouseEvent(QEvent::MouseButtonRelease,
+                releaseWindowPos, releaseWindowPos, touchScreenPos,
+                Qt::LeftButton, Qt::LeftButton,
+                Qt::NoModifier, Qt::MouseEventSynthesizedByQt);
+            QCoreApplication::postEvent(o, newRelease);
+            return true;
         }
 
         case QEvent::MouseMove:

@@ -10559,6 +10559,23 @@ bool QWidget::nativeEvent(const QByteArray &eventType, void *message, long *resu
     return false;
 }
 
+bool QWidget::nativeEnterEvent(QEvent *event)
+{
+    Q_UNUSED(event);
+    return false;
+}
+
+bool QWidget::nativeLeaveEvent()
+{
+    return false;
+}
+
+bool QWidget::nativeMouseEvent(QMouseEvent *event)
+{
+    Q_UNUSED(event);
+    return false;
+}
+
 /*!
     Ensures that the widget and its children have been polished by
     QStyle (i.e., have a proper font and palette).

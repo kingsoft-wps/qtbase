@@ -187,6 +187,13 @@ public:
     QRectF windowClosestAcceptableGeometry(const QRectF &nativeRect) const;
     static QRectF closestAcceptableGeometry(const QWindow *w, const QRectF &nativeRect);
 
+#ifdef Q_OS_LINUX
+public:
+    //linux xembed
+    virtual bool embedClient(WId) { return false; }
+    virtual void discardClient() {}
+#endif
+
 protected:
     static QString formatWindowTitle(const QString &title, const QString &separator);
     QPlatformScreen *screenForGeometry(const QRect &newGeometry) const;

@@ -121,6 +121,11 @@ protected:
     void handleExposeEvent(QExposeEvent *);
     void handleWindowStateChangedEvent(QWindowStateChangeEvent *event);
     bool nativeEvent(const QByteArray &eventType, void *message, long *result) override;
+    bool nativeEnterEvent(const QPointF &local, const QPointF &global) override;
+    bool nativeLeaveEvent() override;
+    bool nativeMouseEvent(ulong timestamp, const QPointF &local, const QPointF &global,
+                          Qt::MouseButtons state, Qt::MouseButton button, QEvent::Type type,
+                          Qt::KeyboardModifiers mods, Qt::MouseEventSource source) override;
 #if QT_CONFIG(tabletevent)
     void handleTabletEvent(QTabletEvent *);
 #endif

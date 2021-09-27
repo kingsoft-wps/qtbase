@@ -3243,7 +3243,8 @@ void QPdfEnginePrivate::drawTextItem(const QPointF &p, const QTextItemInt &ti)
     }
     else if (!bUsePantumBold && (synthesized & QFontEngine::SynthesizedBold))
     {
-        *currentPage << "2 Tr\r" << size*0.0286f*stretch << " w\r";
+        qreal factor = pen.customBoldFactor();
+        *currentPage << "2 Tr\r" << size*0.0286f*stretch*factor << " w\r";
     }
 #endif
     qreal last_x = 0.;

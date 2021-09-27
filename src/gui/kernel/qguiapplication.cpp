@@ -1380,7 +1380,7 @@ void QGuiApplicationPrivate::createPlatformIntegration()
 #endif
 #endif
 
-    QString platformThemeName; //do not use QT_QPA_PLATFORMTHEME
+    QString platformThemeName = QString::fromLocal8Bit(qgetenv("QT_QPA_PLATFORMTHEME"));
 
     // Get command line params
 
@@ -1925,6 +1925,23 @@ bool QGuiApplicationPrivate::sendQWindowEventToQPlatformWindow(QWindow *window, 
 bool QGuiApplicationPrivate::processNativeEvent(QWindow *window, const QByteArray &eventType, void *message, long *result)
 {
     return window->nativeEvent(eventType, message, result);
+}
+
+bool QGuiApplicationPrivate::processNativeEnterEvent(QWindow *window, const QPointF &local, const QPointF &global)
+{
+    return window->nativeEnterEvent(local, global);
+}
+
+bool QGuiApplicationPrivate::processNativeLeaveEvent(QWindow *window)
+{
+    return window->nativeLeaveEvent();
+}
+
+bool QGuiApplicationPrivate::processNativeMouseEvent(QWindow *window, ulong timestamp, const QPointF &local,
+                                                     const QPointF &global, Qt::MouseButtons state, Qt::MouseButton button,
+                                                     QEvent::Type type, Qt::KeyboardModifiers mods, Qt::MouseEventSource source)
+{
+    return window->nativeMouseEvent(timestamp, local, global, state, button, type, mods, source);
 }
 
 void QGuiApplicationPrivate::processWindowSystemEvent(QWindowSystemInterfacePrivate::WindowSystemEvent *e)
