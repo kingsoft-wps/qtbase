@@ -335,7 +335,7 @@ STDMETHODIMP
 QWindowsOleDataObjectEx::EnumFormatEtc(DWORD dwDirection, LPENUMFORMATETC FAR *ppenumFormatEtc)
 {
     if (m_dataObj) {
-        m_dataObj->EnumFormatEtc(dwDirection, ppenumFormatEtc);
+        return m_dataObj->EnumFormatEtc(dwDirection, ppenumFormatEtc);
     }
 
    return ResultFromScode(DATA_E_FORMATETC);
