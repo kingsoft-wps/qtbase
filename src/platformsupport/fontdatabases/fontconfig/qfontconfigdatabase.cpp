@@ -69,7 +69,8 @@ static QStringList matchWithFcFamilys = QStringList() << QString::fromLatin1("Bo
                                                       << QString::fromWCharArray(L"微软雅黑 Heavy")
                                                       << QString::fromWCharArray(L"微软雅黑 Semibold")
                                                       << QString::fromWCharArray(L"微软雅黑 Semilight")
-                                                      << QString::fromWCharArray(L"微软雅黑");
+                                                      << QString::fromWCharArray(L"微软雅黑")
+                                                      << QString::fromLatin1("Times New Roman");
 
 struct FontInfo
 {
