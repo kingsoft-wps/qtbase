@@ -512,8 +512,11 @@ public:
     inline D2D1_INTERPOLATION_MODE interpolationMode() const
     {
         Q_Q(const QWindowsDirect2DPaintEngine);
-        return (q->state()->renderHints & QPainter::SmoothPixmapTransform) ? D2D1_INTERPOLATION_MODE_LINEAR
-                                                                           : D2D1_INTERPOLATION_MODE_NEAREST_NEIGHBOR;
+        return (q->state()->renderHints & QPainter::SmoothPixmapTransform)
+                ? (q->state()->renderHints & QPainter::HighQualityPixmapTransform
+                           ? D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC
+                           : D2D1_INTERPOLATION_MODE_LINEAR)
+                : D2D1_INTERPOLATION_MODE_NEAREST_NEIGHBOR;
     }
 
     inline D2D1_ANTIALIAS_MODE antialiasMode() const
