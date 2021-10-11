@@ -1590,6 +1590,7 @@ QList<QPolygonF> QPainterPath::toSubpathPolygons(const QTransform &matrix, qreal
         return flatCurves;
 
     QPolygonF current;
+    current.setSharable(false);
     for (int i=0; i<elementCount(); ++i) {
         const QPainterPath::Element &e = d->elements.at(i);
         switch (e.type) {
@@ -1597,7 +1598,7 @@ QList<QPolygonF> QPainterPath::toSubpathPolygons(const QTransform &matrix, qreal
             if (current.size() > 1)
                 flatCurves += current;
             current.clear();
-            current.reserve(16);
+            current.setSharable(false);
             current += QPointF(e.x, e.y) * matrix;
             break;
         case QPainterPath::LineToElement:
