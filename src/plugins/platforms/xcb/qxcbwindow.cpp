@@ -2539,7 +2539,7 @@ bool QXcbWindow::windowEvent(QEvent *event)
             }
             break;
         case QEvent::FocusOut: {
-            if (QGuiApplicationPrivate::focus_window)
+            if (window()->isActive())
                 moveInputToProxy();
             sendXEmbedMessage(m_client, XEMBED_FOCUS_OUT);
             event->accept();
