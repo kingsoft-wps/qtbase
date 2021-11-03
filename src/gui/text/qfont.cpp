@@ -170,7 +170,15 @@ Q_GUI_EXPORT int qt_defaultDpiY()
 
 Q_GUI_EXPORT int qt_defaultDpi()
 {
-    return qt_defaultDpiY();
+#ifndef Q_OS_LINUX
+     return qt_defaultDpiY();
+#else
+    static int nDpi = -1;
+    if (nDpi < 0)
+        nDpi = qt_defaultDpiY();
+
+    return nDpi;
+#endif
 }
 
 QFontPrivate::QFontPrivate()
