@@ -37,13 +37,14 @@
 **
 ****************************************************************************/
 
-#include "qiosurfacegraphicsbuffer.h"
 
 #include <QtCore/qdebug.h>
 #include <QtCore/qloggingcategory.h>
 
 #include <CoreGraphics/CoreGraphics.h>
 #include <IOSurface/IOSurface.h>
+
+#include "qiosurfacegraphicsbuffer.h"
 
 // CGColorSpaceCopyPropertyList is available on 10.12 and above,
 // but was only added in the 10.14 SDK, so declare it just in case.
