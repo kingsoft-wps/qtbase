@@ -885,12 +885,26 @@ void QXcbKeyboard::handleStateChanges(xkb_state_component changedComponents)
 xcb_keycode_t QXcbKeyboard::keysymToKeycode(xcb_keysym_t keysym)
 {
     xcb_keycode_t result = 0;
-    if (!m_key_symbols)
+    if (!m_key_symbols) {
+        xkb_layout_index_t lockedLayout = xkb_state_serialize_layout(m_xkbState.get(), XKB_STATE_LAYOUT_LOCKED);
+        xkb_mod_mask_t depressedMods = xkb_state_serialize_mods(m_xkbState.get(), XKB_STATE_MODS_DEPRESSED);
+        ScopedXKBState state(xkb_state_new(m_xkbKeymap.get()));
+        xkb_state_update_mask(state.get(), depressedMods, 0, 0, 0, 0, lockedLayout);
+
+        const xcb_keycode_t minKeycode = xkb_keymap_min_keycode(m_xkbKeymap.get());
+        const xcb_keycode_t maxKeycode = xkb_keymap_max_keycode(m_xkbKeymap.get());
+        for (xcb_keycode_t code = minKeycode; code < maxKeycode; ++code) {
+            xkb_keysym_t prevSym = xkb_state_key_get_one_sym(state.get(), code);
+            if (prevSym == keysym) {
+                result = code;
+                break;
+            }
+        }
         return result;
+    }
 
     auto keycode = xcb_key_symbols_get_keycode(m_key_symbols, keysym);
-    if (keycode)
-    {
+    if (keycode) {
         result = *keycode;
         free(keycode);
     }
