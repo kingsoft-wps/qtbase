@@ -2814,8 +2814,13 @@ bool QFontInfo::exactMatch() const
 static const int fast_timeout =   1000;  // 1s
 static const int slow_timeout =   5000;  // 5s
 #else
+#ifdef Q_OS_LINUX
+static const int fast_timeout = 600000; // 10m
+static const int slow_timeout = 1200000; // 20m
+#else
 static const int fast_timeout =  10000; // 10s
 static const int slow_timeout = 300000; //  5m
+#endif
 #endif // QFONTCACHE_DEBUG
 
 #ifdef Q_OS_LINUX
@@ -2943,9 +2948,12 @@ void QFontCache::insertEngineData(const QFontDef &def, QFontEngineData *engineDa
     Q_ASSERT(!engineDataCache.contains(def));
 
     engineData->ref.ref();
+
+#ifndef Q_OS_LINUX // Create engine is expensive under Linux so prefer not to clear cache immediately
     // Decrease now rather than waiting
     if (total_cost > min_cost * 2 && engineDataCache.size() >= QFONTCACHE_DECREASE_TRIGGER_LIMIT)
         decreaseCache();
+#endif
 
     engineDataCache.insert(def, engineData);
     increaseCost(sizeof(QFontEngineData));
@@ -2992,9 +3000,12 @@ void QFontCache::insertEngine(const Key &key, QFontEngine *engine, bool insertMu
     }
 #endif
     engine->ref.ref();
+
+#ifndef Q_OS_LINUX
     // Decrease now rather than waiting
     if (total_cost > min_cost * 2 && engineCache.size() >= QFONTCACHE_DECREASE_TRIGGER_LIMIT)
         decreaseCache();
+#endif
 
     Engine data(engine);
     data.timestamp = ++current_timestamp;
