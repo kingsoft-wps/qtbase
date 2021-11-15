@@ -630,6 +630,14 @@ void QXcbWindow::destroy()
 
 void QXcbWindow::setGeometry(const QRect &rect)
 {
+    if (m_client) {
+        const quint32 mask = XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
+        const qint32 values[] = {
+            qBound<qint32>(1,           rect.width(),  XCOORD_MAX),
+            qBound<qint32>(1,           rect.height(), XCOORD_MAX),
+        };
+        xcb_configure_window(xcb_connection(), m_client, mask, reinterpret_cast<const quint32*>(values));
+    }
     QPlatformWindow::setGeometry(rect);
 
     propagateSizeHints();
@@ -670,14 +678,6 @@ void QXcbWindow::setGeometry(const QRect &rect)
         }
     }
 
-    if (m_client) {
-        const quint32 mask = XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
-        const qint32 values[] = {
-            qBound<qint32>(1,           rect.width(),  XCOORD_MAX),
-            qBound<qint32>(1,           rect.height(), XCOORD_MAX),
-        };
-        xcb_configure_window(xcb_connection(), m_client, mask, reinterpret_cast<const quint32*>(values));
-    }
     xcb_flush(xcb_connection());
 }
 
