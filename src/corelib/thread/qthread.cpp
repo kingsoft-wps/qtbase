@@ -442,7 +442,7 @@ QThread::~QThread()
             locker.relock();
         }
         if (d->running && !d->finished && !d->data->isAdopted)
-            qFatal("QThread: Destroyed while thread is still running");
+            qWarning("QThread: Destroyed while thread is still running");
 
         d->data->thread = 0;
     }
