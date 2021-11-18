@@ -5337,7 +5337,6 @@ void QSpanData::setup(const QBrush &brush, int alpha, QPainter::CompositionMode 
         gradient.colorTable32 = nullptr;
         gradient.spread = g->spread();
 
-        gradient.path.pSpanGenerotor = qt_createPGSpanGenerator(this, g);
         // will be deleted in destructor or this function
         gradient.path.pSpanGenerotor = qt_createPGSpanGenerator(this, g);
         gradient.path.ownGenerator = true;
