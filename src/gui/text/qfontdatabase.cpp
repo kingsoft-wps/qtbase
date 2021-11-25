@@ -1589,6 +1589,13 @@ QStringList QFontDatabase::families(WritingSystem writingSystem) const
     QStringList flist;
     for (int i = 0; i < d->count; i++) {
         QtFontFamily *f = d->families[i];
+#ifdef Q_OS_MACOS
+        QString lowercase = f->name.toLower();
+        if ((QSysInfo::macVersion() >= Q_MV_OSX(12, 0)) &&
+            (lowercase.contains(QString::fromLatin1("cambria")) ||
+            lowercase.contains(QString::fromLatin1("consolas"))))
+            continue;
+#endif
         if (f->populated && f->count == 0)
             continue;
         if (writingSystem != Any) {
