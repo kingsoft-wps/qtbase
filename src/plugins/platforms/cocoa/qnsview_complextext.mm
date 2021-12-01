@@ -336,14 +336,9 @@
             mr.setLeft(window->width() + 20); // 20 add offset
         else
             mr.setBottom(window->height());
-
-        mr.moveBottomLeft(window->mapToGlobal(mr.bottomLeft()));
-    }
-    else
-    {
-        mr.moveBottomLeft(m_platformWindow->window()->mapToGlobal(mr.bottomLeft()));
     }
 
+    mr.moveBottomLeft(window->mapToGlobal(mr.bottomLeft()));
     return QCocoaScreen::mapToNative(mr);
 }
 
