@@ -47,8 +47,6 @@
 #include <QScopedPointer>
 #include "qiosurfacegraphicsbuffer.h"
 
-#include <unordered_map>
-
 QT_BEGIN_NAMESPACE
 
 class QCocoaBackingStore : public QRasterBackingStore
@@ -56,6 +54,8 @@ class QCocoaBackingStore : public QRasterBackingStore
 protected:
     QCocoaBackingStore(QWindow *window);
     QCFType<CGColorSpaceRef> colorSpace() const;
+    QMacNotificationObserver m_backingPropertiesObserver;
+    virtual void backingPropertiesChanged() = 0;
 };
 
 class QNSWindowBackingStore : public QCocoaBackingStore
@@ -71,11 +71,11 @@ private:
     bool windowHasUnifiedToolbar() const;
     QImage::Format format() const override;
     void redrawRoundedBottomCorners(CGRect) const;
+    void backingPropertiesChanged() override;
 };
 
-class QCALayerBackingStore : public QObject, public QCocoaBackingStore
+class QCALayerBackingStore : public QCocoaBackingStore
 {
-    Q_OBJECT
 public:
     QCALayerBackingStore(QWindow *window);
     ~QCALayerBackingStore();
@@ -118,15 +118,9 @@ private:
     bool recreateBackBufferIfNeeded();
     bool prepareForFlush();
 
-    void backingPropertiesChanged();
-    QMacNotificationObserver m_backingPropertiesObserver;
+    void backingPropertiesChanged() override;
 
     std::list<std::unique_ptr<GraphicsBuffer>> m_buffers;
-
-    void flushSubWindow(QWindow *window);
-    std::unordered_map<QWindow*, std::unique_ptr<QCALayerBackingStore>> m_subWindowBackingstores;
-    void windowDestroyed(QObject *object);
-    bool m_clearSurfaceOnPaint = true;
 };
 
 QT_END_NAMESPACE

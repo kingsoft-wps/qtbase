@@ -42,16 +42,15 @@
 
 #include <qpa/qplatformgraphicsbuffer.h>
 #include <private/qcore_mac_p.h>
+#include <CoreGraphics/CGColorSpace.h>
 
 QT_BEGIN_NAMESPACE
 
 class QIOSurfaceGraphicsBuffer : public QPlatformGraphicsBuffer
 {
 public:
-    QIOSurfaceGraphicsBuffer(const QSize &size, const QPixelFormat &format);
+    QIOSurfaceGraphicsBuffer(const QSize &size, const QPixelFormat &format, QCFType<CGColorSpaceRef> colorSpace);
     ~QIOSurfaceGraphicsBuffer();
-
-    void setColorSpace(QCFType<CGColorSpaceRef> colorSpace);
 
     const uchar *data() const override;
     uchar *data() override;
