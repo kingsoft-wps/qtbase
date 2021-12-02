@@ -51,6 +51,25 @@ QT_BEGIN_NAMESPACE
 QCocoaBackingStore::QCocoaBackingStore(QWindow *window)
     : QRasterBackingStore(window)
 {
+    // Ideally this would be plumbed from the platform layer to QtGui, and
+    // the QBackingStore would be recreated, but we don't have that code yet,
+    // so at least make sure we invalidate our backingstore when the backing
+    // properties (color space e.g.) are changed.
+    NSView *view = static_cast<QCocoaWindow *>(window->handle())->view();
+    m_backingPropertiesObserver = QMacNotificationObserver(view.window,
+        NSWindowDidChangeBackingPropertiesNotification, [this]() {
+            if (!this->window()->handle()) {
+                // The platform window has been destroyed, but the backingstore
+                // is still alive, as that's tied to a QWindow. The original
+                // NSWindow we were observing is also likely gone. FIXME:
+                // We should listen for surface events from the QWindow and
+                // remove and re-attach our observer based on those.
+                return;
+            }
+            qCDebug(lcQpaBackingStore) << "Backing properties for"
+                << this->window() << "did change";
+            backingPropertiesChanged();
+        });
 }
 
 QCFType<CGColorSpaceRef> QCocoaBackingStore::colorSpace() const
@@ -330,6 +349,11 @@ void QNSWindowBackingStore::redrawRoundedBottomCorners(CGRect windowRect) const
 #endif
 }
 
+void QNSWindowBackingStore::backingPropertiesChanged()
+{
+    m_image = QImage();
+}
+
 // ----------------------------------------------------------------------------
 
 // https://stackoverflow.com/a/52722575/2761869
@@ -349,26 +373,6 @@ QCALayerBackingStore::QCALayerBackingStore(QWindow *window)
 {
     qCDebug(lcQpaBackingStore) << "Creating QCALayerBackingStore for" << window;
     m_buffers.resize(1);
-
-    // Ideally this would be plumbed from the platform layer to QtGui, and
-    // the QBackingStore would be recreated, but we don't have that code yet,
-    // so at least make sure we update our backingstore when the backing
-    // properties (color space e.g.) are changed.
-    NSView *view = static_cast<QCocoaWindow *>(window->handle())->view();
-    m_backingPropertiesObserver = QMacNotificationObserver(view.window,
-        NSWindowDidChangeBackingPropertiesNotification, [this]() {
-            if (!this->window()->handle()) {
-                // The platform window has been destroyed, but the backingstore
-                // is still alive, as that's tied to a QWindow. The original
-                // NSWindow we were observing is also likely gone. FIXME:
-                // We should listen for surface events from the QWindow and
-                // remove and re-attach our observer based on those.
-                return;
-            }
-            qCDebug(lcQpaBackingStore) << "Backing properties for"
-                << this->window() << "did change";
-            backingPropertiesChanged();
-        });
 }
 
 QCALayerBackingStore::~QCALayerBackingStore()
@@ -402,7 +406,7 @@ bool QCALayerBackingStore::beginPaint(const QRegion &region)
     // Although undocumented, QBackingStore::beginPaint expects the painted region
     // to be cleared before use if the window has a surface format with an alpha.
     // Fresh IOSurfaces are already cleared, so we don't need to clear those.
-    if (m_clearSurfaceOnPaint && !bufferWasRecreated && window()->format().hasAlpha()) {
+    if (!bufferWasRecreated && window()->format().hasAlpha()) {
         qCDebug(lcQpaBackingStore) << "Clearing" << region << "before use";
         QPainter painter(m_buffers.back()->asImage());
         painter.setCompositionMode(QPainter::CompositionMode_Source);
@@ -532,13 +536,9 @@ void QCALayerBackingStore::flush(QWindow *flushedWindow, const QRegion &region, 
     if (!prepareForFlush())
         return;
 
-    if (flushedWindow != window()) {
-        flushSubWindow(flushedWindow);
-        return;
-    }
-
     QMacAutoReleasePool pool;
 
+    NSView *backingStoreView = static_cast<QCocoaWindow *>(window()->handle())->view();
     NSView *flushedView = static_cast<QCocoaWindow *>(flushedWindow->handle())->view();
 
     // If the backingstore is just flushed, without being painted to first, then we may
@@ -573,7 +573,7 @@ void QCALayerBackingStore::flush(QWindow *flushedWindow, const QRegion &region, 
     // are committed as part of a display-cycle instead of on the next runloop pass. This
     // means CA won't try to throttle us if we flush too fast, and we'll coalesce our flush
     // with other pending view and layer updates.
-    flushedView.window.viewsNeedDisplay = YES;
+    backingStoreView.window.viewsNeedDisplay = YES;
 
     if (window()->format().swapBehavior() == QSurfaceFormat::SingleBuffer) {
         // The private API [CALayer reloadValueForKeyPath:@"contents"] would be preferable,
@@ -582,9 +582,17 @@ void QCALayerBackingStore::flush(QWindow *flushedWindow, const QRegion &region, 
     }
 
     qCInfo(lcQpaBackingStore) << "Flushing" << backBufferSurface
-        << "to" << flushedView.layer << "of" << flushedView;
+         << "to" << flushedView.layer << "of" << flushedView;
 
     flushedView.layer.contents = backBufferSurface;
+
+    if (flushedView != backingStoreView) {
+        const CGSize backingStoreSize = backingStoreView.bounds.size;
+        flushedView.layer.contentsRect = CGRectApplyAffineTransform(
+            [flushedView convertRect:flushedView.bounds toView:backingStoreView],
+            // The contentsRect is in unit coordinate system
+            CGAffineTransformMakeScale(1.0 / backingStoreSize.width, 1.0 / backingStoreSize.height));
+    }
 
     // Since we may receive multiple flushes before a new frame is started, we do not
     // swap any buffers just yet. Instead we check in the next beginPaint if the layer's
@@ -594,53 +602,6 @@ void QCALayerBackingStore::flush(QWindow *flushedWindow, const QRegion &region, 
     // it to a layer, but as that's not the case we may end up painting to the same back
     // buffer once more if we are painting faster than CA can ship the surfaces over to
     // the window server.
-}
-
-void QCALayerBackingStore::flushSubWindow(QWindow *subWindow)
-{
-    qCInfo(lcQpaBackingStore) << "Flushing sub-window" << subWindow
-        << "via its own backingstore";
-
-    auto &subWindowBackingStore = m_subWindowBackingstores[subWindow];
-    if (!subWindowBackingStore) {
-        subWindowBackingStore.reset(new QCALayerBackingStore(subWindow));
-        QObject::connect(subWindow, &QObject::destroyed, this, &QCALayerBackingStore::windowDestroyed);
-        subWindowBackingStore->m_clearSurfaceOnPaint = false;
-    }
-
-    auto subWindowSize = subWindow->size();
-    static const auto kNoStaticContents = QRegion();
-    subWindowBackingStore->resize(subWindowSize, kNoStaticContents);
-
-    auto subWindowLocalRect = QRect(QPoint(), subWindowSize);
-    subWindowBackingStore->beginPaint(subWindowLocalRect);
-
-    QPainter painter(subWindowBackingStore->m_buffers.back()->asImage());
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-
-    NSView *backingStoreView = static_cast<QCocoaWindow *>(window()->handle())->view();
-    NSView *flushedView = static_cast<QCocoaWindow *>(subWindow->handle())->view();
-    auto subviewRect = [flushedView convertRect:flushedView.bounds toView:backingStoreView];
-    auto scale = flushedView.layer.contentsScale;
-    subviewRect = CGRectApplyAffineTransform(subviewRect, CGAffineTransformMakeScale(scale, scale));
-
-    m_buffers.back()->lock(QPlatformGraphicsBuffer::SWReadAccess);
-    const QImage *backingStoreImage = m_buffers.back()->asImage();
-    painter.drawImage(subWindowLocalRect, *backingStoreImage, QRectF::fromCGRect(subviewRect));
-    m_buffers.back()->unlock();
-
-    painter.end();
-    subWindowBackingStore->endPaint();
-    subWindowBackingStore->flush(subWindow, subWindowLocalRect, QPoint());
-
-    qCInfo(lcQpaBackingStore) << "Done flushing sub-window" << subWindow;
-}
-
-void QCALayerBackingStore::windowDestroyed(QObject *object)
-{
-    auto *window = static_cast<QWindow*>(object);
-    qCInfo(lcQpaBackingStore) << "Removing backingstore for sub-window" << window;
-    m_subWindowBackingstores.erase(window);
 }
 
 #ifndef QT_NO_OPENGL
@@ -671,11 +632,8 @@ QImage QCALayerBackingStore::toImage() const
 
 void QCALayerBackingStore::backingPropertiesChanged()
 {
-    qCDebug(lcQpaBackingStore) << "Updating color space of existing buffers";
-    for (auto &buffer : m_buffers) {
-        if (buffer)
-            buffer->setColorSpace(colorSpace());
-    }
+    m_buffers.clear();
+    m_buffers.resize(1);
 }
 
 QPlatformGraphicsBuffer *QCALayerBackingStore::graphicsBuffer() const
@@ -752,11 +710,10 @@ bool QCALayerBackingStore::prepareForFlush()
 
 QCALayerBackingStore::GraphicsBuffer::GraphicsBuffer(const QSize &size, qreal devicePixelRatio,
                                 const QPixelFormat &format, QCFType<CGColorSpaceRef> colorSpace)
-    : QIOSurfaceGraphicsBuffer(size, format)
+    : QIOSurfaceGraphicsBuffer(size, format, colorSpace)
     , dirtyRegion(0, 0, size.width() / devicePixelRatio, size.height() / devicePixelRatio)
     , m_devicePixelRatio(devicePixelRatio)
 {
-    setColorSpace(colorSpace);
 }
 
 QImage *QCALayerBackingStore::GraphicsBuffer::asImage()
@@ -775,7 +732,5 @@ QImage *QCALayerBackingStore::GraphicsBuffer::asImage()
 
     return &m_image;
 }
-
-#include "moc_qcocoabackingstore.cpp"
 
 QT_END_NAMESPACE

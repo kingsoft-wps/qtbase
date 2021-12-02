@@ -37,14 +37,13 @@
 **
 ****************************************************************************/
 
+#include "qiosurfacegraphicsbuffer.h"
 
 #include <QtCore/qdebug.h>
 #include <QtCore/qloggingcategory.h>
 
 #include <CoreGraphics/CoreGraphics.h>
 #include <IOSurface/IOSurface.h>
-
-#include "qiosurfacegraphicsbuffer.h"
 
 // CGColorSpaceCopyPropertyList is available on 10.12 and above,
 // but was only added in the 10.14 SDK, so declare it just in case.
@@ -54,7 +53,7 @@ QT_BEGIN_NAMESPACE
 
 Q_LOGGING_CATEGORY(lcQpaIOSurface, "qt.qpa.backingstore.iosurface");
 
-QIOSurfaceGraphicsBuffer::QIOSurfaceGraphicsBuffer(const QSize &size, const QPixelFormat &format)
+QIOSurfaceGraphicsBuffer::QIOSurfaceGraphicsBuffer(const QSize &size, const QPixelFormat &format, QCFType<CGColorSpaceRef> colorSpace)
     : QPlatformGraphicsBuffer(size, format)
 {
     const size_t width = size.width();
@@ -82,24 +81,15 @@ QIOSurfaceGraphicsBuffer::QIOSurfaceGraphicsBuffer(const QSize &size, const QPix
 
     Q_ASSERT(size_t(bytesPerLine()) == bytesPerRow);
     Q_ASSERT(size_t(byteCount()) == totalBytes);
+
+    if (colorSpace) {
+        IOSurfaceSetValue(m_surface, CFSTR("IOSurfaceColorSpace"),
+            QCFType<CFPropertyListRef>(CGColorSpaceCopyPropertyList(colorSpace)));
+    }
 }
 
 QIOSurfaceGraphicsBuffer::~QIOSurfaceGraphicsBuffer()
 {
-}
-
-void QIOSurfaceGraphicsBuffer::setColorSpace(QCFType<CGColorSpaceRef> colorSpace)
-{
-    static const auto kIOSurfaceColorSpace = CFSTR("IOSurfaceColorSpace");
-
-    qCDebug(lcQpaIOSurface) << "Tagging" << this << "with color space" << colorSpace;
-
-    if (colorSpace) {
-        IOSurfaceSetValue(m_surface, kIOSurfaceColorSpace,
-            QCFType<CFPropertyListRef>(CGColorSpaceCopyPropertyList(colorSpace)));
-    } else {
-        IOSurfaceRemoveValue(m_surface, kIOSurfaceColorSpace);
-    }
 }
 
 const uchar *QIOSurfaceGraphicsBuffer::data() const
