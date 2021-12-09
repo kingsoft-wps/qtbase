@@ -1577,10 +1577,12 @@ ERR ParsePFDEntry(
 
         case WMP_tagImageWidth:
             FailIf(0 == uValue, WMP_errUnsupportedFormat);
+            pID->WMP.wmiI.cWidth = uValue;
             break;
 
         case WMP_tagImageHeight:
             FailIf(0 == uValue, WMP_errUnsupportedFormat);
+            pID->WMP.wmiI.cHeight = uValue;
             break;
 
         case WMP_tagImageOffset:
@@ -1839,12 +1841,16 @@ ERR PKImageDecode_Initialize_WMP(
     ERR err = WMP_errSuccess;
 
     CWMImageInfo* pII = NULL;
+    U32 orgWidth = 0;
+    U32 orgHeight = 0;
 
     //================================
     Call(PKImageDecode_Initialize(pID, pWS));
 
     //================================
     Call(ReadContainer(pID));
+    orgWidth = pID->WMP.wmiI.cWidth;
+    orgHeight = pID->WMP.wmiI.cHeight;
 
     //================================
     pID->WMP.wmiSCP.pWStream = pWS;
@@ -1852,10 +1858,13 @@ ERR PKImageDecode_Initialize_WMP(
     pID->WMP.cLinesDecoded = 0;
     pID->WMP.cLinesCropped = 0;
     pID->WMP.fFirstNonZeroDecode = FALSE;
+    pID->WMP.wmiI.cWidth = 0;
+    pID->WMP.wmiI.cHeight = 0;
 
     FailIf(ICERR_OK != ImageStrDecGetInfo(&pID->WMP.wmiI, &pID->WMP.wmiSCP), WMP_errFail);
     assert(Y_ONLY <= pID->WMP.wmiSCP.cfColorFormat && pID->WMP.wmiSCP.cfColorFormat < CFT_MAX);
     assert(BD_SHORT == pID->WMP.wmiSCP.bdBitDepth || BD_LONG == pID->WMP.wmiSCP.bdBitDepth);
+    FailIf(orgWidth != pID->WMP.wmiI.cWidth || orgHeight != pID->WMP.wmiI.cHeight, WMP_errFail);
 
     // If HD Photo container provided an orientation, this should override bitstream orientation
     // If container did NOT provide an orientation, force O_NONE. This is to be consistent with
