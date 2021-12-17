@@ -1149,6 +1149,7 @@ void QPdfEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     d->drawTextItem(p, ti);
     d->hasPen = hp;
     d->brush = b;
+    d->useCmykColor = useCmykColor;
     *d->currentPage << "Q\n";
 }
 
