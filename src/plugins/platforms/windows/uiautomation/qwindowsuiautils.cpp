@@ -86,7 +86,8 @@ QWindow *windowForAccessible(const QAccessibleInterface *accessible)
 HWND hwndForAccessible(const QAccessibleInterface *accessible)
 {
     if (QWindow *window = accessible->window()) {
-        if (!accessible->parent() || (accessible->parent()->window() != window)) {
+        const QAccessibleInterface *par = accessible->parent();
+        if (!par || (par->isValid() && par->window() != window)) {
             return QWindowsBaseWindow::handleOf(window);
         }
     }
