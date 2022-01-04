@@ -1358,6 +1358,7 @@ QFreetypeFace *QFreetypeFace::getFace(const QFontEngine::FaceId &face_id,
                 break;
             case FT_ENCODING_APPLE_ROMAN:
             case FT_ENCODING_ADOBE_LATIN_1:
+            case FT_ENCODING_GB2312:
                 if (!newFreetype->unicode_map || newFreetype->unicode_map->encoding != FT_ENCODING_UNICODE)
                     newFreetype->unicode_map = cm;
                 break;
