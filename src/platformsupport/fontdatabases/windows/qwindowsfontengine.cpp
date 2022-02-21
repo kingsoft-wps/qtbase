@@ -355,6 +355,16 @@ glyph_t QWindowsFontEngine::glyphIndex(uint ucs4) const
         if (glyph == 0 && ucs4 < 0x100)
             glyph = getTrueTypeGlyphIndex(cmap, cmapSize, ucs4 + 0xf000);
     } else if (ttf) {
+        if (cmapCodec) {
+            const QChar qChar(ucs4);
+            QTextCodec::ConverterState state(QTextCodec::ConvertInvalidToNull);
+            QByteArray buf = cmapCodec->fromUnicode(&qChar, 1, &state);
+            if (buf.size() == 2) {
+                ucs4 = (unsigned char)buf[0];
+                ucs4 <<= 8;
+                ucs4 |= (unsigned char)buf[1];
+            }
+        }
         glyph = getTrueTypeGlyphIndex(cmap, cmapSize, ucs4);
     } else if (ucs4 >= tm.tmFirstChar && ucs4 <= tm.tmLastChar) {
         glyph = ucs4;
