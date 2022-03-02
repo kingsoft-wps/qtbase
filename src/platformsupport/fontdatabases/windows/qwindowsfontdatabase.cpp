@@ -2260,27 +2260,29 @@ QFontEngine *QWindowsFontDatabase::createEngine(const QFontDef &request, const Q
 
 QFont QWindowsFontDatabase::systemDefaultFont()
 {
-#if QT_VERSION >= 0x060000
-    // Qt 6: Obtain default GUI font (typically "Segoe UI, 9pt", see QTBUG-58610)
-    NONCLIENTMETRICS ncm;
-    ncm.cbSize = FIELD_OFFSET(NONCLIENTMETRICS, lfMessageFont) + sizeof(LOGFONT);
-    SystemParametersInfo(SPI_GETNONCLIENTMETRICS, ncm.cbSize , &ncm, 0);
-    const QFont systemFont = QWindowsFontDatabase::LOGFONT_to_QFont(ncm.lfMessageFont);
-#else
-    LOGFONT lf;
-    GetObject(QWindowsFontDatabase::systemFont(), sizeof(lf), &lf);
-    QFont systemFont =  QWindowsFontDatabase::LOGFONT_to_QFont(lf);
-    // "MS Shell Dlg 2" is the correct system font >= Win2k
-    if (systemFont.family() == QLatin1String("MS Shell Dlg"))
-        systemFont.setFamily(QStringLiteral("MS Shell Dlg 2"));
-    // Qt 5 by (Qt 4) legacy uses GetStockObject(DEFAULT_GUI_FONT) to
-    // obtain the default GUI font (typically "MS Shell Dlg 2, 8pt"). This has been
-    // long deprecated; the message font of the NONCLIENTMETRICS structure obtained by
-    // SystemParametersInfo(SPI_GETNONCLIENTMETRICS) should be used instead (see
-    // QWindowsTheme::refreshFonts(), typically "Segoe UI, 9pt"), which is larger.
-#endif // Qt 5
-    qCDebug(lcQpaFonts) << __FUNCTION__ << systemFont;
-    return systemFont;
+    HFONT hFont = QWindowsFontDatabase::systemFont();
+    LOGFONT lf = { 0 };
+    if (NULL != hFont && 0 != GetObject(hFont, sizeof(lf), &lf)) {
+        QFont systemFont = QWindowsFontDatabase::LOGFONT_to_QFont(lf);
+        // "MS Shell Dlg 2" is the correct system font >= Win2k
+        if (systemFont.family() == QLatin1String("MS Shell Dlg"))
+            systemFont.setFamily(QStringLiteral("MS Shell Dlg 2"));
+        // Qt 5 by (Qt 4) legacy uses GetStockObject(DEFAULT_GUI_FONT) to
+        // obtain the default GUI font (typically "MS Shell Dlg 2, 8pt"). This has been
+        // long deprecated; the message font of the NONCLIENTMETRICS structure obtained by
+        // SystemParametersInfo(SPI_GETNONCLIENTMETRICS) should be used instead (see
+        // QWindowsTheme::refreshFonts(), typically "Segoe UI, 9pt"), which is larger.
+        qCDebug(lcQpaFonts) << __FUNCTION__ << systemFont;
+        return systemFont;
+    } else {
+        // Qt 6: Obtain default GUI font (typically "Segoe UI, 9pt", see QTBUG-58610)
+        NONCLIENTMETRICS ncm = { 0 };
+        ncm.cbSize = FIELD_OFFSET(NONCLIENTMETRICS, lfMessageFont) + sizeof(LOGFONT);
+        SystemParametersInfo(SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, 0);
+        const QFont systemFont = QWindowsFontDatabase::LOGFONT_to_QFont(ncm.lfMessageFont);
+        qCDebug(lcQpaFonts) << __FUNCTION__ << systemFont;
+        return systemFont;
+    }
 }
 
 QFont QWindowsFontDatabase::LOGFONT_to_QFont(const LOGFONT& logFont, int verticalDPI_In)
