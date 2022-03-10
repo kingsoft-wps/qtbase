@@ -393,7 +393,7 @@ Q_GUI_EXPORT extern bool qt_scaleForTransform(const QTransform &transform,
 void QPaintEngineEx::stroke(const QVectorPath &path, const QPen &inPen)
 {
 #ifdef QT_DEBUG_DRAW
-    qDebug() << "QPaintEngineEx::stroke()" << pen;
+    qDebug() << "QPaintEngineEx::stroke()" << inPen;
 #endif
 
     Q_D(QPaintEngineEx);
@@ -401,12 +401,12 @@ void QPaintEngineEx::stroke(const QVectorPath &path, const QPen &inPen)
     if (path.isEmpty())
         return;
 
-    if (qpen_is_complex(pen))
+    if (qpen_is_complex(inPen))
     {
-        auto stroker = QComplexStroker::fromPen(pen);
+        auto stroker = QComplexStroker::fromPen(inPen);
         QRectF clippedDevRect(d->exDeviceRect);
-        qreal penWidthDev = pen.widthF();
-        if (!pen.isCosmetic())
+        qreal penWidthDev = inPen.widthF();
+        if (!inPen.isCosmetic())
             penWidthDev = state()->matrix.map(QLineF(0, 0, penWidthDev, 0)).length();
         clippedDevRect.adjust(-penWidthDev, -penWidthDev, penWidthDev, penWidthDev);
         QRectF clipRect = state()->matrix.inverted().mapRect(clippedDevRect);
@@ -415,7 +415,7 @@ void QPaintEngineEx::stroke(const QVectorPath &path, const QPen &inPen)
         if (path.hasImplicitClose())
             path2stroke.closeSubpath();
         QPainterPath path2fill = stroker.createStroke(path2stroke);
-        fill(qtVectorPathForPath(path2fill), pen.brush());
+        fill(qtVectorPathForPath(path2fill), inPen.brush());
         return;
     }
 
