@@ -68,7 +68,9 @@
 
 #include <QApplication>
 #include <QWidget>
+#include <QImageWriter>
 #include "nscustomsavepanel.h"
+
 
 #import <AppKit/NSSavePanel.h>
 #import <CoreFoundation/CFNumber.h>
@@ -80,6 +82,318 @@ QT_FORWARD_DECLARE_CLASS(QWindow)
 QT_USE_NAMESPACE
 
 typedef QSharedPointer<QFileDialogOptions> SharedPointerFileDialogOptions;
+static bool g_fileDialogLive = false;
+@interface CustomButton : NSButton
+
+{
+}
+
+@property (nonatomic, assign) QVector<QString> icons;
+@property (nonatomic, assign) BOOL isHovered;
+@property (nonatomic, assign) BOOL isClicked;
+@property (nonatomic, retain) NSColor *normalBackgroundColor;
+@property (nonatomic, retain) NSColor *hoverBackgroundColor;
+@property (nonatomic, retain) NSColor *clickedBackgroundColor;
+@property (nonatomic, retain) NSColor *customTitleColor;
+@property (nonatomic, retain) NSWindow *toolTipTextWindow;
+@property (nonatomic, retain) NSString *toolTipText;
+@property (nonatomic, retain) NSImageView *imageView;
+@property (nonatomic, retain) NSImage *icon;
+
+@end
+
+@implementation CustomButton
+
+- (id)initWithFrame:(NSRect)frameRect {
+    self = [super initWithFrame:frameRect];
+    if (self) {
+        self.bordered = NO;
+        self.wantsLayer = YES;
+        self.bezelStyle = NSBezelStyleRoundRect;
+        self.focusRingType = NSFocusRingTypeNone;
+        self.layer.cornerRadius = 6;
+
+        NSImage *icon = [[NSImage alloc] initWithSize:NSMakeSize(20, 16)];
+        [self setImage:icon]; 
+        self.imagePosition = NSImageLeft;
+        self.imageScaling = NSImageScaleNone;
+        [icon release];
+        
+        self.imageView = [[[NSImageView alloc] initWithFrame:NSMakeRect(4, 5, 16, 16)] autorelease];
+        [self addSubview:self.imageView];
+        
+        [self createTrackingArea];
+    }
+    return self;
+}
+
+- (void)dealloc
+{
+    [self hideQuickToolTip];
+    self.normalBackgroundColor = nil;
+    self.hoverBackgroundColor = nil;
+    self.clickedBackgroundColor = nil;
+    self.toolTipTextWindow = nil;
+    self.toolTipText = nil;
+    self.imageView = nil;
+    self.icon = nil;
+
+    [super dealloc];
+}
+
+- (void)createTrackingArea
+{
+    NSTrackingAreaOptions focusTrackingAreaOptions = NSTrackingActiveInActiveApp;
+    focusTrackingAreaOptions |= NSTrackingMouseEnteredAndExited;
+    focusTrackingAreaOptions |= NSTrackingAssumeInside;
+    focusTrackingAreaOptions |= NSTrackingInVisibleRect;
+
+    NSTrackingArea *focusTrackingArea = [[NSTrackingArea alloc] initWithRect:NSZeroRect
+            options:focusTrackingAreaOptions owner:self userInfo:nil];
+    [self addTrackingArea:focusTrackingArea];
+    [focusTrackingArea release];
+}
+
+- (CGFloat)getButtonWidthWithTitle:(NSString *)title
+{
+    if (title.length == 0)
+        return 24;
+    NSDictionary *attributes = @{NSFontAttributeName : self.font};
+    NSSize maxSize = NSMakeSize(MAXFLOAT, 25);    
+    NSSize textSize = [title boundingRectWithSize:maxSize options:NSStringDrawingUsesLineFragmentOrigin attributes:attributes context:nil].size;
+    CGFloat width = 24 + textSize.width + 4;
+    return width;
+}
+
+- (NSSize)getToolTipSizeWithText:(NSString *)text
+{
+    NSDictionary *attributes = @{NSFontAttributeName : self.font};
+    NSSize maxSize = NSMakeSize(240, MAXFLOAT);     
+    NSSize textSize = [text boundingRectWithSize:maxSize options:NSStringDrawingUsesLineFragmentOrigin attributes:attributes context:nil].size;
+    return textSize;
+}
+
+- (NSRect)setCustomTitle:(NSString *)title
+{
+    CGFloat width = [self getButtonWidthWithTitle:title];
+    NSRect rect = self.frame;
+    rect.size.width = width;
+    [self setFrame:rect];
+    
+    if (self.customTitleColor) {
+        NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
+#ifdef MAC_OS_X_VERSION_10_12
+        [style setAlignment:NSTextAlignmentCenter];
+#else
+        [style setAlignment:NSCenterTextAlignment];
+#endif
+        NSDictionary *attrsDictionary = [NSDictionary dictionaryWithObjectsAndKeys:self.customTitleColor, NSForegroundColorAttributeName, style, NSParagraphStyleAttributeName, nil];
+        NSAttributedString *attrString = [[NSAttributedString alloc]initWithString:title attributes:attrsDictionary];
+        [self setAttributedTitle:attrString];
+        [style release];
+        [attrString release];
+    } else {
+        [self setTitle:title];
+    }
+    
+    return rect;
+}
+- (void)updateIcons:(QVector<QString>) icons
+{
+    self.icons = icons;
+    [self updateIcon];
+}
+- (BOOL)setButtonIcon:(QString) iconPath
+{
+    if (iconPath.isEmpty())
+        return NO;
+
+    NSImage *image = [[NSImage alloc] initWithContentsOfFile:iconPath.toNSString()];
+    if (image != nil)
+    {
+        self.imageView.image = image;
+        self.imageView.image.size = NSMakeSize(16, 16);
+        self.imageView.imageScaling = NSImageScaleNone;
+        if (iconPath.endsWith("gif"))
+            self.imageView.animates = YES;
+        else
+            self.imageView.animates = NO;
+        [image release];
+        return YES;        
+    }
+    return NO;
+}
+- (void) updateIcon {
+    QString iconPath;
+    if (self.isClicked) {
+        iconPath = _icons.at(2);
+    } else if (self.isHovered) {
+        iconPath = _icons.at(1);
+    } else {
+        iconPath = _icons.at(0);
+    }
+    if (!iconPath.isEmpty()) {
+        [self setButtonIcon:iconPath];
+        [self setNeedsDisplay:YES];
+    }
+}
+
+- (void)showQuickToolTip
+{
+    if (!self.toolTipText || self.toolTipText.length == 0)
+        return;
+    
+    if (!self.toolTipTextWindow)
+    {
+        CGFloat offset = 0;
+        if (self.superview)
+            offset = self.superview.frame.origin.x;
+        NSRect buttonRect = [self.window convertRectToScreen:self.frame];
+        NSSize toolTipSize = [self getToolTipSizeWithText:self.toolTipText];
+        NSRect frame = NSMakeRect(buttonRect.origin.x + buttonRect.size.width - toolTipSize.width - 4 + offset, buttonRect.origin.y + buttonRect.size.height + 4, 
+            toolTipSize.width + 8, toolTipSize.height + 8);
+        self.toolTipTextWindow = [[[NSWindow alloc] initWithContentRect:frame
+                                                        styleMask:NSWindowStyleMaskResizable
+                                                          backing:NSBackingStoreBuffered
+                                                            defer:NO] autorelease];
+        
+        NSColor *backgroundColor = nil;
+        if (qt_mac_applicationIsInDarkMode())
+        {
+            backgroundColor = [NSColor colorWithRed:39/255.0 green:39/255.0 blue:43/255.0 alpha:1.0];
+        }
+        else
+        {
+            backgroundColor = [NSColor whiteColor];
+        }
+        [self.toolTipTextWindow setBackgroundColor:backgroundColor];
+        [self.toolTipTextWindow setOpaque:NO];
+        [self.toolTipTextWindow setLevel:kCGHelpWindowLevel];
+        [self.toolTipTextWindow makeKeyAndOrderFront:self.superview];
+        // [self.toolTipTextWindow setHasShadow:NO];
+        
+        NSRect textRect = { { 5, 4 }, toolTipSize };
+        NSTextField *textLabel = [[NSTextField alloc] initWithFrame:textRect];
+        [textLabel setStringValue:self.toolTipText];
+        [textLabel setFont:self.font];
+        [textLabel setEditable:false];
+        [textLabel setSelectable:false];
+        [textLabel setBordered:false];
+        [textLabel setDrawsBackground:false];
+        [self.toolTipTextWindow.contentView addSubview:textLabel];
+    }
+    
+    [self.toolTipTextWindow makeKeyAndOrderFront:self.superview];
+    // self.toolTipTextWindow.alphaValue = 1;
+    CGFloat offset = 0;
+    if (self.superview)
+        offset = self.superview.frame.origin.x;
+    NSRect buttonRect = [self.window convertRectToScreen:self.frame];
+    NSSize toolTipSize = [self getToolTipSizeWithText:self.toolTipText];
+    NSRect frame = NSMakeRect(buttonRect.origin.x + buttonRect.size.width - toolTipSize.width - 4 + offset, buttonRect.origin.y + buttonRect.size.height + 4, 
+        toolTipSize.width + 8, toolTipSize.height + 8);
+    [self.toolTipTextWindow setFrame:frame display:YES];
+}
+
+- (void)hideQuickToolTip
+{
+    if (!self.toolTipTextWindow)
+        return;
+    
+    [self.toolTipTextWindow orderOut:self.superview];
+    // self.toolTipTextWindow.alphaValue = 0;
+}
+
+- (void)updateQuickToolTip
+{
+    if (self.isHovered)
+    {
+        [self showQuickToolTip];
+    }
+    else
+    {
+        [self hideQuickToolTip];
+    }
+        
+}
+
+- (void)delayShowQuickToolTip
+{
+    __block CustomButton *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)),
+        dispatch_get_main_queue(), ^{
+            if (g_fileDialogLive && weakSelf)
+            {
+                [weakSelf updateQuickToolTip];
+            }
+        });
+}
+
+- (void)delayHideQuickToolTip
+{
+    __block CustomButton *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)),
+        dispatch_get_main_queue(), ^{
+            if (weakSelf && g_fileDialogLive)
+            {
+                [weakSelf updateQuickToolTip];
+            }
+        });
+}
+
+- (void)drawRect:(NSRect)dirtyRect {
+    NSColor *bgColor = nil;
+    if (self.isClicked) {
+        bgColor = self.clickedBackgroundColor;
+    } else if (self.isHovered) {
+        bgColor = self.hoverBackgroundColor;
+    } else {
+        bgColor = self.normalBackgroundColor;
+    }
+    if (bgColor) {
+        [bgColor setFill];
+        NSRectFill(dirtyRect);
+    }
+    [super drawRect:dirtyRect];
+}
+
+- (void)mouseEntered:(NSEvent *)event
+{
+    //NSLog(@"mouseEntered");
+    self.isHovered = YES;
+    [self delayShowQuickToolTip];
+    [self updateIcon];
+    [super mouseEntered:event];
+}
+
+- (void)mouseExited:(NSEvent *)event
+{
+    //NSLog(@"mouseExited");
+    self.isHovered = NO;
+    [self delayHideQuickToolTip];
+    [self updateIcon];
+    [super mouseExited:event];
+}
+
+- (void)mouseDown:(NSEvent *)event
+{
+    //NSLog(@"mouseDown");
+    self.isClicked = YES;
+    [self updateIcon];
+    [super mouseDown:event];
+    self.isClicked = NO;
+    [self updateIcon];
+}
+
+- (void)mouseUp:(NSEvent *)event
+{
+    //NSLog(@"mouseUp");
+    self.isClicked = NO;
+    [self updateIcon];
+    [super mouseUp:event];
+}
+
+@end
 
 @interface QT_MANGLE_NAMESPACE(QNSOpenSavePanelDelegate)
     : NSObject<NSOpenSavePanelDelegate>
@@ -111,6 +425,8 @@ QT_NAMESPACE_ALIAS_OBJC_CLASS(QNSOpenSavePanelDelegate);
     NSTextField *mTextField;
     NSButton *mEncryptButton;
     NSButton *mSaveToCloudButton;
+    CustomButton *mSaveToCloudSwitchButton;
+    CustomButton *mSaveToCloudTipsButton;
     QCocoaFileDialogHelper *mHelper;
     NSString *mCurrentDir;
 
@@ -130,6 +446,9 @@ QT_NAMESPACE_ALIAS_OBJC_CLASS(QNSOpenSavePanelDelegate);
     mOptions = options;
     mEncryptButton = nil;
     mSaveToCloudButton = nil;
+    mSaveToCloudSwitchButton = nil;
+    mSaveToCloudTipsButton = nil;
+    g_fileDialogLive = true;
     if (mOptions->acceptMode() == QFileDialogOptions::AcceptOpen){
         mOpenPanel = [NSOpenPanel openPanel];
         mSavePanel = mOpenPanel;
@@ -158,8 +477,11 @@ QT_NAMESPACE_ALIAS_OBJC_CLASS(QNSOpenSavePanelDelegate);
     }
 
     [mSavePanel setTitle:options->windowTitle().toNSString()];
-    [self createEncryptButton];
+    [self createSaveToCloudSwitchButton];
+    [self createPopUpButton:selectedVisualNameFilter hideDetails:options->testOption(QFileDialogOptions::HideNameFilterDetails)];
     [self createSaveToCloudButton];
+    [self createEncryptButton];
+    [self createAccessory];
     [self createPopUpButton:selectedVisualNameFilter hideDetails:options->testOption(QFileDialogOptions::HideNameFilterDetails)];
     [self createTextField];
     [self createAccessory];
@@ -200,6 +522,11 @@ QT_NAMESPACE_ALIAS_OBJC_CLASS(QNSOpenSavePanelDelegate);
         [mEncryptButton release];
     if (mSaveToCloudButton)
         [mSaveToCloudButton release];
+    if (mSaveToCloudSwitchButton)
+        [mSaveToCloudSwitchButton release];
+    if (mSaveToCloudTipsButton)
+        [mSaveToCloudTipsButton release];
+    g_fileDialogLive = false;
     [mSavePanel setAccessoryView:nil];
     [mPopUpButton release];
     [mTextField release];
@@ -557,7 +884,7 @@ static QString strippedText(QString s)
 
 - (void)createTextField
 {
-    NSRect textRect = { { 0.0, mSaveToCloudButton ? 36.0 : 3.0 }, { 100.0, 25.0 } };
+    NSRect textRect = { { 110.0, 3.0 }, { 80.0, 25.0 } };
     mTextField = [[NSTextField alloc] initWithFrame:textRect];
     [[mTextField cell] setFont:[NSFont systemFontOfSize:
             [NSFont systemFontSizeForControlSize:NSControlSizeRegular]]];
@@ -572,9 +899,10 @@ static QString strippedText(QString s)
 
 - (void)createEncryptButton
 {
-    if (mOptions->isAccessoryButtonExplicitlySet(QFileDialogOptions::Encrypt))
+    bool isGreaterOne = mNameFilterDropDownList->size() > 1;
+    if (isGreaterOne && mOptions->isAccessoryButtonExplicitlySet(QFileDialogOptions::Encrypt))
     {
-        NSRect btnRect = { { 350.0, 37.5 }, { 42.0, 25.0 } };
+        NSRect btnRect = { { mPopUpButton.frame.origin.x - 42.0, 4.0 }, { 42.0, 25.0 } };
         mEncryptButton = [[NSButton alloc]initWithFrame:btnRect];
         mEncryptButton.bezelStyle = NSRoundedBezelStyle;
         mEncryptButton.bordered = YES;
@@ -614,7 +942,7 @@ static QString strippedText(QString s)
 {
     if (mOptions->isAccessoryButtonExplicitlySet(QFileDialogOptions::SaveToCloud))
     {
-        NSRect btnRect = { { 95.0, 0.0 }, { 100.0, 25.0 } };
+        NSRect btnRect = { { 14.0, 1 }, { 94.0, 25.0 } };
         mSaveToCloudButton = [[NSButton alloc]initWithFrame:btnRect];
         mSaveToCloudButton.bezelStyle = NSRoundedBezelStyle;
         mSaveToCloudButton.bordered = YES;
@@ -625,6 +953,16 @@ static QString strippedText(QString s)
 #endif
         [mSaveToCloudButton setTitle:[self strip:mOptions->accessoryButtonText(QFileDialogOptions::SaveToCloud)]];
         [mSaveToCloudButton sizeToFit];
+
+        if (!mSaveToCloudSwitchButton)
+        {
+            btnRect = mSaveToCloudButton.frame;
+            CGFloat accessViewWidth = 2 * (mPopUpButton.frame.origin.x + 123);
+            CGFloat btnWidth = btnRect.size.width;
+            btnRect.origin.x = accessViewWidth - 14.0 - btnWidth;
+            [mSaveToCloudButton setFrame:btnRect];
+        }
+
         mSaveToCloudButton.hidden = NO;
 #ifdef MAC_OS_X_VERSION_10_12
         mSaveToCloudButton.alignment = NSTextAlignmentCenter;
@@ -640,18 +978,151 @@ static QString strippedText(QString s)
     }
 }
 
+- (void) onSaveToCloud
+{
+    mHelper->QNSSaveToCloud();
+    [[NSApplication sharedApplication] stopModal];
+}
 - (void) saveToCloudButtonClick:(id) sender
 {
     assert(sender);
-    
-    // Cloud documents
-    mHelper->QNSSaveToCloud();
-    // End the runloop loop
-    [[NSApplication sharedApplication] stopModal];
+    [self onSaveToCloud];
+}
+
+- (void)createSaveToCloudSwitchButton
+{
+    bool isGreaterOne = mNameFilterDropDownList->size() > 1;
+    if (isGreaterOne 
+        && mOptions->isAccessoryButtonExplicitlySet(QFileDialogOptions::SaveToCloud)
+        && mOptions->isAccessoryButtonExplicitlySet(QFileDialogOptions::SaveToCloudSwitch))
+    {
+        QMap<QString, QVector<QString>> backupToCloudIcons = mOptions->backupToCloudIcons();
+        NSRect btnRect = { { 446.0, 6.0 }, { 16.0, 25.0 } };
+        mSaveToCloudSwitchButton = [[CustomButton alloc]initWithFrame:btnRect];
+#ifdef MAC_OS_X_VERSION_10_12
+        [mSaveToCloudSwitchButton setButtonType:NSButtonTypeMomentaryPushIn];
+#else
+        [mSaveToCloudSwitchButton setButtonType:NSMomentaryPushButton];
+#endif
+        if (!qt_mac_applicationIsInDarkMode())
+        {
+            NSColor *titleColor = [NSColor colorWithRed:54/255.0 green:66/255.0 blue:90/255.0 alpha:1.0];
+            NSColor *normalColor = [NSColor colorWithRed:198/255.0 green:206/255.0 blue:214/255.0 alpha:0.0];
+            NSColor *hoverColor = [NSColor colorWithRed:198/255.0 green:206/255.0 blue:214/255.0 alpha:0.2];
+            NSColor *clickColor = [NSColor colorWithRed:198/255.0 green:206/255.0 blue:214/255.0 alpha:0.4];
+            mSaveToCloudSwitchButton.customTitleColor = titleColor;
+            mSaveToCloudSwitchButton.normalBackgroundColor = normalColor;
+            mSaveToCloudSwitchButton.hoverBackgroundColor = hoverColor;
+            mSaveToCloudSwitchButton.clickedBackgroundColor = clickColor;
+        }
+        else
+        {
+            NSColor *titleColor = [NSColor colorWithRed:255/255.0 green:255/255.0 blue:255/255.0 alpha:0.85];
+            NSColor *normalColor = [NSColor colorWithRed:255/255.0 green:255/255.0 blue:255/255.0 alpha:0.0];
+            NSColor *hoverColor = [NSColor colorWithRed:255/255.0 green:255/255.0 blue:255/255.0 alpha:0.06];
+            NSColor *clickColor = [NSColor colorWithRed:255/255.0 green:255/255.0 blue:255/255.0 alpha:0.1];
+            mSaveToCloudSwitchButton.customTitleColor = titleColor;
+            mSaveToCloudSwitchButton.normalBackgroundColor = normalColor;
+            mSaveToCloudSwitchButton.hoverBackgroundColor = hoverColor;
+            mSaveToCloudSwitchButton.clickedBackgroundColor = clickColor;
+        }
+        if (mOptions->isBackupToCloudEnable())
+        {
+            [mSaveToCloudSwitchButton updateIcons:backupToCloudIcons.value("enable")];
+            btnRect = [mSaveToCloudSwitchButton setCustomTitle:[self strip:mOptions->accessoryButtonText(QFileDialogOptions::SaveToCloudEnabled)]];
+            mSaveToCloudSwitchButton.toolTipText = [self strip:mOptions->backupToCloudTip()];
+        }
+        else
+        {
+            [mSaveToCloudSwitchButton updateIcons:backupToCloudIcons.value("disable")];
+            NSString *title = [self strip:mOptions->accessoryButtonText(QFileDialogOptions::SaveToCloudSwitch)];
+            CGFloat width = [mSaveToCloudSwitchButton getButtonWidthWithTitle:title];
+            btnRect.origin.x = 298.0 + width;
+            [mSaveToCloudSwitchButton setFrame:btnRect];
+            btnRect = [mSaveToCloudSwitchButton setCustomTitle:title];
+        }
+
+        NSRect tipsBtnRect = { { btnRect.origin.x + btnRect.size.width, 6.0 }, { 16.0, 25.0 } };
+        mSaveToCloudTipsButton = [[CustomButton alloc]initWithFrame:tipsBtnRect];
+
+        mSaveToCloudTipsButton.toolTipText = [self strip:mOptions->backupToCloudTip()];
+#ifdef MAC_OS_X_VERSION_10_12
+        [mSaveToCloudTipsButton setButtonType:NSButtonTypeMomentaryPushIn];
+#else
+        [mSaveToCloudTipsButton setButtonType:NSMomentaryPushButton];
+#endif
+
+        if (mOptions->isBackupToCloudEnable())
+        {
+            mSaveToCloudTipsButton.hidden = YES;
+        }
+        else
+        {
+            mSaveToCloudTipsButton.hidden = NO;
+        }
+        [mSaveToCloudTipsButton updateIcons:backupToCloudIcons.value("tip")];
+        [mSaveToCloudTipsButton setCustomTitle:@""];
+
+#ifdef MAC_OS_X_VERSION_10_12
+        mSaveToCloudSwitchButton.alignment = NSTextAlignmentCenter;
+#else
+        mSaveToCloudSwitchButton.alignment = NSCenterTextAlignment;
+#endif
+
+        [mSaveToCloudSwitchButton setTarget:self];
+        [mSaveToCloudSwitchButton setAction:@selector(saveToCloudSwitchButtonClick:)];
+    }
+}
+
+- (void) saveToCloudSwitchButtonClick:(id) sender
+{
+    assert(sender);
+    if (mOptions->isBackupToCloudEnable())
+        return ;
+
+    if (!qApp->property("hostLogined").toBool())
+    {
+        [self onSaveToCloud];
+        return;
+    }
+
+    mOptions->setBackupToCloudEnable(true);
+    [mSaveToCloudSwitchButton updateIcons:mOptions->backupToCloudIcons().value("loading")];
+    // 云文档
+    mHelper->QNSSaveToCloudSwitch();
+    __block QNSOpenSavePanelDelegate* weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)),
+        dispatch_get_main_queue(), ^{
+            if (g_fileDialogLive && weakSelf)
+            {
+                [weakSelf onEnableCloudBackupCallback:true];
+            }
+        });
+}
+
+- (void) onEnableCloudBackupCallback:(bool) success
+{
+    if (success)
+    {
+        mOptions->setBackupToCloudEnable(true);
+        [mSaveToCloudSwitchButton updateIcons:mOptions->backupToCloudIcons().value("enable")];
+        [mSaveToCloudSwitchButton setCustomTitle:[self strip:mOptions->accessoryButtonText(QFileDialogOptions::SaveToCloudEnabled)]];
+        mSaveToCloudSwitchButton.toolTipText = [self strip:mOptions->backupToCloudTip()];
+        mSaveToCloudTipsButton.hidden = YES;
+    }
+    else
+    {
+        mOptions->setBackupToCloudEnable(false);
+        [mSaveToCloudSwitchButton updateIcons:mOptions->backupToCloudIcons().value("error")];
+    }
 }
 - (void)createPopUpButton:(const QString &)selectedFilter hideDetails:(BOOL)hideDetails
 {
-    NSRect popUpRect = { { 100.0, mSaveToCloudButton ? 38.0 : 5.0 }, { 250.0, 25.0 } };
+    NSRect popUpRect = { { 200.0, 4.0 }, { 250.0, 25.0 } };
+    if (mSaveToCloudSwitchButton)
+    {
+        popUpRect.origin.x = mSaveToCloudSwitchButton.frame.origin.x - popUpRect.size.width;
+    }
     mPopUpButton = [[NSPopUpButton alloc] initWithFrame:popUpRect pullsDown:NO];
     [mPopUpButton setTarget:self];
     [mPopUpButton setAction:@selector(filterChanged:)];
@@ -683,17 +1154,23 @@ static QString strippedText(QString s)
 - (void)createAccessory
 {
     bool isGreaterOne = mNameFilterDropDownList->size() > 1;
-    NSRect accessoryRect = { { 0.0, 0.0 }, { 450.0, (mSaveToCloudButton && isGreaterOne) ? 69.0 : 33.0 } };
+    CGFloat width = 2 * (mPopUpButton.frame.origin.x + 123);
+    NSRect accessoryRect = { { 0.0, 0.0 }, { width, 33.0 } };
     mAccessoryView = [[NSView alloc] initWithFrame:accessoryRect];
     if (isGreaterOne)
     {
-        [mAccessoryView addSubview:mTextField];
+        if (mTextField)
+            [mAccessoryView addSubview:mTextField];
         [mAccessoryView addSubview:mPopUpButton];
     }
     if (mEncryptButton)
         [mAccessoryView addSubview:mEncryptButton];
     if (mSaveToCloudButton)
         [mAccessoryView addSubview:mSaveToCloudButton];
+    if (mSaveToCloudSwitchButton)
+        [mAccessoryView addSubview:mSaveToCloudSwitchButton];
+    if (mSaveToCloudTipsButton)
+        [mAccessoryView addSubview:mSaveToCloudTipsButton];
 }
 
 @end
@@ -817,6 +1294,18 @@ void QCocoaFileDialogHelper::QNSEncryptFile()
 void QCocoaFileDialogHelper::QNSSaveToCloud()
 {
     emit saveToCloud();
+}
+
+void QCocoaFileDialogHelper::QNSSaveToCloudSwitch()
+{
+    emit saveToCloudSwitch();
+}
+
+void QCocoaFileDialogHelper::onEnableCloudBackupCallback(bool success)
+{
+    if (mDelegate) {
+        [mDelegate onEnableCloudBackupCallback:success];
+    }
 }
 
 QString QCocoaFileDialogHelper::selectedNameFilter() const

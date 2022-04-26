@@ -313,7 +313,7 @@ public:
     Q_ENUM(DialogLabel)
 
 #ifdef Q_OS_MAC
-    enum AccessoryButton { Encrypt, SaveToCloud, AccessoryButtonCount};
+    enum AccessoryButton { Encrypt, SaveToCloud, SaveToCloudSwitch, SaveToCloudEnabled, AccessoryButtonCount};
 #endif
     enum FileDialogOption
     {
@@ -378,6 +378,14 @@ public:
     void setAccessoryButtonText(AccessoryButton button, const QString &text);
     QString accessoryButtonText(AccessoryButton button) const;
     bool isAccessoryButtonExplicitlySet(AccessoryButton label);
+    void setBackupToCloudEnable(bool isEnable);
+    bool isBackupToCloudEnable();
+
+    void setBackupToCloudIcons(QMap<QString, QVector<QString>> iconsMap);
+    QMap<QString, QVector<QString>> backupToCloudIcons();
+
+    void setBackupToCloudTip(const QString& tips);
+    QString backupToCloudTip();
 #endif
     QUrl initialDirectory() const;
     void setInitialDirectory(const QUrl &);
@@ -433,6 +441,7 @@ Q_SIGNALS:
 #ifdef Q_OS_MAC
     void encryptFile();
     void saveToCloud();
+    void saveToCloudSwitch();
 #endif
 
 private:

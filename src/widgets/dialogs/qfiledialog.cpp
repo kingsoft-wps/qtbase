@@ -552,7 +552,9 @@ void QFileDialogPrivate::initHelper(QPlatformDialogHelper *h)
     QObject::connect(h, SIGNAL(filterSelected(QString)), d, SIGNAL(filterSelected(QString)));
 #ifdef Q_OS_MAC
     QObject::connect(h, SIGNAL(encryptFile()), d, SLOT(onEncryptFileButtonClick()));
-	QObject::connect(h, SIGNAL(saveToCloud()), d, SLOT(onSaveToCloudButtonClick()));
+    QObject::connect(h, SIGNAL(saveToCloud()), d, SLOT(onSaveToCloudButtonClick()));
+    QObject::connect(h, SIGNAL(saveToCloudSwitch()), d, SLOT(onSaveToCloudSwitchButtonClick()));
+    QObject::connect(d, SIGNAL(enableCloudBackupCallback(bool)), h, SLOT(onEnableCloudBackupCallback(bool)));
 #endif
     static_cast<QPlatformFileDialogHelper *>(h)->setOptions(options);
     nativeDialogInUse = true;
@@ -2137,6 +2139,36 @@ QString QFileDialog::accessoryButtonText(AccessoryButton) const
     return QString();
 }
 
+
+void QFileDialog::setBackupToCloudEnable(bool isEnable)
+{
+    Q_D(QFileDialog);
+    d->options->setBackupToCloudEnable(isEnable);
+}
+
+void QFileDialog::setBackupToCloudIcons(QMap<QString, QVector<QString>> iconsMap)
+{
+    Q_D(QFileDialog);
+    d->options->setBackupToCloudIcons(iconsMap);
+}
+
+QMap<QString, QVector<QString>> QFileDialog::backupToCloudIcons()
+{
+    Q_D(QFileDialog);
+    return d->options->backupToCloudIcons();
+}
+
+void QFileDialog::setBackupToCloudTip(const QString& tips)
+{
+    Q_D(QFileDialog);
+    d->options->setBackupToCloudTip(tips);
+}
+
+QString QFileDialog::backupToCloudTip()
+{
+    Q_D(QFileDialog);
+    return d->options->backupToCloudTip();
+}
 void QFileDialog::onEncryptFileButtonClick()
 {
     // Send a notification to show the encrypted box, first hide the current box
@@ -2170,6 +2202,11 @@ void QFileDialog::onSaveToCloudButtonClick()
     // emit cloudFileButtonClicked();
     // Show cloud document save box
     this->setResult(QFileDialog::SaveToCloudClicked);
+}
+void QFileDialog::onSaveToCloudSwitchButtonClick()
+{
+    QGuiApplication::postEvent(parent(), new QEnableCloudBackupEvent());
+    this->setResult(QFileDialog::SaveToCloudSwitchClicked);
 }
 void QFileDialog::setExtraArgument(const QVariant &v)
 {
@@ -2687,14 +2724,14 @@ QString QFileDialogPrivate::initialSelection(const QUrl &url)
 /*!
  \reimp
 */
-void QFileDialog::done(int result)
+void QFileDialog::done(int r)
 {
     Q_D(QFileDialog);
 
 #ifdef Q_OS_MAC
     int oldResult = result();
 #endif
-    QDialog::done(result);
+    QDialog::done(r);
 #ifdef Q_OS_MAC
     if (oldResult == QFileDialog::SaveToCloudClicked)
         setResult(QFileDialog::SaveToCloudClicked);
