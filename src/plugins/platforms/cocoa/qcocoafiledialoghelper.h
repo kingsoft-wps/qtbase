@@ -84,6 +84,8 @@ public:
     void QNSOpenSavePanelDelegate_filterSelected(int menuIndex);
     void QNSEncryptFile();
     void QNSSaveToCloud();
+    void QNSSaveToCloudSwitch();
+    void onEnableCloudBackupCallback(bool success);
 private:
     QT_MANGLE_NAMESPACE(QNSOpenSavePanelDelegate) *mDelegate;
     QUrl mDir;

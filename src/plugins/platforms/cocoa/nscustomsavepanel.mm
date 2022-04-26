@@ -47,14 +47,6 @@ static NSCustomSavePanel *_instance = nil;
 
 +(instancetype)allocWithZone:(struct _NSZone *)zone
 {
-    //    @synchronized (self) {
-    //        // 为了防止多线程同时访问对象，造成多次分配内存空间，所以要加上线程锁
-    //        if (_instance == nil) {
-    //            _instance = [super allocWithZone:zone];
-    //        }
-    //        return _instance;
-    //    }
-    // 也可以使用一次性代码
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         if (_instance == nil) {
@@ -64,7 +56,6 @@ static NSCustomSavePanel *_instance = nil;
     return _instance;
 }
 
-// 为了严谨，也要重写copyWithZone 和 mutableCopyWithZone
 -(id)copyWithZone:(NSZone *)zone
 {
     return _instance;
@@ -74,23 +65,19 @@ static NSCustomSavePanel *_instance = nil;
     return _instance;
 }
 
-//不需要计数器+1
 - (id)retain {
     return self;
 }
 
-//不需要. 堆区的对象才需要
 - (id)autorelease {
     return self;
 }
 
-//不需要
 - (oneway void)release {
 }
 
-//不需要计数器个数. 直接返回最大无符号整数
 - (NSUInteger)retainCount {
-    return UINT_MAX;  //参照常量区字符串的retainCount
+    return UINT_MAX;
 }
 
 + (NSCustomSavePanel*) customSavePanel

@@ -186,6 +186,14 @@ public:
     void setAccessoryButtonText(AccessoryButton button, const QString &text);
     QString accessoryButtonText(AccessoryButton button) const;
 
+    void setBackupToCloudEnable(bool isEnable);
+    bool isBackupToCloudEnable();
+
+    void setBackupToCloudIcons(QMap<QString, QVector<QString>> iconsMap);
+    QMap<QString, QVector<QString>> backupToCloudIcons();
+
+    void setBackupToCloudTip(const QString& tips);
+    QString backupToCloudTip();
     void setExtraArgument(const QVariant &v);
     QVariant extraArgument() const;
 #endif
@@ -218,11 +226,13 @@ Q_SIGNALS:
     void directoryUrlEntered(const QUrl &directory);
 
     void filterSelected(const QString &filter);
+    void enableCloudBackupCallback(bool success);
 #ifdef Q_OS_MAC
 public Q_SLOTS:
 
     void onEncryptFileButtonClick();
     void onSaveToCloudButtonClick();
+    void onSaveToCloudSwitchButtonClick();
 #endif // Q_OS_MAC
 public:
 

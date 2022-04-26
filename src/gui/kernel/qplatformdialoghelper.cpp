@@ -48,6 +48,7 @@
 #include <QtCore/QUrl>
 #include <QtCore/QVector>
 #include <QtGui/QColor>
+#include <QtGui/QIcon>
 
 #include <algorithm>
 
@@ -455,7 +456,8 @@ public:
         fileMode(QFileDialogOptions::AnyFile),
         acceptMode(QFileDialogOptions::AcceptOpen),
         filters(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::AllDirs),
-        useDefaultNameFilters(true)
+        useDefaultNameFilters(true),
+        isBackupToCloudEnable(false)
     {}
 
     QFileDialogOptions::FileDialogOptions options;
@@ -480,6 +482,9 @@ public:
     QString initiallySelectedNameFilter;
     QList<QUrl> initiallySelectedFiles;
     QStringList supportedSchemes;
+    bool isBackupToCloudEnable;
+    QMap<QString, QVector<QString>> backupToCloudIconsMap;
+    QString backupToCloudTip;
 };
 
 QFileDialogOptions::QFileDialogOptions(QFileDialogOptionsPrivate *dd)
@@ -701,6 +706,35 @@ bool QFileDialogOptions::isAccessoryButtonExplicitlySet(AccessoryButton button)
     return button >= 0 && button < AccessoryButtonCount && !d->buttons[button].isEmpty();
 }
 
+void QFileDialogOptions::setBackupToCloudEnable(bool isEnable)
+{
+    d->isBackupToCloudEnable = isEnable;
+}
+
+bool QFileDialogOptions::isBackupToCloudEnable()
+{
+    return d->isBackupToCloudEnable;
+}
+
+void QFileDialogOptions::setBackupToCloudIcons(QMap<QString, QVector<QString>> iconsMap)
+{
+    d->backupToCloudIconsMap = iconsMap;
+}
+
+QMap<QString, QVector<QString>> QFileDialogOptions::backupToCloudIcons()
+{
+    return d->backupToCloudIconsMap;
+}
+
+void QFileDialogOptions::setBackupToCloudTip(const QString& tips)
+{
+    d->backupToCloudTip = tips;
+}
+
+QString QFileDialogOptions::backupToCloudTip()
+{
+    return d->backupToCloudTip;
+}
 #endif
 QUrl QFileDialogOptions::initialDirectory() const
 {
