@@ -488,12 +488,15 @@ void QWindowsTheme::clearPalettes()
 
 void QWindowsTheme::refreshPalettes()
 {
-
     if (!QGuiApplication::desktopSettingsAware())
         return;
+    delete m_palettes[SystemPalette];
     m_palettes[SystemPalette] = new QPalette(systemPalette());
+    delete m_palettes[ToolTipPalette];
     m_palettes[ToolTipPalette] = new QPalette(toolTipPalette(*m_palettes[SystemPalette]));
+    delete m_palettes[MenuPalette];
     m_palettes[MenuPalette] = new QPalette(menuPalette(*m_palettes[SystemPalette]));
+    delete m_palettes[MenuBarPalette];
     m_palettes[MenuBarPalette] = menuBarPalette(*m_palettes[MenuPalette]);
 }
 

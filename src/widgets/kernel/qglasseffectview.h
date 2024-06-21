@@ -71,7 +71,10 @@ public:
         ToolTip,
         ContentBackground,
         UnderWindowBackground,
-        UnderPageBackground
+        UnderPageBackground,
+        Alert,
+        AlertForApplicationModal,
+        AlertForWindowModal,
     };
 
     enum BlendingMode { BehindWindow, WithinWindow };
@@ -107,6 +110,7 @@ public:
     void setBlendingMode(QGlassEffectView::BlendingMode node);
     void setState(QGlassEffectView::State state);
     void setColor(QColor clr);
+    void setBackgroundColor(QColor clr);
     void setAlpha(float value);
     void setRoundCorner(int roundRadius,
                         QGlassEffectView::CornerMasks mask = QGlassEffectView::CornerMask::All);
@@ -114,10 +118,6 @@ public:
     void setVisible(bool isVisble);
     static QColor getSystemAccentColor();
     static QColor getMenuSelectedTextColor();
-    static void setFadeOutAlpha(float alphaValue);
-    static float fadeOutAlpha();
-    static void setFadeOutStatus(bool fadeOutStatus);
-    static bool fadeOutStatus();
 
     void loadGlassEffectView();
 public Q_SLOTS:

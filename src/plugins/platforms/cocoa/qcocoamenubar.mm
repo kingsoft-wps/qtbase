@@ -265,10 +265,20 @@ QCocoaMenuBar *QCocoaMenuBar::findGlobalMenubar()
     return nullptr;
 }
 
-void QCocoaMenuBar::updateMenuBarImmediately()
+void QCocoaMenuBar::checkGlobalMenu(bool force)
+{
+    NSMenu *nsMenuBar = NSApp.mainMenu;
+    QCocoaMenuBar *globalMenuBar = findGlobalMenubar();
+    if (!nsMenuBar || !globalMenuBar)
+        return;
+    bool useGlobal = globalMenuBar->nsMenu() != nsMenuBar;
+    updateMenuBarImmediately(useGlobal, force);
+}
+
+void QCocoaMenuBar::updateMenuBarImmediately(bool useGlobal/* = false*/, bool forceGlobal/* = false*/)
 {
     QMacAutoReleasePool pool;
-    QCocoaMenuBar *mb = findGlobalMenubar();
+    QCocoaMenuBar *mb = useGlobal ? findGlobalMenubar() : nullptr;
     QCocoaWindow *cw = findWindowForMenubar();
 
     QWindow *win = cw ? cw->window() : nullptr;
@@ -288,11 +298,26 @@ void QCocoaMenuBar::updateMenuBarImmediately()
             return;
     }
 
-    if (cw && cw->menubar())
+    if (cw && cw->menubar() && !forceGlobal)
         mb = cw->menubar();
 
-    if (!mb)
+    if (!mb) {
+        NSMenu *nsMenu = [NSApp mainMenu];
+        if (!cw || !nsMenu)
+            return;
+        for (auto *menubar : qAsConst(static_menubars)) {
+            if (nsMenu == menubar->nsMenu()) {
+                bool disableForModal = menubar->shouldDisable(cw);
+                for (auto menu : qAsConst(menubar->m_menus)) {
+                    if (!menu)
+                        continue;
+                    menu->propagateEnabledState(!disableForModal);
+                }
+                break;
+            }
+        }
         return;
+    }
 
 #ifdef QT_COCOA_ENABLE_MENU_DEBUG
     qDebug() << "QCocoaMenuBar" << "updateMenuBarImmediately" << cw;

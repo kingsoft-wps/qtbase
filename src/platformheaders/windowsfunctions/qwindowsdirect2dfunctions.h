@@ -53,6 +53,7 @@ struct ID2D1Bitmap1;
 struct ID2D1DeviceContext;
 struct ID3D11Texture2D;
 struct IDWriteFontFace;
+struct IDWriteFactory1;
 
 
 QT_BEGIN_NAMESPACE
@@ -84,6 +85,7 @@ public:
         ID2D1Factory1 *d2dFactory = nullptr;
         IDXGIFactory2 *dxgiFactory = nullptr;
         ID3D11DeviceContext *d3dDeviceContext = nullptr;
+        IDWriteFactory1 *dwFactroy1 = nullptr;
     };
 
 public:

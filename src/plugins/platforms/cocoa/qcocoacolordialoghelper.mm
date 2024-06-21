@@ -202,7 +202,8 @@ QT_NAMESPACE_ALIAS_OBJC_CLASS(QNSColorPanelDelegate);
             [color getComponents:components];
             mQtColor.setCmykF(components[0], components[1], components[2], components[3], components[4]);
         } else {
-            NSColor *tmpColor = [color colorUsingColorSpaceName:NSCalibratedRGBColorSpace];
+            NSColorSpace *space = [[NSApp mainWindow] colorSpace] ?: [[NSScreen mainScreen] colorSpace];
+            NSColor *tmpColor = [color colorUsingColorSpace:space];
             CGFloat red = 0, green = 0, blue = 0, alpha = 0;
             [tmpColor getRed:&red green:&green blue:&blue alpha:&alpha];
             mQtColor.setRgbF(red, green, blue, alpha);

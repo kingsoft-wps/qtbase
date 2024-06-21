@@ -48,7 +48,7 @@ struct ID2D1Device;
 struct ID2D1Factory1;
 struct IDXGIFactory2;
 struct ID3D11DeviceContext;
-struct IDWriteFactory;
+struct IDWriteFactory1;
 struct IDWriteGdiInterop;
 
 QT_BEGIN_NAMESPACE
@@ -72,7 +72,7 @@ public:
     ID2D1Factory1 *d2dFactory() const;
     IDXGIFactory2 *dxgiFactory() const;
     ID3D11DeviceContext *d3dDeviceContext() const;
-    IDWriteFactory *dwriteFactory() const;
+    IDWriteFactory1 *dwriteFactory() const;
     IDWriteGdiInterop *dwriteGdiInterop() const;
 
     float dpiForSystem() const;

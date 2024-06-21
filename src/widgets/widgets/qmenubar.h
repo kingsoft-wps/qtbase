@@ -123,6 +123,7 @@ public:
 
 #if defined(Q_OS_MACOS) || defined(Q_CLANG_QDOC)
     NSMenu* toNSMenu();
+    void checkGlobalMenu(bool force = false);
 #endif
 
     bool isNativeMenuBar() const;

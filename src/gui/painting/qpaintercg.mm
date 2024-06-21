@@ -548,6 +548,17 @@ bool QCGPainter::hasClipping() const
     return {};
 }
 
+/*!
+    Clears clipping.
+    \warning The setClipping function should be implemented.
+*/
+void QCGPainter::clearClipping()
+{
+    if (!cgContextRef)
+        return;
+    CGContextResetClip((CGContextRef)cgContextRef);
+}
+
 
 /*!
     Enables clipping if  \a enable is true, or disables clipping if  \a

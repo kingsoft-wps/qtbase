@@ -46,10 +46,6 @@
 #include <QtGui/private/qcoregraphics_p.h>
 
 QT_BEGIN_NAMESPACE
-
-float QGlassEffectViewPrivate::s_fadeOutAlphaValue = 0.4;
-bool QGlassEffectViewPrivate::s_fadeOutStatus = true;
-
 QGlassEffectView::QGlassEffectView(QWidget* hostWnd)
     : QObject(hostWnd)
     , d_ptr(new QGlassEffectViewPrivate(hostWnd))
@@ -134,6 +130,12 @@ void QGlassEffectView::setColor(QColor clr)
     d->setColor(clr);
 }
 
+void QGlassEffectView::setBackgroundColor(QColor clr)
+{
+    Q_D(QGlassEffectView);
+    d->setBackgroundColor(clr);
+}
+
 void QGlassEffectView::setAlpha(float value)
 {
     Q_D(QGlassEffectView);
@@ -165,27 +167,7 @@ QColor QGlassEffectView::getSystemAccentColor()
 
 QColor QGlassEffectView::getMenuSelectedTextColor()
 {
-	return qt_mac_toQColor([NSColor selectedMenuItemTextColor]);
-}
-
-void QGlassEffectView::setFadeOutAlpha(float alphaValue)
-{
-    QGlassEffectViewPrivate::setFadeOutAlpha(alphaValue);
-}
-
-float QGlassEffectView::fadeOutAlpha()
-{
-    return QGlassEffectViewPrivate::fadeOutAlpha();
-}
-
-void QGlassEffectView::setFadeOutStatus(bool fadeOutStatus)
-{
-    QGlassEffectViewPrivate::setFadeOutStatus(fadeOutStatus);
-}
-
-bool QGlassEffectView::fadeOutStatus()
-{
-    return QGlassEffectViewPrivate::fadeOutStatus();
+    return qt_mac_toQColor([NSColor selectedMenuItemTextColor]);
 }
 
 void QGlassEffectView::loadGlassEffectView()
@@ -285,15 +267,8 @@ bool QGlassEffectViewPrivate::eventFilter(QObject* watched, QEvent* event)
         QRect rect = w->rect();
         setFrame(rect);
     }
-    if (m_hostWnd == watched && event->type() == QEvent::Polish)
+    if (m_hostWnd == watched && (event->type() == QEvent::Polish || event->type() == QEvent::WindowActivate))
         loadGlassEffectView();
-    if (m_hostWnd == watched && event->type() == QEvent::Show && QGlassEffectViewPrivate::fadeOutStatus())
-        setAlpha(1);
-    if (m_hostWnd == watched && event->type() == QEvent::Close && QGlassEffectViewPrivate::fadeOutStatus())
-    {
-        if (qt_mac_applicationIsInDarkMode())
-            setAlpha(QGlassEffectViewPrivate::fadeOutAlpha());
-    }
 
     return false;
 }
@@ -372,6 +347,19 @@ void QGlassEffectViewPrivate::setMaterial(QGlassEffectView::Material material)
             case QGlassEffectView::Material::UnderPageBackground :
                 mtl = NSVisualEffectMaterialUnderPageBackground;
                 break;
+            case QGlassEffectView::Material::Alert :
+            case QGlassEffectView::Material::AlertForApplicationModal :
+                if (__builtin_available(macOS 11.0, *))
+                    mtl = (NSVisualEffectMaterial)31;
+                else
+                    mtl = NSVisualEffectMaterialSheet;
+                break;
+            case QGlassEffectView::Material::AlertForWindowModal :
+                if (__builtin_available(macOS 11.0, *))
+                    mtl = (NSVisualEffectMaterial)33;
+                else
+                    mtl = NSVisualEffectMaterialSheet;
+                break;
             default :
                 mtl = NSVisualEffectMaterialTitlebar;
         }
@@ -420,6 +408,15 @@ void QGlassEffectViewPrivate::setColor(QColor clr)
     
     m_glassView.wantsLayer = YES;
     m_glassView.layer.backgroundColor = [NSColor colorWithRed:clr.redF() green:clr.greenF()  blue:clr.blueF()  alpha:clr.alphaF()].CGColor;
+}
+
+void QGlassEffectViewPrivate::setBackgroundColor(QColor clr)
+{
+    if (!m_superView)
+        return;
+
+    m_superView.wantsLayer = YES;;
+    m_superView.layer.backgroundColor = [NSColor colorWithRed:clr.redF() green:clr.greenF()  blue:clr.blueF()  alpha:clr.alphaF()].CGColor;
 }
 
 void QGlassEffectViewPrivate::setAlpha(float value)
@@ -474,7 +471,7 @@ void QGlassEffectViewPrivate::onBorderColorChanged()
         return;
 
     m_superView.wantsLayer = YES;
-    if (qt_mac_applicationIsInDarkMode())
+    if (qt_mac_applicationIsInDarkMode() && m_hostWnd->windowModality() != Qt::WindowModal)
         m_superView.layer.borderColor = [[NSColor tertiaryLabelColor] CGColor];
     else
         m_superView.layer.borderColor = [[NSColor clearColor] CGColor];
@@ -489,39 +486,25 @@ void QGlassEffectViewPrivate::loadGlassEffectView()
         m_glassView  = [[NSVisualEffectView alloc] initWithFrame:m_superView.frame];
 
     bool loadSubView = true;
-    for (NSView* subView in [m_superView subviews])
+    for (NSView* subView in [m_superView.superview subviews])
     {
         if (subView == m_glassView)
         {
             loadSubView = false;
             break;
         }
+        else if ([subView isKindOfClass:[NSVisualEffectView class]])
+        {
+            if (NSVisualEffectView *visualEffectView = (NSVisualEffectView *)subView)
+                visualEffectView.material = m_glassView.material;
+        }
     }
 
     if (loadSubView)
         [m_superView.superview addSubview:m_glassView positioned:NSWindowBelow relativeTo:m_superView];
-}
 
-void QGlassEffectViewPrivate::setFadeOutAlpha(float alphaValue)
-{
-    QGlassEffectViewPrivate::s_fadeOutAlphaValue = alphaValue;
+    NSWindow *window = [m_glassView window];
+    if (window != nil)
+        window.animationBehavior = NSWindowAnimationBehaviorNone;
 }
-
-float QGlassEffectViewPrivate::fadeOutAlpha()
-{
-    return QGlassEffectViewPrivate::s_fadeOutAlphaValue;
-}
-
-void QGlassEffectViewPrivate::setFadeOutStatus(bool fadeOutStatus)
-{
-    QGlassEffectViewPrivate::s_fadeOutStatus = fadeOutStatus;
-}
-
-bool QGlassEffectViewPrivate::fadeOutStatus()
-{
-    if (@available(macOS 11.0, *))
-        return QGlassEffectViewPrivate::s_fadeOutStatus;
-    return false;
-}
-
 QT_END_NAMESPACE

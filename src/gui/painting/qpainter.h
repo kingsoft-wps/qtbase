@@ -139,6 +139,7 @@ public:
 
     void setCGContext(void *context);
     void *getCGContext();
+    void clearCGClipping();
 #endif
 
     void initFrom(const QPaintDevice *device);

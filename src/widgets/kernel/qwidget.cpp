@@ -9677,6 +9677,10 @@ bool QWidget::event(QEvent *event)
             QApplication::sendEvent(this, &e);
 
             d->syncBackingStore();
+#ifdef Q_OS_MACOS
+            QEvent ev(QEvent::AfterSyncBackingStore);
+            QApplication::sendEvent(this, &ev);
+#endif
         }
         break;
     case QEvent::UpdateLater:

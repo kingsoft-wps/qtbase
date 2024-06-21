@@ -148,6 +148,7 @@ public:
 
     void setClipping(bool enable);
     bool hasClipping() const;
+    void clearClipping();
 
     QRectF clipBoundingRect() const;
 

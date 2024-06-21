@@ -69,16 +69,31 @@ public:
     QWindowsDirect2DDeviceContextPrivate(ID2D1DeviceContext *dc)
         : deviceContext(dc)
     {
-        if (!dc) {
-            HRESULT hr = QWindowsDirect2DContext::instance()->d2dDevice()->CreateDeviceContext(
-                        D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
-                        &deviceContext);
+        do {
+            if (dc) {
+                break;
+            }
+
+            QWindowsDirect2DContext *ptrIns = QWindowsDirect2DContext::instance();
+            if (!ptrIns) {
+                break;
+            }
+
+            ID2D1Device *ptrD2D1 = ptrIns->d2dDevice();
+            if (!ptrD2D1) {
+                break;
+            }
+
+            HRESULT hr =
+                    ptrD2D1->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &deviceContext);
             if (Q_UNLIKELY(FAILED(hr)))
                 qFatal("%s: Couldn't create Direct2D Device Context: %#lx", __FUNCTION__, hr);
-        }
+        } while (false);
 
         Q_ASSERT(deviceContext);
-        deviceContext->SetUnitMode(D2D1_UNIT_MODE_PIXELS);
+        if (deviceContext) {
+            deviceContext->SetUnitMode(D2D1_UNIT_MODE_PIXELS);
+        }
     }
 
     void begin()

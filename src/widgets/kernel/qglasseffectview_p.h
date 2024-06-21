@@ -63,17 +63,13 @@ public:
     void setBlendingMode(QGlassEffectView::BlendingMode mode);
     void setState(QGlassEffectView::State state);
     void setColor(QColor clr);
+    void setBackgroundColor(QColor clr);
     void setAlpha(float value);
     void setRoundCorner(int roundRadius, QGlassEffectView::CornerMasks mask = QGlassEffectView::CornerMask::All);
 
     void setVisible(bool isVisible);
     void onBorderColorChanged();
     void loadGlassEffectView();
-
-    static void setFadeOutAlpha(float alphaValue);
-    static float fadeOutAlpha();
-    static void setFadeOutStatus(bool fadeOutStatus);
-    static bool fadeOutStatus();
 protected:
     bool eventFilter(QObject* obj, QEvent* event) override;
 
@@ -85,8 +81,6 @@ private:
     NSVisualEffectView* m_glassView; //glass view
     NSView* m_superView; //host view
     QWidget* m_hostWnd; //host wind
-    static bool s_fadeOutStatus;
-    static float s_fadeOutAlphaValue;
 };
 
 QT_END_NAMESPACE

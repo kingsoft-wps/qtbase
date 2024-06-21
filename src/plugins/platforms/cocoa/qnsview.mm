@@ -375,14 +375,6 @@
 
 // ----------------------------- keyEquivalent ---------------------------------
 
-- (void)undo:(id)sender {
-
-}
-
-- (void)redo:(id)sender {
-
-}
-
 - (void)cut:(id)sender {
 
 }

@@ -68,6 +68,7 @@ QT_FORWARD_DECLARE_CLASS(QCocoaMenuItem);
 - (NSMenuItem *)appSpecificMenuItem:(QCocoaMenuItem *)platformItem;
 - (NSMenuItem *)checkUpdateMenuItem;
 - (NSMenuItem *)appStoreEvalMenuItem;
+- (NSMenuItem *)snManagerItem;
 - (NSMenuItem *)proxySettingMenuItem;
 - (void)qtTranslateApplicationMenu;
 - (NSArray<NSMenuItem *> *)mergeable;

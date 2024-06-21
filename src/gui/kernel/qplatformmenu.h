@@ -68,7 +68,7 @@ public:
     enum MenuRole { NoRole = 0, TextHeuristicRole, ApplicationSpecificRole, AboutQtRole,
                     AboutRole, PreferencesRole, QuitRole,
 #ifdef Q_OS_MAC
-                    FinderSettingRole, CheckForUpdatesRole, AppStoreEvalRole, ProxySettingRole,
+                    FinderSettingRole, SNManagerRole, CheckForUpdatesRole, AppStoreEvalRole, ProxySettingRole,
 #endif // Q_OS_MAC
                     // However these roles are private, perhaps temporarily.
                     // They could be added as public QAction roles if necessary.
@@ -165,6 +165,9 @@ public:
 
     virtual QPlatformMenu *menuForTag(quintptr tag) const = 0;
     virtual QPlatformMenu *createMenu() const;
+#ifdef Q_OS_MACOS
+    virtual void checkGlobalMenu(bool force) { }
+#endif
 };
 
 QT_END_NAMESPACE

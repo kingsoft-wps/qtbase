@@ -47,7 +47,8 @@
 #include <d2d1_1helper.h>
 #include <dxgi1_2.h>
 #include <wrl.h>
-#include <dwrite.h>
+#include <dwrite_1.h>
+
 
 using Microsoft::WRL::ComPtr;
 
@@ -103,6 +104,34 @@ static bool isSupportedWarp()
     return numberOfCores >= MinimumPhysicalCoreNumberForWarp;
 }
 
+static HRESULT SafeCreateD3d11Device(IDXGIAdapter *pAdapter, D3D_DRIVER_TYPE DriverType,
+                                     HMODULE Software, UINT Flags,
+                                     const D3D_FEATURE_LEVEL *pFeatureLevels, UINT FeatureLevels,
+                                     UINT SDKVersion, ID3D11Device **ppDevice,
+                                     D3D_FEATURE_LEVEL *pFeatureLevel,
+                                     ID3D11DeviceContext **ppImmediateContext)
+{
+    __try {
+        HRESULT hr = D3D11CreateDevice(pAdapter, DriverType, Software, Flags, pFeatureLevels,
+                                       FeatureLevels, SDKVersion, ppDevice, pFeatureLevel,
+                                       ppImmediateContext);
+        return hr;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return E_FAIL;
+    }
+}
+
+static HRESULT SafeDWriteCreateFactory(DWRITE_FACTORY_TYPE factoryType, const IID &iid,
+                                       IUnknown **factory)
+{
+    __try {
+        HRESULT hr = DWriteCreateFactory(factoryType, iid, factory);
+        return hr;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return E_FAIL;
+    }
+}
+
 class QWindowsDirect2DContextPrivate
 {
 public:
@@ -130,7 +159,8 @@ public:
         for (int i = startType; i < toType; i++) {
             if (typeAttempts[i] == D3D_DRIVER_TYPE_WARP && !isSupportedWarp())
                 break;
-            hr = D3D11CreateDevice(nullptr,
+            hr = SafeCreateD3d11Device(
+                                   nullptr,
                                    typeAttempts[i],
                                    nullptr,
                                    D3D11_CREATE_DEVICE_SINGLETHREADED | D3D11_CREATE_DEVICE_BGRA_SUPPORT,
@@ -148,7 +178,7 @@ public:
         }
 
         if (FAILED(hr)) {
-            qWarning("%s: Could not create Direct3D Device: %#lx", __FUNCTION__, hr);
+            qFatal("%s: Could not create Direct3D Device: %#lx", __FUNCTION__, hr);
             return false;
         }
 
@@ -157,7 +187,7 @@ public:
 
         hr = d3dDevice.As(&dxgiDevice);
         if (FAILED(hr)) {
-            qWarning("%s: DXGI Device interface query failed on D3D Device: %#lx", __FUNCTION__, hr);
+            qFatal("%s: DXGI Device interface query failed on D3D Device: %#lx", __FUNCTION__, hr);
             return false;
         }
 
@@ -166,13 +196,13 @@ public:
 
         hr = dxgiDevice->GetAdapter(&dxgiAdapter);
         if (FAILED(hr)) {
-            qWarning("%s: Failed to probe DXGI Device for parent DXGI Adapter: %#lx", __FUNCTION__, hr);
+            qFatal("%s: Failed to probe DXGI Device for parent DXGI Adapter: %#lx", __FUNCTION__, hr);
             return false;
         }
 
         hr = dxgiAdapter->GetParent(IID_PPV_ARGS(&dxgiFactory));
         if (FAILED(hr)) {
-            qWarning("%s: Failed to probe DXGI Adapter for parent DXGI Factory: %#lx", __FUNCTION__, hr);
+            qFatal("%s: Failed to probe DXGI Adapter for parent DXGI Factory: %#lx", __FUNCTION__, hr);
             return false;
         }
 
@@ -188,26 +218,26 @@ public:
         auto factoryType = multiThreaded ? D2D1_FACTORY_TYPE_MULTI_THREADED : D2D1_FACTORY_TYPE_SINGLE_THREADED;
         hr = D2D1CreateFactory(factoryType, options, d2dFactory.GetAddressOf());
         if (FAILED(hr)) {
-            qWarning("%s: Could not create Direct2D Factory: %#lx", __FUNCTION__, hr);
+            qFatal("%s: Could not create Direct2D Factory: %#lx", __FUNCTION__, hr);
             return false;
         }
 
         hr = d2dFactory->CreateDevice(dxgiDevice.Get(), &d2dDevice);
         if (FAILED(hr)) {
-            qWarning("%s: Could not create D2D Device: %#lx", __FUNCTION__, hr);
+            qFatal("%s: Could not create D2D Device: %#lx", __FUNCTION__, hr);
             return false;
         }
 
-        hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
+        hr = SafeDWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory1),
                                  static_cast<IUnknown **>(&directWriteFactory));
         if (FAILED(hr)) {
-            qWarning("%s: Could not create DirectWrite factory: %#lx", __FUNCTION__, hr);
+            qFatal("%s: Could not create DirectWrite factory: %#lx", __FUNCTION__, hr);
             return false;
         }
 
         hr = directWriteFactory->GetGdiInterop(&directWriteGdiInterop);
         if (FAILED(hr)) {
-            qWarning("%s: Could not create DirectWrite GDI Interop: %#lx", __FUNCTION__, hr);
+            qFatal("%s: Could not create DirectWrite GDI Interop: %#lx", __FUNCTION__, hr);
             return false;
         }
 
@@ -231,7 +261,7 @@ public:
     ComPtr<ID2D1Device>   d2dDevice;
     ComPtr<IDXGIFactory2>  dxgiFactory;
     ComPtr<ID3D11DeviceContext> d3dDeviceContext;
-    ComPtr<IDWriteFactory> directWriteFactory;
+    ComPtr<IDWriteFactory1> directWriteFactory;
     ComPtr<IDWriteGdiInterop> directWriteGdiInterop;
     D3D_DRIVER_TYPE d3dDriverType = D3D_DRIVER_TYPE_NULL;
     bool multiThreaded = false;
@@ -307,7 +337,7 @@ ID3D11DeviceContext *QWindowsDirect2DContext::d3dDeviceContext() const
     return d->d3dDeviceContext.Get();
 }
 
-IDWriteFactory *QWindowsDirect2DContext::dwriteFactory() const
+IDWriteFactory1 *QWindowsDirect2DContext::dwriteFactory() const
 {
     Q_D(const QWindowsDirect2DContext);
     return d->directWriteFactory.Get();
@@ -367,6 +397,7 @@ QWindowsDirect2DFunctions::Direct2DContext QWindowsDirect2DContext::contextStati
     result.d2dFactory = context->d2dFactory();
     result.dxgiFactory = context->dxgiFactory();
     result.d3dDeviceContext = context->d3dDeviceContext();
+    result.dwFactroy1 = context->dwriteFactory();
     return result;
 }
 

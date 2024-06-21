@@ -85,18 +85,11 @@ QCocoaPrintDevice::QCocoaPrintDevice(const QString &id)
         CFStringRef cfId = id.toCFString();
         m_printer = PMPrinterCreateFromPrinterID(cfId);
         if (m_printer) {
-            CFStringRef printerName = PMPrinterGetName(m_printer);
-            m_name = QString::fromCFString(printerName);
-            CFRelease(printerName);
-
+            m_name = QString::fromCFString(PMPrinterGetName(m_printer));
             m_location = QString::fromCFString(PMPrinterGetLocation(m_printer));
             CFStringRef cfMakeAndModel;
             if (PMPrinterGetMakeAndModelName(m_printer, &cfMakeAndModel) == noErr)
-            {
                 m_makeAndModel = QString::fromCFString(cfMakeAndModel);
-                CFRelease(cfMakeAndModel);
-            }
-
             Boolean isRemote;
             if (PMPrinterIsRemote(m_printer, &isRemote) == noErr)
                 m_isRemote = isRemote;

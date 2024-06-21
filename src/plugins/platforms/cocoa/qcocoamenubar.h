@@ -62,11 +62,12 @@ public:
     void handleReparent(QWindow *newParentWindow) override;
     QWindow *parentWindow() const override;
     QPlatformMenu *menuForTag(quintptr tag) const override;
+    void checkGlobalMenu(bool force) override;
 
     inline NSMenu *nsMenu() const
         { return m_nativeMenu; }
 
-    static void updateMenuBarImmediately();
+    static void updateMenuBarImmediately(bool useGlobal = false, bool forceGlobal = false);
 
     QList<QCocoaMenuItem*> merged() const;
     NSMenuItem *itemForRole(QPlatformMenuItem::MenuRole role);

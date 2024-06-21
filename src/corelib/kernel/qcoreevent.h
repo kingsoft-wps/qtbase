@@ -292,6 +292,7 @@ public:
         CancelEmbeddingControl = 252, // added, for cancel EmbbedingControl.
         WindowsWindowGeometryChanged = 253,// added, for QWindow Size Changed on WM_SIZE
         WindowsWindowDragdrop = 254, // added, for delay call RegisterDragDrop
+        AfterSyncBackingStore = 255, //added, for indicate after syncbackingstore
 
         // 512 reserved for Qt Jambi's MetaCall event
         // 513 reserved for Qt Jambi's DeleteOnMainThread event

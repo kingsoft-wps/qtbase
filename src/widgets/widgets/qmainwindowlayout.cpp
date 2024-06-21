@@ -2277,6 +2277,11 @@ void QMainWindowLayout::restore(bool keepSavedState)
     if (!savedState.isValid())
         return;
 
+    for (auto pSeparatorWidget : layoutState.dockAreaLayout.separatorWidgets)
+    {
+        if (pSeparatorWidget)
+            pSeparatorWidget->hide();
+    }
     layoutState = savedState;
     applyState(layoutState);
     if (!keepSavedState)

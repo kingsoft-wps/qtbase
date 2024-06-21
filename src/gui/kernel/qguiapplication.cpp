@@ -2143,10 +2143,10 @@ void QGuiApplicationPrivate::processMouseEvent(QWindowSystemInterfacePrivate::Mo
             }
         }
     }
-#ifndef Q_OS_MAC
+
     if (mouseMove && !positionChanged)
         return; // QT4 same global pos
-#endif
+
     modifier_buttons = e->modifiers;
     QPointF localPoint = e->localPos;
     QPointF globalPoint = e->globalPos;
@@ -2413,6 +2413,10 @@ void QGuiApplicationPrivate::processActivatedEvent(QWindowSystemInterfacePrivate
     QWindow *newFocus = e->activated.data();
 
 #ifdef Q_OS_MAC
+    if (!newFocus && e->oriWindow)
+        return;
+    if (newFocus && !newFocus->isVisible())
+        return;
     if (newFocus && !newFocus->handle())
         newFocus = NULL;
 #endif

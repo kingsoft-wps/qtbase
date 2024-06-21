@@ -169,6 +169,20 @@ NSMenu *QMenuBar::toNSMenu()
     }
     return nil;
 }
+
+/*!
+    \fn void *QMenuBar::checkGlobalMenu(bool force)
+
+    Refresh the application menu bar actively.
+
+    \note In some scenarios, the secondary pop-up window needs to switch to using the global menu bar.
+*/
+void QMenuBar::checkGlobalMenu(bool force/* = false*/)
+{
+    QPlatformMenuBar *menuBar = platformMenuBar();
+    if (menuBar)
+        menuBar->checkGlobalMenu(force);
+}
 #endif // QT_CONFIG(menubar)
 
 QT_END_NAMESPACE

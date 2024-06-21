@@ -437,44 +437,49 @@ void QPrintDialogPrivate::TryConvertInvoice(PDFDocument *document, NSRect rect)
 {
     Q_Q(QPrintDialog);
 
-    if ([document pageCount] != 1)
+    NSUInteger pageCount = document.pageCount;
+    if (pageCount <= 0 || pageCount > 5)
         return;
 
-    QString content = QString::fromNSString([document string]);
-    if (!q->IsInvoice(content))
-        return;
+    for (NSUInteger index = 0; index < pageCount; ++index)
+    {
+        PDFPage *page = [document pageAtIndex:index];
+        QString content = QString::fromNSString(page.string);
+        if (!q->IsInvoice(content))
+            continue;
 
-    PDFPage *page = [document pageAtIndex:0];
-    NSData *data = [page dataRepresentation];
-    NSPDFImageRep *imageRep = [NSPDFImageRep imageRepWithData:data];
-    const int ratio = 2;
-    rect = NSMakeRect(0, 0, rect.size.width * ratio, rect.size.height * ratio);
-    PDFRect pdfRect = [page boundsForBox:kPDFDisplayBoxMediaBox];
-    if (pdfRect.size.width / pdfRect.size.height > rect.size.width / rect.size.height) {
-        double height = pdfRect.size.height / pdfRect.size.width * rect.size.width;
-        rect.size.height = height;
-    }
-    else {
-        double width = pdfRect.size.width / pdfRect.size.height * rect.size.height;
-        rect.size.width = width;
-    }
-    NSImage* scaledImage = [NSImage imageWithSize:rect.size flipped:NO drawingHandler:^BOOL(NSRect dstRect) {
-        [imageRep drawInRect:dstRect];
-        return YES;
-    }];
-    NSImageRep* scaledImageRep = [[scaledImage representations] firstObject];
-    const CGFloat factor = 300.0f / 72;
-    scaledImageRep.pixelsWide = imageRep.size.width * factor;
-    scaledImageRep.pixelsHigh = imageRep.size.height * factor;
-    NSBitmapImageRep* pngImageRep = [NSBitmapImageRep imageRepWithData:[scaledImage TIFFRepresentation]];
-    NSData* finalData = [pngImageRep representationUsingType:NSBitmapImageFileTypeJPEG properties:[NSDictionary dictionary]];
-    NSImage *image = [[NSImage alloc] initWithData:finalData];
+        NSData *data = [page dataRepresentation];
+        NSPDFImageRep *imageRep = [NSPDFImageRep imageRepWithData:data];
 
-    page = [[PDFPage alloc] initWithImage:image];
-    [document removePageAtIndex:0];
-    [document insertPage:page atIndex:0];
-    [page release];
-    [image release];
+        constexpr int ratio = 2;
+        NSRect imageRect = NSMakeRect(0, 0, rect.size.width * ratio, rect.size.height * ratio);
+        NSRect pdfRect = [page boundsForBox:kPDFDisplayBoxMediaBox];
+        if (pdfRect.size.width / pdfRect.size.height > imageRect.size.width / imageRect.size.height) {
+            double height = pdfRect.size.height / pdfRect.size.width * imageRect.size.width;
+            imageRect.size.height = height;
+        } else {
+            double width = pdfRect.size.width / pdfRect.size.height * imageRect.size.height;
+            imageRect.size.width = width;
+        }
+
+        NSImage* scaledImage = [NSImage imageWithSize:imageRect.size flipped:NO drawingHandler:^BOOL(NSRect dstRect) {
+            [imageRep drawInRect:dstRect];
+            return YES;
+        }];
+        NSImageRep* scaledImageRep = [[scaledImage representations] firstObject];
+        constexpr CGFloat factor = 300.0f / 72;
+        scaledImageRep.pixelsWide = imageRep.size.width * factor;
+        scaledImageRep.pixelsHigh = imageRep.size.height * factor;
+        NSBitmapImageRep* pngImageRep = [NSBitmapImageRep imageRepWithData:[scaledImage TIFFRepresentation]];
+        NSData* finalData = [pngImageRep representationUsingType:NSBitmapImageFileTypeJPEG properties:[NSDictionary dictionary]];
+        NSImage *image = [[NSImage alloc] initWithData:finalData];
+
+        page = [[PDFPage alloc] initWithImage:image];
+        [document removePageAtIndex:index];
+        [document insertPage:page atIndex:index];
+        [page release];
+        [image release];
+    }
 }
 #endif
 

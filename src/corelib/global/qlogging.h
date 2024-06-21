@@ -198,5 +198,10 @@ Q_CORE_EXPORT void qSetMessagePattern(const QString &messagePattern);
 Q_CORE_EXPORT QString qFormatLogMessage(QtMsgType type, const QMessageLogContext &context,
                                         const QString &buf);
 
+#if defined(Q_OS_MAC) && defined(QT_DEBUG)
+Q_CORE_EXPORT bool qIsDefaultMessageHandler();
+#endif
+
+
 QT_END_NAMESPACE
 #endif // QLOGGING_H

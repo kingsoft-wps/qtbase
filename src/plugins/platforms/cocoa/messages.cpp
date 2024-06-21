@@ -64,7 +64,8 @@ static const char *application_menu_strings[] =
 
     QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Check For Updates..."),
     QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","AppStore Evaluation"),
-    QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Login Proxy Setting")
+    QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Login Proxy Setting"),
+    QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Serial Number Manager")
 
 };
 
@@ -122,6 +123,8 @@ QPlatformMenuItem::MenuRole detectMenuRole(const QString &caption)
         return QPlatformMenuItem::AppStoreEvalRole;
     if (!captionNoAmpersand.compare(QCoreApplication::translate("QCocoaMenuItem", "Login Proxy Setting"), Qt::CaseInsensitive))
         return QPlatformMenuItem::ProxySettingRole;
+    if (!captionNoAmpersand.compare(QCoreApplication::translate("QCocoaMenuItem", "License Management..."), Qt::CaseInsensitive))
+        return QPlatformMenuItem::SNManagerRole;
     if (!captionNoAmpersand.compare(QCoreApplication::translate("QCocoaMenuItem", "Add Extension"), Qt::CaseInsensitive))
         return QPlatformMenuItem::FinderSettingRole;
     return QPlatformMenuItem::NoRole;

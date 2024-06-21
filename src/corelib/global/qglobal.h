@@ -775,9 +775,16 @@ Q_NORETURN
 Q_DECL_COLD_FUNCTION
 Q_CORE_EXPORT void qt_assert(const char *assertion, const char *file, int line) Q_DECL_NOTHROW;
 
+#if defined(Q_OS_MAC)
+Q_DECL_COLD_FUNCTION
+Q_CORE_EXPORT bool qIsDebugMode() Q_DECL_NOTHROW;
+#endif
+
 #if !defined(Q_ASSERT)
 #  if defined(QT_NO_DEBUG) && !defined(QT_FORCE_ASSERTS)
 #    define Q_ASSERT(cond) static_cast<void>(false && (cond))
+#  elif defined(Q_OS_MAC) && defined(QT_DEBUG)
+#    define Q_ASSERT(cond) ((cond) ? static_cast<void>(0) : (QMessageLogger(__FILE__, __LINE__, __FUNCTION__).fatal(#cond), qIsDebugMode() ? __builtin_debugtrap() : static_cast<void>(0)))
 #  else
 #    define Q_ASSERT(cond) ((cond) ? static_cast<void>(0) : qt_assert(#cond, __FILE__, __LINE__))
 #  endif

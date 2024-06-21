@@ -771,7 +771,7 @@ void QXcbWindow::show()
 
         // update WM_TRANSIENT_FOR
         xcb_window_t transientXcbParent = 0;
-        if (isTransient(window())) {
+        if (isTransient(window()) || window()->property("_q_platform_CustomTransientForHint_force").toBool()) {
             const QWindow *tp = window()->transientParent();
             if (tp && tp->handle())
                 transientXcbParent = static_cast<const QXcbWindow *>(tp->handle())->winId();

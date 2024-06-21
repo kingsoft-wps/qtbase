@@ -879,10 +879,16 @@ void QMessageLogger::fatal(const char *msg, ...) const Q_DECL_NOTHROW
 
     va_list ap;
     va_start(ap, msg); // use variable arg list
+#ifdef Q_OS_MAC
+    message = qt_message(QtFatalMsg, context, msg, ap);
+#else
     QT_TERMINATE_ON_EXCEPTION(message = qt_message(QtFatalMsg, context, msg, ap));
+#endif
     va_end(ap);
-
+#ifndef Q_OS_MAC
     qt_message_fatal(QtFatalMsg, context, message);
+#endif
+    
 }
 
 /*!
@@ -1856,6 +1862,13 @@ static void qt_message_print(const QString &message)
 
 static void qt_message_fatal(QtMsgType, const QMessageLogContext &context, const QString &message)
 {
+    
+#ifdef Q_OS_MAC
+    Q_UNUSED(context);
+    Q_UNUSED(message);
+    return;
+#endif
+    
 #if defined(Q_CC_MSVC) && defined(QT_DEBUG) && defined(_DEBUG) && defined(_CRT_ERROR)
     wchar_t contextFileL[256];
     // we probably should let the compiler do this for us, by declaring QMessageLogContext::file to
@@ -2103,6 +2116,15 @@ QtMsgHandler qInstallMsgHandler(QtMsgHandler h)
     else
         return qDefaultMsgHandler;
 }
+
+#if defined(Q_OS_MAC) && defined(QT_DEBUG)
+bool qIsDefaultMessageHandler()
+{
+    auto oldStyle = msgHandler.loadAcquire();
+    auto newStye = messageHandler.loadAcquire();
+    return !newStye && !oldStyle;
+}
+#endif
 
 void qSetMessagePattern(const QString &pattern)
 {

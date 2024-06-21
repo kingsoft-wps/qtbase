@@ -63,6 +63,7 @@
     NSMenuItem *checkUpdateItem; // Check For Updates
     NSMenuItem *appStoreEvalItem; //
     NSMenuItem *importFromDeviceItem;
+    NSMenuItem *snManagerItem;
     NSMenuItem *proxySettingItem;
     NSMenuItem *servicesItem;
     NSMenuItem *hideAllOthersItem;
@@ -133,6 +134,15 @@
         appStoreEvalItem.enabled = NO;
         appStoreEvalItem.hidden = YES;
         [appMenu addItem:appStoreEvalItem];
+
+        // snManagerItem
+        snManagerItem = [[QCocoaNSMenuItem alloc] init];
+        snManagerItem.title = @"License Management...";
+        // Disable until a QAction is associated
+        snManagerItem.enabled = NO;
+        snManagerItem.hidden = YES;
+        [appMenu addItem:snManagerItem];
+
          // proxySettingItem
         proxySettingItem = [[QCocoaNSMenuItem alloc] init];
         proxySettingItem.title = @"Login Proxy Setting";
@@ -221,7 +231,7 @@
 - (void)dealloc
 {
     [importFromDeviceItem release];
-	importFromDeviceItem = nil;
+    importFromDeviceItem = nil;
     [theMenu release];
     [appMenu release];
     [aboutItem release];
@@ -233,6 +243,7 @@
     [hideAllOthersItem release];
     [showAllItem release];
     [quitItem release];
+    [snManagerItem release];
 
     [super dealloc];
 }
@@ -319,10 +330,14 @@
 {
     return [[appStoreEvalItem retain] autorelease];
 }
+- (NSMenuItem *)snManagerMenuItem
+{
+    return [[snManagerItem retain] autorelease];
+}
 
 - (NSMenuItem *)proxySettingMenuItem
 {
-	return [[proxySettingItem retain] autorelease];
+    return [[proxySettingItem retain] autorelease];
 }
 - (NSMenuItem *)appSpecificMenuItem:(QCocoaMenuItem *)platformItem
 {
@@ -378,6 +393,7 @@
     quitItem.title = qt_mac_applicationmenu_string(QuitAppMenuItem).arg(qt_mac_applicationName()).toNSString();
     checkUpdateItem.title = qt_mac_applicationmenu_string(CheckUpdateItem).toNSString();
     appStoreEvalItem.title = qt_mac_applicationmenu_string(AppStoreEvalItem).toNSString();
+    snManagerItem.title = qt_mac_applicationmenu_string(SNManagerMenuItem).toNSString();
     proxySettingItem.title = qt_mac_applicationmenu_string(ProxySettingMenuItem).toNSString();
 #endif
 }
