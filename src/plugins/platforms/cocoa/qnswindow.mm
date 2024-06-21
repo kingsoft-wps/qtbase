@@ -154,23 +154,71 @@ static bool isMouseEvent(NSEvent *ev)
 
 - (NSRect)constrainFrameRect:(NSRect)frameRect toScreen:(NSScreen *)screen
 {
+    NSRect rect = [super constrainFrameRect: frameRect toScreen: screen];
     NSArray<NSScreen*> *screens = NSScreen.screens;
-    int height = 0;
-    int total_width = 0;
-    int midX = NSMidX(frameRect);
-    for (unsigned int i = 0; i < screens.count; ++ i)
+    if (screens.count < 1 || screens.count > 2)
+        return rect;
+
+    if (screens.count == 1)
     {
-        total_width += screens[i].frame.size.width;
-        if (total_width > midX)
+        if (NSMidY(frameRect) > screens[0].frame.size.height)
+            return frameRect;
+        else
+            return rect;
+    }
+
+    NSRect mainFrame = screens[0].frame;
+    NSRect secondFrame = screens[1].frame;
+    bool leftright = false;
+
+    if ((secondFrame.origin.x == mainFrame.size.width || -secondFrame.origin.x == secondFrame.size.width) && !(secondFrame.origin.y == mainFrame.size.height || -secondFrame.origin.y == secondFrame.size.height))
+        leftright = true;
+
+    if (leftright)
+    {
+        if ( mainFrame.origin.x > secondFrame.origin.x )
         {
-            height = screens[i].frame.size.height;
-            break;
+            if (!(mainFrame.origin.x < NSMidX(rect)))
+            {
+                if (NSMidY(frameRect) > secondFrame.size.height + secondFrame.origin.y)
+                    return frameRect;
+            }
+            else
+            {
+                if (NSMidY(frameRect) > mainFrame.size.height)
+                    return frameRect;
+            }
+        }
+        else
+        {
+            if (secondFrame.origin.x <  NSMidX(rect)) 
+            {
+                if (NSMidY(frameRect) > secondFrame.size.height + secondFrame.origin.y)
+                    return frameRect;
+            }
+            else
+            {
+                if (NSMidY(frameRect) > mainFrame.size.height)
+                    return frameRect;
+            }
         }
     }
-    int midY = NSMidY(frameRect);
-    if (midY > height)
-        return frameRect;
-    return [super constrainFrameRect: frameRect toScreen: screen];
+    else 
+    {
+        if (mainFrame.origin.y > secondFrame.origin.y)
+        {
+            if (NSMidY(frameRect) > mainFrame.size.height)
+                return frameRect;
+        }
+        else
+        {
+            if (secondFrame.size.height < NSMidY(frameRect) - mainFrame.size.height)
+            {
+                return frameRect;
+            }
+        }
+    }
+    return rect;
 }
 
 @end

@@ -253,6 +253,20 @@ static bool convertQPainterPathToCGPath(const QPainterPath &painterPath, CGMutab
     return true;
 }
 
+inline static float qt_mac_convert_color_to_cg(int c) { return ((float)c * 1000 / 255) / 1000; }
+
+inline static QCFType<CGColorRef> cgColorForQColor(const QColor &col)
+{
+    CGFloat components[] = {
+        qt_mac_convert_color_to_cg(col.red()),
+        qt_mac_convert_color_to_cg(col.green()),
+        qt_mac_convert_color_to_cg(col.blue()),
+        qt_mac_convert_color_to_cg(col.alpha())
+    };
+    QCFType<CGColorSpaceRef> colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    return CGColorCreate(colorSpace, components);
+}
+
 QCGPainter::QCGPainter()
     : cgContextRef(nullptr)
 {
@@ -944,7 +958,33 @@ void QCGPainter::strokePath(const QPainterPath &path, const QPen &pen)
 */
 void QCGPainter::fillPath(const QPainterPath &path, const QBrush &brush)
 {
+    CGContextRef hd = (CGContextRef)cgContextRef;
+    CGContextSaveGState(hd);
 
+    QPainterPath oPath = path;
+    if (d_ptr){
+        oPath = d_ptr->state->matrix.map(path);
+        if (1 != d_ptr->state->opacity)
+            CGContextSetAlpha(hd, d_ptr->state->opacity);
+    }
+
+    CGMutablePathRef pathRef = CGPathCreateMutable();
+    if (!convertQPainterPathToCGPath(oPath, pathRef, m_contextSize.height()))
+        return;
+
+    if (brush.style() != Qt::NoBrush) 
+        CGContextSetFillColorWithColor(hd, cgColorForQColor(brush.color()));
+
+    CGContextBeginPath(hd);
+    CGContextAddPath(hd, pathRef);
+
+    if (oPath.fillRule() == Qt::WindingFill)
+        CGContextFillPath(hd);
+    else
+        CGContextEOFillPath(hd);
+    
+    CGPathRelease(pathRef);
+    CGContextRestoreGState(hd);
 }
 
 /*!

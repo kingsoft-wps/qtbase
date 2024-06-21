@@ -2099,11 +2099,15 @@ found:
         eng->maxWidth = qMax(eng->maxWidth, line.textWidth);
     } else {
         eng->minWidth = qMax(eng->minWidth, lbh.minw);
-        eng->maxWidth += line.textWidth;
+        if (qAddOverflow(eng->maxWidth, line.textWidth, &eng->maxWidth))
+            eng->maxWidth = QFIXED_MAX;
     }
 
-    if (line.textWidth > 0 && item < eng->layoutData->items.size())
-        eng->maxWidth += lbh.spaceData.textWidth;
+    if (line.textWidth > 0 && item < eng->layoutData->items.size()) {
+        if (qAddOverflow(eng->maxWidth, lbh.spaceData.textWidth, &eng->maxWidth))
+            eng->maxWidth = QFIXED_MAX;
+    }
+
     if (eng->option.flags() & QTextOption::IncludeTrailingSpaces)
         line.textWidth += lbh.spaceData.textWidth;
     if (lbh.spaceData.length) {

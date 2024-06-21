@@ -68,6 +68,9 @@ macx: {
     HEADERS += kernel/qmacgesturerecognizer_p.h
     SOURCES += kernel/qmacgesturerecognizer.cpp
     SOURCES += kernel/qwidget_cocoa.mm
+    HEADERS += kernel/qglasseffectview_p.h
+    HEADERS += kernel/qglasseffectview.h
+    SOURCES += kernel/qglasseffectview.mm
 }
 
 qtConfig(opengl) {

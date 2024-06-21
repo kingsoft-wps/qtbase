@@ -619,6 +619,8 @@ void QThread::terminate()
         return;
     }
 
+    qErrnoWarning("QThread::terminate: Current thread id %u, target thread id %u", GetCurrentThreadId(), d->id);
+
     // Calling ExitThread() in setTerminationEnabled is all we can do on WinRT
 #ifndef Q_OS_WINRT
     TerminateThread(d->handle, 0);

@@ -1107,16 +1107,12 @@ void QPdfEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     if (!d->hasPen || (d->clipEnabled && d->allClipped))
         return;
 
-#ifdef Q_OS_MAC
+#ifndef Q_OS_WIN
     // Solve the problem of incorrect printing of vertical text box angle
     QPaintEngine::drawTextItem(p, textItem);
     return ;
 #endif
-    if ((d->stroker.matrix.type() >= QTransform::TxProject)
-#ifdef Q_OS_LINUX
-    || textItem.font().verticalMetrics()
-#endif
-    ) {
+    if (d->stroker.matrix.type() >= QTransform::TxProject) {
         QPaintEngine::drawTextItem(p, textItem);
         return;
     }
@@ -1137,10 +1133,6 @@ void QPdfEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     setBrush();
 
     bool bNeedSetPen = d->useCmykColor;
-#ifdef Q_OS_LINUX
-    if (hp)
-        bNeedSetPen = true;
-#endif
     if (bNeedSetPen)
         setPen();
 
@@ -1352,14 +1344,14 @@ void QPdfEngine::setPen()
         qreal gray = qGray(rgba.rgba())/255.;
         *d->currentPage << gray << gray << gray;
     } else if (d->useCmykColor && rgba.spec() == QColor::Cmyk) {
-		bUseCmykColor = true;
-		qreal c = 0;
-		qreal m = 0;
-		qreal y = 0;
-		qreal k = 0;
-		rgba.getCmykF(&c, &m, &y, &k);
-		*d->currentPage << c << m << y << k;
-	} 
+        bUseCmykColor = true;
+        qreal c = 0;
+        qreal m = 0;
+        qreal y = 0;
+        qreal k = 0;
+        rgba.getCmykF(&c, &m, &y, &k);
+        *d->currentPage << c << m << y << k;
+    } 
     else {
         *d->currentPage << rgba.redF()
                         << rgba.greenF()
@@ -1387,11 +1379,7 @@ void QPdfEngine::setPen()
     default:
         break;
     }
-#ifndef Q_OS_LINUX
     *d->currentPage << pdfCapStyle << "J ";
-#else
-    *d->currentPage << pdfCapStyle << "J\r";
-#endif
 
     int pdfJoinStyle = 0;
     switch(d->pen.joinStyle()) {
@@ -1409,11 +1397,7 @@ void QPdfEngine::setPen()
     default:
         break;
     }
-#ifndef Q_OS_LINUX
     *d->currentPage << pdfJoinStyle << "j ";
-#else
-    *d->currentPage << pdfCapStyle << "j\r";
-#endif
 
     *d->currentPage << QPdf::generateDashes(d->pen);
 }
@@ -1438,28 +1422,28 @@ void QPdfEngine::setBrush()
     if (specifyColor) {
         QColor rgba = d->brush.color();
 #ifdef Q_OS_MAC
-		Qt::BrushStyle style = d->brush.style();
-		if (style == Qt::LinearGradientPattern || style == Qt::RadialGradientPattern) {// && style <= Qt::ConicalGradientPattern) {
-			QGradientStops stops = d->brush.gradient()->stops();
-			rgba = stops.at(0).second;
-		}
+        Qt::BrushStyle style = d->brush.style();
+        if (style == Qt::LinearGradientPattern || style == Qt::RadialGradientPattern) {// && style <= Qt::ConicalGradientPattern) {
+            QGradientStops stops = d->brush.gradient()->stops();
+            rgba = stops.at(0).second;
+        }
 #endif
         if (d->grayscale) {
             qreal gray = qGray(rgba.rgba())/255.;
             *d->currentPage << gray << gray << gray;
         } else if (d->useCmykColor && rgba.spec() == QColor::Cmyk) {
-			bUseCmykColor = true;
-			qreal c = 0;
-			qreal m = 0;
-			qreal y = 0;
-			qreal k = 0;
-			rgba.getCmykF(&c, &m, &y, &k);
-			// 0 0 0 1 k does not write in FZ software
-			if (c != 0 || m != 0 || y != 0 || k != 1) {
-				*d->currentPage << c << m << y << k;
-			} else {
-				bWriteColor = false;
-			}
+            bUseCmykColor = true;
+            qreal c = 0;
+            qreal m = 0;
+            qreal y = 0;
+            qreal k = 0;
+            rgba.getCmykF(&c, &m, &y, &k);
+            // 0 0 0 1 k does not write in FZ software
+            if (c != 0 || m != 0 || y != 0 || k != 1) {
+                *d->currentPage << c << m << y << k;
+            } else {
+                bWriteColor = false;
+            }
         } else {
             *d->currentPage << rgba.redF()
                             << rgba.greenF()
@@ -1470,14 +1454,14 @@ void QPdfEngine::setBrush()
         *d->currentPage << "/Pat" << patternObject;
 
     if (bUseCmykColor)
-	{
-		if (bWriteColor)
-			*d->currentPage << "k\n";
-		else
-			*d->currentPage << "\n";
-	} else {
-		*d->currentPage << "scn\n";
-	}
+    {
+        if (bWriteColor)
+            *d->currentPage << "k\n";
+        else
+            *d->currentPage << "\n";
+    } else {
+        *d->currentPage << "scn\n";
+    }
 
     if (gStateObject)
         *d->currentPage << "/GState" << gStateObject << "gs\n";
@@ -3010,7 +2994,7 @@ int QPdfEnginePrivate::addImage(const QImage &img, bool *bitmap, qint64 serial_n
 #ifdef Q_OS_MAC
         if (QImageWriter::supportedImageFormats().contains("jpeg") && !grayscale 
             && format != QImage::Format_ARGB32_Premultiplied
-	        && format != QImage::Format_ARGB32) {
+            && format != QImage::Format_ARGB32) {
 #else
         if (QImageWriter::supportedImageFormats().contains("jpeg") && !grayscale) {
 #endif // Q_OS_MAC
@@ -3167,7 +3151,7 @@ void QPdfEnginePrivate::drawTextItem(const QPointF &p, const QTextItemInt &ti)
 #ifdef Q_OS_LINUX
     bool bCustomTextBold = (pen.isDrawCustomTextBold() && pen.widthF() > 0);
     bUsePantumBold = !noEmbed &&
-    	!bCustomTextBold &&
+        !bCustomTextBold &&
         fe->fontDef.pixelSize > 0 &&
         fe->fontDef.pixelSize <= maxPantumBoldSize;
 #endif
@@ -3237,17 +3221,6 @@ void QPdfEnginePrivate::drawTextItem(const QPointF &p, const QTextItemInt &ti)
         pos = end;
     } while (pos < ti.num_chars);
 #else
-#ifdef Q_OS_LINUX
-    if (bCustomTextBold)
-    {
-        *currentPage << "2 Tr\r" << pen.widthF() << " w\r";
-    }
-    else if (!bUsePantumBold && (synthesized & QFontEngine::SynthesizedBold))
-    {
-        qreal factor = pen.customBoldFactor();
-        *currentPage << "2 Tr\r" << size*0.0286f*stretch*factor << " w\r";
-    }
-#endif
     qreal last_x = 0.;
     qreal last_y = 0.;
     for (int i = 0; i < glyphs.size(); ++i) {

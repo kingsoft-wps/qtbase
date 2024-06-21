@@ -2012,6 +2012,8 @@ QFontEngineFT::QFontEngineFT(const QFontDef &fd)
     transform = false;
     embolden = false;
     customEmbolden = false;
+    customEmboldWidthX = 0.0f;
+    customEmboldWidthY = 0.0f;
     obliquen = false;
     antialias = true;
     freetype = 0;
@@ -2402,8 +2404,8 @@ QFontEngineFT::Glyph *QFontEngineFT::loadGlyph(QGlyphSet *set, uint glyph,
     if (embolden) {
         const int scalex = face->size->metrics.x_scale;
         const int scaley = face->size->metrics.y_scale;
-        face->size->metrics.x_scale = scalex / 0x10000 * qSqrt(matrix.xx * matrix.xx + matrix.xy * matrix.xy); // Need to consider rotation
-        face->size->metrics.y_scale = scaley / 0x10000 * qSqrt(matrix.yy * matrix.yy + matrix.yx * matrix.yx);
+        face->size->metrics.x_scale = 1.0 * scalex / 0x10000 * qSqrt(matrix.xx * matrix.xx + matrix.xy * matrix.xy); // Need to consider rotation
+        face->size->metrics.y_scale = 1.0 * scaley / 0x10000 * qSqrt(matrix.yy * matrix.yy + matrix.yx * matrix.yx);
         FT_GlyphSlot_Embolden_Ex(slot);
         face->size->metrics.x_scale = scalex;
         face->size->metrics.y_scale = scaley;
@@ -2416,6 +2418,12 @@ QFontEngineFT::Glyph *QFontEngineFT::loadGlyph(QGlyphSet *set, uint glyph,
             const int scaley = face->size->metrics.y_scale;
             face->size->metrics.x_scale = 1.0 * gs->customBoldWidthx / face->units_per_EM * 0x10000 * qSqrt(matrix.xx * matrix.xx + matrix.xy * matrix.xy) / 65536.0;
             face->size->metrics.y_scale = 1.0 * gs->customBoldWidthy / face->units_per_EM * 0x10000 * qSqrt(matrix.yy * matrix.yy + matrix.yx * matrix.yx) / 65536.0;
+#ifdef Q_OS_LINUX
+            if (fontDef.paintDeviceMatrix.m22() > 0) {
+                face->size->metrics.x_scale *= fontDef.paintDeviceMatrix.m22();
+                face->size->metrics.y_scale *= fontDef.paintDeviceMatrix.m22();
+            }
+#endif
             FT_GlyphSlot_Embolden_Ex(slot);
             face->size->metrics.x_scale = scalex;
             face->size->metrics.y_scale = scaley;
@@ -2895,6 +2903,18 @@ void QFontEngineFT::getUnscaledGlyph(glyph_t glyph, QPainterPath *path, glyph_me
 bool QFontEngineFT::supportsTransformation(const QTransform &transform) const
 {
     return transform.type() <= QTransform::TxRotate;
+} 
+
+void QFontEngineFT::addCustomBoldOutlineToPath(qreal x, qreal y, const QGlyphLayout &glyphs, QPainterPath *path, QTextItem::RenderFlags flags, qreal widthX, qreal widthY)
+{
+    QScopedValueRollback<bool> rb(customEmbolden, true);
+    customEmboldWidthX = widthX;
+    customEmboldWidthY = widthY;
+    if (freetype->face->units_per_EM) {
+        customEmboldWidthX *= freetype->face->units_per_EM >> 8;
+        customEmboldWidthY *= freetype->face->units_per_EM >> 8;
+    }
+    addOutlineToPath(x, y, glyphs, path, flags);
 }
 
 void QFontEngineFT::addOutlineToPath(qreal x, qreal y, const QGlyphLayout &glyphs, QPainterPath *path, QTextItem::RenderFlags flags)
@@ -2971,6 +2991,32 @@ void QFontEngineFT::addGlyphsToPath(glyph_t *glyphs, QFixedPoint *positions, int
             if (advances && attributes && attributes[gl].adjustCoordinate)
                 positions[gl].x += calcXPosOffset(face, xsize, g, advances[gl]);
 
+            if (embolden) {
+                const int scalex = face->size->metrics.x_scale;
+                const int scaley = face->size->metrics.y_scale;
+                face->size->metrics.x_scale = scalex / 0x10000 * qSqrt(matrix.xx * matrix.xx + matrix.xy * matrix.xy);
+                face->size->metrics.y_scale = scaley / 0x10000 * qSqrt(matrix.yy * matrix.yy + matrix.yx * matrix.yx);
+                FT_GlyphSlot_Embolden_Ex(g);
+                face->size->metrics.x_scale = scalex;
+                face->size->metrics.y_scale = scaley;
+            }
+
+            if (customEmbolden && FT_IS_SCALABLE(face) && face->units_per_EM) {
+                const int scalex = face->size->metrics.x_scale;
+                const int scaley = face->size->metrics.y_scale;
+                face->size->metrics.x_scale = 1.0 * customEmboldWidthX / face->units_per_EM * 0x10000 * qSqrt(matrix.xx * matrix.xx + matrix.xy * matrix.xy) / 12280.0;
+                face->size->metrics.y_scale = 1.0 * customEmboldWidthY / face->units_per_EM * 0x10000 * qSqrt(matrix.yy * matrix.yy + matrix.yx * matrix.yx) / 12280.0;
+#ifdef Q_OS_LINUX
+                if (fontDef.paintDeviceMatrix.m22() > 0) {
+                    face->size->metrics.x_scale *= fontDef.paintDeviceMatrix.m22();
+                    face->size->metrics.y_scale *= fontDef.paintDeviceMatrix.m22();
+                }
+#endif
+                FT_GlyphSlot_Embolden_Ex(g);
+                face->size->metrics.x_scale = scalex;
+                face->size->metrics.y_scale = scaley;
+            }
+
             QFreetypeFace::addGlyphToPath(face, g, pos, path, xsize, ysize);
         }
     } else {
@@ -2994,6 +3040,22 @@ void QFontEngineFT::addGlyphsToPath(glyph_t *glyphs, QFixedPoint *positions, int
                 const int scaley = face->size->metrics.y_scale;
                 face->size->metrics.x_scale = scalex / 0x10000 * qSqrt(matrix.xx * matrix.xx + matrix.xy * matrix.xy); // Need to consider rotation
                 face->size->metrics.y_scale = scaley / 0x10000 * qSqrt(matrix.yy * matrix.yy + matrix.yx * matrix.yx);
+                FT_GlyphSlot_Embolden_Ex(g);
+                face->size->metrics.x_scale = scalex;
+                face->size->metrics.y_scale = scaley;
+            }
+
+            if (customEmbolden && FT_IS_SCALABLE(face) && face->units_per_EM) {
+                const int scalex = face->size->metrics.x_scale;
+                const int scaley = face->size->metrics.y_scale;
+                face->size->metrics.x_scale = 1.0 * customEmboldWidthX / face->units_per_EM * 0x10000 * qSqrt(matrix.xx * matrix.xx + matrix.xy * matrix.xy) / 12280.0;
+                face->size->metrics.y_scale = 1.0 * customEmboldWidthY / face->units_per_EM * 0x10000 * qSqrt(matrix.yy * matrix.yy + matrix.yx * matrix.yx) / 12280.0;
+#ifdef Q_OS_LINUX
+                if (fontDef.paintDeviceMatrix.m22() > 0) {
+                    face->size->metrics.x_scale *= fontDef.paintDeviceMatrix.m22();
+                    face->size->metrics.y_scale *= fontDef.paintDeviceMatrix.m22();
+                }
+#endif
                 FT_GlyphSlot_Embolden_Ex(g);
                 face->size->metrics.x_scale = scalex;
                 face->size->metrics.y_scale = scaley;
@@ -3848,8 +3910,8 @@ QFontEngineFT::QGlyphSet* QFontEngineFT::customBoldWidthGlyphSet(int wx, int wy)
     QCustomBoldGlyphSet *gs = &customBoldGlyphSets[0];
     gs->clear();
 
-    gs->customBoldWidthx = wx;
-    gs->customBoldWidthy = wy;
+    gs->customBoldWidthx = wx * fontDef.pixelSize / 20;
+    gs->customBoldWidthy = wy * fontDef.pixelSize / 20;
 
     return gs;
 }

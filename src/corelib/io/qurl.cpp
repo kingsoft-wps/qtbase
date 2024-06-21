@@ -1038,8 +1038,8 @@ inline void QUrlPrivate::setAuthority(const QString &auth, int from, int end, QU
 
     // we never actually _loop_
     while (from != end) {
-        int userInfoIndex = auth.indexOf(QLatin1Char('@'), from);
-        if (uint(userInfoIndex) < uint(end)) {
+        int userInfoIndex = auth.lastIndexOf(QLatin1Char('@'), end - 1);
+        if (userInfoIndex >= from && uint(userInfoIndex) < uint(end)) {
             setUserInfo(auth, from, userInfoIndex);
             if (mode == QUrl::StrictMode && !validateComponent(UserInfo, auth, from, userInfoIndex))
                 break;
@@ -1053,8 +1053,8 @@ inline void QUrlPrivate::setAuthority(const QString &auth, int from, int end, QU
         if (uint(colonIndex) < uint(end)) {
             if (auth.at(from).unicode() == '[') {
                 // check if colonIndex isn't inside the "[...]" part
-                int closingBracket = auth.indexOf(QLatin1Char(']'), from);
-                if (uint(closingBracket) > uint(colonIndex))
+                int closingBracket = auth.lastIndexOf(QLatin1Char(']'), end - 1);
+                if (closingBracket < from || uint(closingBracket) > uint(colonIndex))
                     colonIndex = -1;
             }
         }

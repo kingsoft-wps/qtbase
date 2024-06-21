@@ -830,7 +830,13 @@ void QPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
 
     QPainterPath path;
     path.setFillRule(Qt::WindingFill);
-    ti.fontEngine->addOutlineToPath(0, 0, ti.glyphs, &path, ti.flags);
+    if (painter()->pen().isDrawCustomTextBold() && painter()->pen().widthF() > 0) {
+        int customEmboldWidthX = 0;
+        int customEmboldWidthY = 0;
+        ti.fontEngine->hasCustomBoldWidth(painter()->pen().widthF(), painter()->viewport().width(), painter()->viewport().height(), painter()->window().width(), painter()->window().height(), customEmboldWidthX, customEmboldWidthY);
+        ti.fontEngine->addCustomBoldOutlineToPath(0, 0, ti.glyphs, &path, ti.flags, customEmboldWidthX, customEmboldWidthY);
+    } else
+        ti.fontEngine->addOutlineToPath(0, 0, ti.glyphs, &path, ti.flags);
     if (!path.isEmpty()) {
         painter()->save();
         painter()->setRenderHint(QPainter::Antialiasing,

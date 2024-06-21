@@ -75,6 +75,10 @@
 #include <private/qgesture_p.h>
 #include <qpa/qplatformbackingstore.h>
 
+#ifdef Q_OS_MAC
+#include "qglasseffectview.h"
+#endif
+
 QT_BEGIN_NAMESPACE
 
 // Extra QWidget data
@@ -912,6 +916,10 @@ public:
 
     bool stealKeyboardGrab(bool grab);
     bool stealMouseGrab(bool grab);
+#ifdef Q_OS_MAC
+
+    QGlassEffectView* glassEffectView;
+#endif
 };
 
 struct QWidgetPaintContext

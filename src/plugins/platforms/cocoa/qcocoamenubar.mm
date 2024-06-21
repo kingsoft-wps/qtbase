@@ -329,12 +329,13 @@ void QCocoaMenuBar::updateMenuBarImmediately()
 
     [mergedItems release];
     // Set to empty to ensure that the dictation menu item is still displayed when the menu is refreshed
+    [NSApp.mainMenu cancelTrackingWithoutAnimation];
     [NSApp setMainMenu:nil];
     [NSApp setMainMenu:mb->nsMenu()];
     //set help menu
     NSMenu *menuMain = NSApp.mainMenu;
     const int MIN_MENU_ITEMS = 3;
-	if (menuMain.numberOfItems > MIN_MENU_ITEMS) {
+    if (menuMain.numberOfItems > MIN_MENU_ITEMS) {
         for (NSInteger i = menuMain.numberOfItems-1; i>=0; i--) {
             NSMenuItem *item = [menuMain.itemArray objectAtIndex:i];
             if (item.hidden) {

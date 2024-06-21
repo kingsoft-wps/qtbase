@@ -184,7 +184,9 @@ public:
     static QStyle *app_style;
     static QPalette *sys_pal;
     static QPalette *set_pal;
-
+#ifdef Q_OS_MAC
+    static bool usingGlassEffect;
+#endif
 protected:
     void notifyThemeChanged() override;
     void sendApplicationPaletteChange(bool toAllWidgets = false,

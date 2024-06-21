@@ -584,8 +584,13 @@ void QCALayerBackingStore::flush(QWindow *flushedWindow, const QRegion &region, 
 
     qCInfo(lcQpaBackingStore) << "Flushing" << backBufferSurface
          << "to" << flushedView.layer << "of" << flushedView;
-
-    flushedView.layer.contents = backBufferSurface;
+    if (flushedView != backingStoreView && flushedView != NSApp.keyWindow.contentView
+        && flushedView.layer.sublayers.count && (flushedWindow->flags() & Qt::MSWindowsOwnDC)) {
+        flushedView.layer.contents = nil;
+    }
+    else {
+        flushedView.layer.contents = backBufferSurface;
+    }
 
     if (flushedView != backingStoreView) {
         const CGSize backingStoreSize = backingStoreView.bounds.size;

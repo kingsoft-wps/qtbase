@@ -218,6 +218,7 @@ private:
                  const QFixed *advances = nullptr, const QGlyphAttributes *attributes = nullptr) override;
     void addOutlineToPath(qreal x, qreal y, const QGlyphLayout &glyphs,
                   QPainterPath *path, QTextItem::RenderFlags flags) override;
+    void addCustomBoldOutlineToPath(qreal x, qreal y, const QGlyphLayout &glyphs, QPainterPath *path, QTextItem::RenderFlags flags, qreal widthX, qreal widthY) override;
 
     bool stringToCMap(const QChar *str, int len, QGlyphLayout *glyphs, int *nglyphs, ShaperFlags flags) const override;
 
@@ -303,7 +304,8 @@ private:
     QGlyphSet* loadCustomBoldGlyphSet(int wx, int wy, const QTransform &matrix);
     bool hasCustomBoldWidth(int penWidth, int vw, int vh, int ww, int wh, int& wx, int& wy);
     bool customEmbolden;
-
+    qreal customEmboldWidthX;
+    qreal customEmboldWidthY;
 protected:
 
     QFreetypeFace *freetype;

@@ -70,7 +70,10 @@ QCocoaMenu::~QCocoaMenu()
 {
     for (auto *item : qAsConst(m_menuItems)) {
         if (item->menuParent() == this)
+        {
             item->setMenuParent(nullptr);
+            delete item;
+        }
     }
 
     [m_nativeMenu release];

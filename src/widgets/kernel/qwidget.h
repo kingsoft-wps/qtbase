@@ -54,6 +54,9 @@
 #include <QtGui/qbrush.h>
 #include <QtGui/qcursor.h>
 #include <QtGui/qkeysequence.h>
+#ifdef Q_OS_MAC
+#include <QtWidgets/qglasseffectview.h>
+#endif
 
 #ifdef QT_INCLUDE_COMPAT
 #include <QtGui/qevent.h>
@@ -100,6 +103,9 @@ class QPixmap;
 class QDebug;
 #endif
 
+#ifdef Q_OS_MAC
+class QGlassEffectView;
+#endif
 class QWidgetData
 {
 public:
@@ -378,6 +384,8 @@ public:
     void moveNSWindowNoRedraw(const QPoint& pt);
     // Switch form full screen state
     void toggleFullScreen();
+    void setGlassView(QGlassEffectView* glassView);
+    QGlassEffectView* getGlassView();
 #endif
 public Q_SLOTS:
     void setWindowTitle(const QString &);

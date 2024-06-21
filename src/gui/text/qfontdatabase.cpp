@@ -2725,7 +2725,12 @@ QFontEngine *QFontDatabase::findFont(const QFontDef &request, int script)
         return engine;
     }
 
+#ifdef Q_OS_LINUX
+    const long fontPixelSizeMax = ((1L << sizeof(request.pixelSize) * 8 - 1) - 1) >> 6;
+    if (request.pixelSize > fontPixelSizeMax) {
+#else
     if (request.pixelSize > 0xffff) {
+#endif
         // Stop absurd requests reaching the engines; pixel size is assumed to fit ushort
         qCDebug(lcFontMatch, "Rejecting request for pixel size %g2, returning box engine", double(request.pixelSize));
         return new QFontEngineBox(32); // not request.pixelSize, to avoid overflow/DOS

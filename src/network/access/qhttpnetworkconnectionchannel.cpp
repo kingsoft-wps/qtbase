@@ -252,7 +252,10 @@ void QHttpNetworkConnectionChannel::abort()
 bool QHttpNetworkConnectionChannel::sendRequest()
 {
     Q_ASSERT(!protocolHandler.isNull());
-    return protocolHandler->sendRequest();
+    if (protocolHandler)
+        return protocolHandler->sendRequest();
+    else
+        return false;
 }
 
 /*
@@ -781,7 +784,7 @@ void QHttpNetworkConnectionChannel::closeAndResendCurrentRequest()
 {
     requeueCurrentlyPipelinedRequests();
     close();
-    if (reply)
+    if (reply && protocolHandler)
         resendCurrent = true;
     if (qobject_cast<QHttpNetworkConnection*>(connection))
         QMetaObject::invokeMethod(connection, "_q_startNextRequest", Qt::QueuedConnection);
@@ -790,7 +793,7 @@ void QHttpNetworkConnectionChannel::closeAndResendCurrentRequest()
 void QHttpNetworkConnectionChannel::resendCurrentRequest()
 {
     requeueCurrentlyPipelinedRequests();
-    if (reply)
+    if (reply && protocolHandler)
         resendCurrent = true;
     if (qobject_cast<QHttpNetworkConnection*>(connection))
         QMetaObject::invokeMethod(connection, "_q_startNextRequest", Qt::QueuedConnection);
@@ -1054,7 +1057,7 @@ void QHttpNetworkConnectionChannel::_q_error(QAbstractSocket::SocketError socket
     case QAbstractSocket::SslHandshakeFailedError:
         {
             QSslSocket* pSocket = qobject_cast<QSslSocket *>(this->socket);
-            if (pSocket != nullptr && !bHttpsReConnects && protocolHandler) {
+            if (pSocket != nullptr && !bHttpsReConnects) {
                 pSocket->setProtocol(QSsl::GmSslV1);
                 resendCurrentRequest();
                 bHttpsReConnects = true;

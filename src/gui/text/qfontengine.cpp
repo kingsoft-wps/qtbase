@@ -967,6 +967,11 @@ QFontEngine::Glyph *QFontEngine::glyphDataForCustomBold(glyph_t, QFixed, GlyphFo
     return nullptr;
 }
 
+void QFontEngine::addCustomBoldOutlineToPath(qreal x, qreal y, const QGlyphLayout &glyphs, QPainterPath *path, QTextItem::RenderFlags flags, qreal widthX, qreal widthY)
+{
+    addOutlineToPath(x, y, glyphs, path, flags);
+}
+
 QImage QFontEngine::alphaMapForGlyph(glyph_t glyph)
 {
     glyph_metrics_t gm = boundingBox(glyph);

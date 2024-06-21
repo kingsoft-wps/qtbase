@@ -3106,6 +3106,9 @@ bool QMenu::focusNextPrevChild(bool next)
     return true;
 }
 
+#ifdef Q_OS_MAC
+    extern void qt_set_sequence_auto_mnemonic(bool);
+#endif
 /*!
   \reimp
 */
@@ -3416,7 +3419,13 @@ void QMenu::keyPressEvent(QKeyEvent *e)
                     if (d->actionRects.at(i).isNull())
                         continue;
                     QAction *act = d->actions.at(i);
+#ifdef Q_OS_MAC
+                    qt_set_sequence_auto_mnemonic(true);
+#endif
                     QKeySequence sequence = QKeySequence::mnemonic(act->text());
+#ifdef Q_OS_MAC
+                    qt_set_sequence_auto_mnemonic(false);
+#endif
                     int key = sequence[0] & 0xffff;
                     if (key == c.unicode()) {
                         clashCount++;

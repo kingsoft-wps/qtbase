@@ -1413,6 +1413,17 @@ void tst_QApplication::desktopSettingsAware()
 {
 #if QT_CONFIG(process)
     QProcess testProcess;
+    // Add the executable's directory to path so that we can find the test helper next to it
+    // in a cross-platform way. We must do this because the CWD is not pointing to this directory
+    // in debug-and-release builds.
+    int argc = 0;
+    QApplication app(argc, nullptr);
+    QByteArray path = qgetenv("PATH");
+    qputenv("PATH",
+            path + QDir::listSeparator().toLatin1()
+                    + QCoreApplication::applicationDirPath().toLocal8Bit());
+    auto restore = qScopeGuard([&] { qputenv("PATH", path); });
+
     testProcess.start("desktopsettingsaware_helper");
     QVERIFY2(testProcess.waitForStarted(),
              qPrintable(QString::fromLatin1("Cannot start 'desktopsettingsaware_helper': %1").arg(testProcess.errorString())));
@@ -2093,6 +2104,17 @@ void tst_QApplication::qtbug_12673()
 #if QT_CONFIG(process)
     QProcess testProcess;
     QStringList arguments;
+    // Add the executable's directory to path so that we can find the test helper next to it
+    // in a cross-platform way. We must do this because the CWD is not pointing to this directory
+    // in debug-and-release builds.
+    int argc = 0;
+    QApplication app(argc, nullptr);
+    QByteArray path = qgetenv("PATH");
+    qputenv("PATH",
+            path + QDir::listSeparator().toLatin1()
+                    + QCoreApplication::applicationDirPath().toLocal8Bit());
+    auto restore = qScopeGuard([&] { qputenv("PATH", path); });
+
     testProcess.start("modal_helper", arguments);
     QVERIFY2(testProcess.waitForStarted(),
              qPrintable(QString::fromLatin1("Cannot start 'modal_helper': %1").arg(testProcess.errorString())));

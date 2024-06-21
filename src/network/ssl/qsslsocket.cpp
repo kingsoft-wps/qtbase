@@ -2088,6 +2088,10 @@ QSslSocketPrivate::QSslSocketPrivate()
     , flushTriggered(false)
 {
     QSslConfigurationPrivate::deepCopyDefaultConfiguration(&configuration);
+    // If the global configuration doesn't allow root certificates to be loaded
+    // on demand then we have to disable it for this socket as well.
+    if (!configuration.allowRootCertOnDemandLoading)
+        allowRootCertOnDemandLoading = false;
 }
 
 /*!
@@ -2316,6 +2320,7 @@ void QSslConfigurationPrivate::deepCopyDefaultConfiguration(QSslConfigurationPri
     ptr->sessionProtocol = global->sessionProtocol;
     ptr->ciphers = global->ciphers;
     ptr->caCertificates = global->caCertificates;
+    ptr->allowRootCertOnDemandLoading = global->allowRootCertOnDemandLoading;
     ptr->protocol = global->protocol;
     ptr->peerVerifyMode = global->peerVerifyMode;
     ptr->peerVerifyDepth = global->peerVerifyDepth;

@@ -94,6 +94,19 @@ Q_LOGGING_CATEGORY(lcQpaFonts, "qt.qpa.fonts")
 
 static float SYNTHETIC_ITALIC_SKEW = std::tan(14.f * std::acos(0.f) / 90.f);
 
+static bool isDisableSmoothFonts()
+{
+    static bool bInit = false;
+    static bool isDisableSmoothFonts = false;
+    if (!bInit) {
+        bInit = true;
+        NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
+        isDisableSmoothFonts = [userDefaults boolForKey:@"disable_smooth_fonts"];
+    }
+    
+    return isDisableSmoothFonts;
+}
+
 bool QCoreTextFontEngine::ct_getSfntTable(void *user_data, uint tag, uchar *buffer, uint *length)
 {
     CTFontRef ctfont = *(CTFontRef *)user_data;
@@ -836,7 +849,7 @@ QImage QCoreTextFontEngine::imageForGlyph(glyph_t glyph, QFixed subPixelPosition
     const bool shouldSmooth = shouldSmoothFont();
     if (@available(macOS 10.14, *)) 
     {
-        CGContextSetShouldSmoothFonts(ctx, false);
+        CGContextSetShouldSmoothFonts(ctx, isDisableSmoothFonts() ? false : shouldSmoothFont());
     }
     else
     {
@@ -856,7 +869,7 @@ QImage QCoreTextFontEngine::imageForGlyph(glyph_t glyph, QFixed subPixelPosition
             // should propagate the fill color all the way from the paint engine, and include it
             //in the key for the glyph cache.
 
-            if (!qt_mac_applicationIsInDarkMode())
+//            if (!qt_mac_applicationIsInDarkMode())
                 return kCGColorBlack;
         }
         return kCGColorWhite;
@@ -1163,7 +1176,7 @@ bool QCoreTextFontEngine::drawGlyphOnImage(void *cgContext, int numGlyphs, const
 
     if (@available(macOS 10.14, *))
     {
-        CGContextSetShouldSmoothFonts(ctx, false);
+        CGContextSetShouldSmoothFonts(ctx, isDisableSmoothFonts() ? false : shouldSmoothFont());
     }
     else
     {

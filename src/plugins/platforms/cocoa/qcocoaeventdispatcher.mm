@@ -916,6 +916,13 @@ void QCocoaEventDispatcherPrivate::firstLoopEntry(CFRunLoopObserverRef ref,
 
 void QCocoaEventDispatcherPrivate::postedEventsSourceCallback(void *info)
 {
+    QVariant value = QCoreApplication::instance()->property("IsPeekingEvent");
+    if (value.canConvert<bool>()) {
+        bool  bValue = value.toBool();
+        if (bValue && qApp->thread() == QThread::currentThread())
+            return;
+    }
+    
     QCocoaEventDispatcherPrivate *d = static_cast<QCocoaEventDispatcherPrivate *>(info);
     if (d->processEventsCalled && (d->processEventsFlags & QEventLoop::EventLoopExec) == 0) {
         // processEvents() was called "manually," ignore this source for now

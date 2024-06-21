@@ -168,7 +168,7 @@ public:
     virtual bool isValid() const Q_DECL_OVERRIDE;
     virtual void invokeAction(QInputMethod::Action,
                               int cursorPosition) Q_DECL_OVERRIDE;
-	virtual void reset(bool b) Q_DECL_OVERRIDE;
+    virtual void reset(bool b) Q_DECL_OVERRIDE;
     virtual void commit() Q_DECL_OVERRIDE;
     virtual void update(Qt::InputMethodQueries quries) Q_DECL_OVERRIDE;
     virtual void setFocusObject(QObject *object) Q_DECL_OVERRIDE;
@@ -229,6 +229,7 @@ private:
     bool m_useSurroundingText;
     bool m_isCommit;
     bool m_syncMode;
+    bool m_isImEnabled;
     QString m_lastSurroundingText;
     int m_lastSurroundingAnchor = 0;
     int m_lastSurroundingCursor = 0;

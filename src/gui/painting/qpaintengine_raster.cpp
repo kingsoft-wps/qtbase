@@ -3430,7 +3430,13 @@ bool QRasterPaintEngine::drawCachedGlyphBatch(int numGlyphs, const glyph_t *glyp
             int xOffset = 0;
             if (advances && attributes && attributes[i].adjustCoordinate)
             {
-                QFixed curWidth = QFixed::fromFixed(alphaMap->linearAdvance);
+                qreal scaleX = 1;
+#ifdef Q_OS_LINUX
+                if (fontEngine->fontDef.paintDeviceMatrix.m22() > 0)
+                    //The font size only use scaleY（m22）reference by qfontengine_ft.cpp:2060
+                    scaleX = fontEngine->fontDef.paintDeviceMatrix.m22();
+#endif
+                QFixed curWidth = QFixed::fromFixed(alphaMap->linearAdvance / scaleX);
                 QFixed advanceWidth = *(advances + i);
                 qreal diffWidth = (advanceWidth.toReal() - curWidth.toReal()) / curWidth.toReal();
                 xOffset = diffWidth * alphaMap->advance / 2;

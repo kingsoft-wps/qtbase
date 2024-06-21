@@ -286,6 +286,9 @@ QWidgetPrivate::QWidgetPrivate(int version)
 #if defined(Q_OS_WIN)
       , noPaintOnScreen(0)
 #endif
+#if defined(Q_OS_MAC)
+      , glassEffectView(0)
+#endif
 #if 0 // Used to be included in Qt4 for Q_WS_X11
       , picture(0)
 #elif 0 // Used to be included in Qt4 for Q_WS_WIN
@@ -1433,6 +1436,9 @@ void q_createNativeChildrenAndSetParent(const QWidget *parentWidget)
 
 }
 
+static QPlatformWindow *g_platform_window = nullptr;
+static WId g_platform_window_id = 0;
+
 void QWidgetPrivate::create()
 {
     Q_Q(QWidget);
@@ -1558,6 +1564,14 @@ void QWidgetPrivate::create()
         Q_ASSERT(id != WId(0));
         setWinId(id);
     }
+
+    if (!q->internalWinId()) {
+        g_platform_window = win->handle();
+        if (g_platform_window) {
+            g_platform_window_id = g_platform_window->winId();
+        }
+    }
+
     // Check children and create windows for them if necessary
     q_createNativeChildrenAndSetParent(q);
 
@@ -6431,6 +6445,26 @@ void QWidget::toggleFullScreen()
     Q_D(QWidget);
     d->toggleFullScreen_sys();
 }
+
+void QWidget::setGlassView(QGlassEffectView* glassView)
+{
+    Q_D(QWidget);
+    if (glassView == d->glassEffectView)
+        return;
+    if (d->glassEffectView)
+        delete d->glassEffectView;
+    d->glassEffectView = glassView;
+    setAttribute(Qt::WA_MacGlassEffectView, glassView ? true : false);
+}
+
+QGlassEffectView* QWidget::getGlassView()
+{
+    Q_D(QWidget);
+    if (testAttribute(Qt::WA_MacGlassEffectView))
+        return d->glassEffectView;
+    return nullptr;
+}
+
 #endif
 
 /*!
@@ -11991,6 +12025,13 @@ void QWidget::setAttribute(Qt::WidgetAttribute attribute, bool on)
             d->registerTouchWindow();
 #endif
         break;
+
+    case Qt::WA_MacGlassEffectView:
+#ifdef Q_OS_MAC
+        if (on && !d->glassEffectView)
+            new QGlassEffectView(this);
+        break;
+#endif
     default:
         break;
     }

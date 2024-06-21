@@ -496,6 +496,7 @@ public:
         WA_ForceAllowFocusForPopup = 132, // add for special popup widget
         WA_AcceptEnforceDrops = 133,
         // Add new attributes before this line
+        WA_MacGlassEffectView = 134,
         WA_AttributeCount
     };
 

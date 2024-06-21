@@ -337,6 +337,8 @@ int QWidgetWindow::compareWindowZorder(const QWindow* w) const
     }
     Q_ASSERT(w1->parentWidget());
     QWidget *parent = w1->parentWidget();
+    if (nullptr == parent)
+        return -1;
     int i1 = parent->children().indexOf(w1);
     int i2 = parent->children().indexOf(w2);
     return (i1 < i2) ? 1 : -1;
@@ -1410,6 +1412,7 @@ bool QWidgetWindow::nativeMouseEvent(ulong timestamp, const QPointF &local, cons
                                            Qt::MouseButtons state, Qt::MouseButton button, QEvent::Type type,
                                            Qt::KeyboardModifiers mods, Qt::MouseEventSource source)
 {
+    Q_UNUSED(timestamp);
     auto localPos  = QHighDpi::fromNativeLocalPosition(local, this);
     auto globalPos = QHighDpi::fromNativePixels(global, this);
     auto windowPos = mapFromGlobal(globalPos.toPoint());

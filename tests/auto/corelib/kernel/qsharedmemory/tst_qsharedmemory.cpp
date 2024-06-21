@@ -34,6 +34,7 @@
 #include <QSharedMemory>
 #include <QTest>
 #include <QThread>
+#include <QScopeGuard>
 
 #define EXISTING_SHARE "existing"
 #define EXISTING_SIZE 1024
@@ -445,6 +446,16 @@ void tst_QSharedMemory::readOnly()
     QSKIP("QTBUG-59936: Times out on macOS", SkipAll);
 #else
     rememberKey("readonly_segfault");
+    
+    // Add the executable's directory to path so that we can find the test helper next to it
+    // in a cross-platform way. We must do this because the CWD is not pointing to this directory
+    // in debug-and-release builds.
+    QByteArray path = qgetenv("PATH");
+    qputenv("PATH",
+            path + QDir::listSeparator().toLatin1()
+                    + QCoreApplication::applicationDirPath().toLocal8Bit());
+    auto restore = qScopeGuard([&] { qputenv("PATH", path); });
+
     // ### on windows disable the popup somehow
     QProcess p;
     p.start(m_helperBinary, QStringList("readonly_segfault"));
@@ -745,6 +756,15 @@ void tst_QSharedMemory::simpleProcessProducerConsumer()
     QSKIP("This test is unstable: QTBUG-25655");
 
     rememberKey("market");
+
+    // Add the executable's directory to path so that we can find the test helper next to it
+    // in a cross-platform way. We must do this because the CWD is not pointing to this directory
+    // in debug-and-release builds.
+    QByteArray path = qgetenv("PATH");
+    qputenv("PATH",
+            path + QDir::listSeparator().toLatin1()
+                    + QCoreApplication::applicationDirPath().toLocal8Bit());
+    auto restore = qScopeGuard([&] { qputenv("PATH", path); });
 
     QProcess producer;
     producer.start(m_helperBinary, QStringList("producer"));

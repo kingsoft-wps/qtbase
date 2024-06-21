@@ -3467,6 +3467,14 @@ void QPainter::fillPath(const QPainterPath &path, const QBrush &brush)
     if (path.isEmpty())
         return;
 
+#ifdef Q_OS_MACOS
+    if (d->cgPainter && brush.style() < Qt::LinearGradientPattern 
+        && brush.color().isValid() && !brush.colorEffect().hasEffects()) {
+        d->cgPainter->fillPath(path, brush);
+        return;
+    }
+#endif
+
     if (d->extended) {
         const QGradient *g = brush.gradient();
         if (!g || g->coordinateMode() == QGradient::LogicalMode) {
@@ -4184,6 +4192,7 @@ void QPainter::setBackground(const QBrush &bg)
         d->state->dirtyFlags |= QPaintEngine::DirtyBackground;
 }
 
+
 /*!
     Sets the painter's font to the given \a font.
 
@@ -4196,7 +4205,6 @@ void QPainter::setBackground(const QBrush &bg)
 
     \sa font(), drawText(), {QPainter#Settings}{Settings}
 */
-
 void QPainter::setFont(const QFont &font)
 {
     Q_D(QPainter);
@@ -4212,6 +4220,7 @@ void QPainter::setFont(const QFont &font)
     }
 
     d->state->font = QFont(font.resolve(d->state->deviceFont), device());
+
     if (!d->extended)
         d->state->dirtyFlags |= QPaintEngine::DirtyFont;
 }
@@ -7296,6 +7305,10 @@ void QPainter::setRenderHints(RenderHints hints, bool on)
     else
         d->state->renderHints &= ~hints;
 
+    static bool bAutoTestPicCompareMode = qApp->property("AutoTestPicCompareMode").toBool();
+    if (bAutoTestPicCompareMode)
+        d->state->renderHints &= ~(RenderHint::SmoothPixmapTransform);
+
     if (d->extended)
         d->extended->renderHintsChanged();
     else
@@ -7829,6 +7842,13 @@ start_lengthVariant:
             eng->enableDelayDecorations();
 
             qreal advance = line.horizontalAdvance();
+#ifdef Q_OS_LINUX
+            if (painter->font().paintDeviceMatrix().m22() > 0) {
+                advance /= painter->font().paintDeviceMatrix().m22();
+                if (tf & Qt::AlignCenter)
+                    yoff += (height / painter->font().paintDeviceMatrix().m22() - height) / 2;
+            }
+#endif
             xoff = 0;
             if (tf & Qt::AlignRight) {
                 xoff = r.width() - advance -

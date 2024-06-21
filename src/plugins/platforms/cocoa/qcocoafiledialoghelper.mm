@@ -1089,6 +1089,7 @@ static QString strippedText(QString s)
     if (mOptions->isBackupToCloudEnable())
         return ;
 
+    // todo@laihaofeng: 临近发版，简单处理
     if (!qApp->property("hostLogined").toBool())
     {
         [self onSaveToCloud];

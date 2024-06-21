@@ -43,6 +43,9 @@
 
 #include "qfont_p.h"
 #include "qfontengine_p.h"
+#ifdef Q_OS_MACOS
+#include "qmath.h"
+#endif
 
 QT_BEGIN_NAMESPACE
 
@@ -272,8 +275,8 @@ int QFontMetrics::ascent() const
     QFontEngine *engine = d->engineForScript(QChar::Script_Common);
     Q_ASSERT(engine != 0);
 #ifdef Q_OS_LINUX
-    if (engine->fontDef.paintDeviceMatrix.m22() > 0)
-        return qRound(engine->ascent().toReal() / engine->fontDef.paintDeviceMatrix.m22());
+	if (engine->fontDef.paintDeviceMatrix.m22() > 0)
+		return qRound(engine->ascent().toReal() / engine->fontDef.paintDeviceMatrix.m22());
 #endif
     return qRound(engine->ascent());
 }
@@ -312,8 +315,8 @@ int QFontMetrics::descent() const
     QFontEngine *engine = d->engineForScript(QChar::Script_Common);
     Q_ASSERT(engine != 0);
 #ifdef Q_OS_LINUX
-    if (engine->fontDef.paintDeviceMatrix.m22() > 0)
-        return qRound(engine->descent().toReal() / engine->fontDef.paintDeviceMatrix.m22());
+	if (engine->fontDef.paintDeviceMatrix.m22() > 0)
+		return qRound(engine->descent().toReal() / engine->fontDef.paintDeviceMatrix.m22());
 #endif
     return qRound(engine->descent());
 }
@@ -694,8 +697,10 @@ int QFontMetrics::horizontalAdvance(const QString &text, int len) const
 
     QStackTextEngine layout(text, QFont(d.data()));
 #ifdef Q_OS_LINUX
-    if (d.data()->request.paintDeviceMatrix.m22() > 0)
-        return qRound(layout.width(0, len).toReal() / d.data()->request.paintDeviceMatrix.m22());
+	if (d.data()->request.paintDeviceMatrix.m22() > 0)
+		return qRound(layout.width(0, len).toReal() / d.data()->request.paintDeviceMatrix.m22());
+#elif defined(Q_OS_MACOS)
+    return qCeil(layout.width(0, len).toReal());
 #endif
     return qRound(layout.width(0, len));
 }

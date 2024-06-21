@@ -108,13 +108,13 @@ QPlatformMenuItem::MenuRole detectMenuRole(const QString &caption)
         return QPlatformMenuItem::QuitRole;
     }
     if (!captionNoAmpersand.compare(QCoreApplication::translate("QCocoaMenuItem", "Cut"), Qt::CaseInsensitive))
-        return QPlatformMenuItem::CutRole;
+        return QPlatformMenuItem::NoRole;
     if (!captionNoAmpersand.compare(QCoreApplication::translate("QCocoaMenuItem", "Copy"), Qt::CaseInsensitive))
-        return QPlatformMenuItem::CopyRole;
+        return QPlatformMenuItem::NoRole;
     if (!captionNoAmpersand.compare(QCoreApplication::translate("QCocoaMenuItem", "Paste"), Qt::CaseInsensitive))
-        return QPlatformMenuItem::PasteRole;
+        return QPlatformMenuItem::NoRole;
     if (!captionNoAmpersand.compare(QCoreApplication::translate("QCocoaMenuItem", "Select All"), Qt::CaseInsensitive))
-        return QPlatformMenuItem::SelectAllRole;
+        return QPlatformMenuItem::NoRole;
 
     if (!captionNoAmpersand.compare(QCoreApplication::translate("QCocoaMenuItem", "Check For Updates..."), Qt::CaseInsensitive))
         return QPlatformMenuItem::CheckForUpdatesRole;

@@ -92,7 +92,7 @@ QFcitxPlatformInputContext::QFcitxPlatformInputContext()
           QDBusConnection::connectToBus(QDBusConnection::SessionBus,
                                         "fcitx-platform-input-context"),
           this)),
-      m_cursorPos(0), m_useSurroundingText(false), m_isCommit(false),
+      m_cursorPos(0), m_useSurroundingText(false), m_isCommit(false), m_isImEnabled(false),
       m_syncMode(get_boolean_env("FCITX_QT_USE_SYNC", false)), m_destroy(false),
       m_xkbContext(_xkb_context_new_helper()),
       m_xkbComposeTable(m_xkbContext ? xkb_compose_table_new_from_locale(
@@ -162,10 +162,15 @@ void QFcitxPlatformInputContext::reset(bool b) {
     if (m_xkbComposeState) {
         xkb_compose_state_reset(m_xkbComposeState.data());
     }
-	QPlatformInputContext::reset(b);
+    QPlatformInputContext::reset(b);
 }
 
 void QFcitxPlatformInputContext::update(Qt::InputMethodQueries queries) {
+    if (queries & Qt::ImEnabled) {
+        m_isImEnabled = inputMethodAccepted();
+        return;
+    }
+
     // ignore the boring query
     if (!(queries & (Qt::ImCursorRectangle | Qt::ImHints |
                      Qt::ImSurroundingText | Qt::ImCursorPosition))) {
@@ -768,6 +773,9 @@ bool QFcitxPlatformInputContext::filterEvent(const QEvent *event) {
         quint32 state = keyEvent->nativeModifiers();
         bool isRelease = keyEvent->type() == QEvent::KeyRelease;
 
+        if (!m_isImEnabled)
+            break;
+
         if (!inputMethodAccepted() && !objectAcceptsInputMethod())
             break;
 
@@ -853,7 +861,7 @@ void QFcitxPlatformInputContext::processKeyEventFinished(
         update(Qt::ImCursorRectangle);
     }
 
-	if (!filtered || (XKB_KEY_5 == sym && Qt::ControlModifier == keyEvent.modifiers())) {
+    if (!filtered || (XKB_KEY_5 == sym && Qt::ControlModifier == keyEvent.modifiers())) {
         forwardEvent(window, keyEvent);
     } else {
         auto proxy = qobject_cast<FcitxInputContextProxy *>(watcher->parent());

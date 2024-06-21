@@ -210,6 +210,11 @@
     if (!m_platformWindow)
         return;
 
+    QWindow *updateWindow = m_platformWindow->window();
+    if (updateWindow) {
+        QEvent e(QEvent::Type(QEvent::User + 32767));
+        QGuiApplication::sendEvent(updateWindow, &e);
+    }
     qCDebug(lcQpaDrawing) << "[QNSView displayLayer]" << m_platformWindow->window();
 
     // FIXME: Find out if there's a way to resolve the dirty rect like in drawRect:

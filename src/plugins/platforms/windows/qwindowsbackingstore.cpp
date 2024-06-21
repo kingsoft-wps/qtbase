@@ -98,6 +98,10 @@ void QWindowsBackingStore::flush(QWindow *window, const QRegion &region,
         if (dirtyRect.x() < 0) dirtyRect.moveLeft(0);
         if (dirtyRect.y() < 0) dirtyRect.moveTop(0);
         SIZE size = {r.width(), r.height()};
+        if (size.cx > m_image->width())
+            size.cx = m_image->width();
+        if (size.cy > m_image->height())
+            size.cy = m_image->height();
         POINT ptDst = {r.x(), r.y()};
         POINT ptSrc = {0, 0};
         BLENDFUNCTION blend = { AC_SRC_OVER, 0, BYTE(qRound(255.0 * rw->opacity())), AC_SRC_ALPHA };

@@ -373,6 +373,32 @@
     *qtScreenPoint = QCocoaScreen::mapFromNative(mouseLocation);
 }
 
+// ----------------------------- keyEquivalent ---------------------------------
+
+- (void)undo:(id)sender {
+
+}
+
+- (void)redo:(id)sender {
+
+}
+
+- (void)cut:(id)sender {
+
+}
+
+- (void)copy:(id)sender {
+
+}
+
+- (void)paste:(id)sender {
+
+}
+
+- (void)selectAll:(id)sender {
+
+}
+
 @end
 
 #include "qnsview_drawing.mm"

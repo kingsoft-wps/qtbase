@@ -163,6 +163,9 @@ static void clearSystemPalette()
 }
 
 bool QApplicationPrivate::autoSipEnabled = true;
+#ifdef Q_OS_MAC
+bool QApplicationPrivate::usingGlassEffect = false;
+#endif
 
 QApplicationPrivate::QApplicationPrivate(int &argc, char **argv, int flags)
     : QApplicationPrivateBase(argc, argv, flags)
@@ -1037,6 +1040,22 @@ void QApplication::setAutoSipEnabled(const bool enabled)
 bool QApplication::autoSipEnabled() const
 {
     return QApplicationPrivate::autoSipEnabled;
+}
+
+void QApplication::setUsingGlassEffect(const bool enabled)
+{
+#ifdef Q_OS_MAC
+    QApplicationPrivate::usingGlassEffect = enabled;
+#endif
+}
+
+bool QApplication::usingGlassEffect() const
+{
+#ifdef Q_OS_MAC
+    return QApplicationPrivate::usingGlassEffect;
+#else
+    return false;
+#endif
 }
 
 #ifndef QT_NO_STYLE_STYLESHEET

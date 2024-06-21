@@ -86,6 +86,7 @@ class Q_WIDGETS_EXPORT QApplication : public QGuiApplication
     Q_PROPERTY(QString styleSheet READ styleSheet WRITE setStyleSheet)
 #endif
     Q_PROPERTY(bool autoSipEnabled READ autoSipEnabled WRITE setAutoSipEnabled)
+    Q_PROPERTY(bool usingGlassEffect READ usingGlassEffect WRITE setUsingGlassEffect)
 
 public:
 #ifdef Q_QDOC
@@ -189,9 +190,14 @@ public:
     static void setNavigationMode(Qt::NavigationMode mode);
     static Qt::NavigationMode navigationMode();
 #endif
+    void setUsingGlassEffect(const bool enabled);
+    bool usingGlassEffect() const;
 
 Q_SIGNALS:
     void focusChanged(QWidget *old, QWidget *now);
+#ifdef Q_OS_MAC
+    void glassEffectStateChanged(bool bEnable);
+#endif
 
 public:
     QString styleSheet() const;

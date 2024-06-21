@@ -1956,7 +1956,8 @@ NSView *QMacStylePrivate::cocoaControl(CocoaControl widget) const
             bc.title = @"";
             if (widget.type == Button_PullDown)
                 bc.pullsDown = YES;
-            if (widget.type == Button_PullDown) {
+            if (widget.type == Button_PullDown)
+            { 
                 bc.pullsDown = YES;
             }    
             bv = bc;
@@ -2085,7 +2086,7 @@ NSCell *QMacStylePrivate::cocoaCell(CocoaControl widget) const
             cell = bc;
             break;
         }
-        case Button_PushButton: {
+     case Button_PushButton: {
             CustomNSButtonCell *bc = [[CustomNSButtonCell alloc] init];
             bc.buttonType = NSPushOnPushOffButton;
             cell = bc;
@@ -2295,7 +2296,7 @@ void QMacStyle::unpolish(QWidget* w)
     QCommonStyle::unpolish(w);
 
     if (qobject_cast<QScrollBar*>(w)) {
-        // Avoid the transparent background of the scroll bar after switching from dark to dark
+    // Avoid the transparent background of the scroll bar after switching from dark to dark
         w->setAttribute(Qt::WA_OpaquePaintEvent, false);
         w->setAttribute(Qt::WA_Hover, false);
         w->setMouseTracking(false);
@@ -2689,8 +2690,7 @@ QPalette QMacStyle::standardPalette() const
 int QMacStyle::styleHint(StyleHint sh, const QStyleOption *opt, const QWidget *w,
                          QStyleHintReturn *hret) const
 {
-    QMacAutoReleasePool pool;
-
+    @autoreleasepool {
     int ret = 0;
     switch (sh) {
     case SH_Slider_SnapToValue:
@@ -3006,6 +3006,7 @@ int QMacStyle::styleHint(StyleHint sh, const QStyleOption *opt, const QWidget *w
         break;
     }
     return ret;
+    }
 }
 
 QPixmap QMacStyle::generatedIconPixmap(QIcon::Mode iconMode, const QPixmap &pixmap,
@@ -4100,7 +4101,6 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                     // sides - left and right.
                     frameRect = frameRect.adjusted(-1, 0, 1, 0);
                 }
-
                 break;
             case QStyleOptionTab::End:
                 // Pressed state hack: tweak adjustments in preparation for flip below
@@ -4362,7 +4362,7 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
         {
             bool bNoFocusRing = ffw->property("NoFocusRing").isValid() && ffw->property("NoFocusRing").toBool();
             if (!bNoFocusRing)
-                d->drawFocusRing(p, opt->rect, hMargin, vMargin, QMacStylePrivate::CocoaControl(ct, cs));
+        d->drawFocusRing(p, opt->rect, hMargin, vMargin, QMacStylePrivate::CocoaControl(ct, cs));
         }
         break; }
     case CE_MenuEmptyArea:
@@ -5588,7 +5588,18 @@ void QMacStyle::drawComplexControl(ComplexControl cc, const QStyleOptionComplex 
 
                     const CGRect barRect = [cell barRectFlipped:slider.isFlipped];
                     if (drawBar) {
-                        [cell drawBarInside:barRect flipped:!verticalFlip];
+                        if (!isHorizontal && !sl->upsideDown && (hasDoubleTicks || !hasTicks)) {
+                            // The logic behind verticalFlip and upsideDown is the twisted one.
+                            // Bar is the only part of the cell affected by this 'flipped'
+                            // parameter in the call below, all other parts (knob, etc.) 'fixed'
+                            // by scaling/translating. With ticks on one side it's not a problem
+                            // at all - the bar is gray anyway. Without ticks or with ticks on
+                            // the both sides, for inverted appearance and vertical orientation -
+                            // we must flip so that knob and blue filling work in accordance.
+                            [cell drawBarInside:barRect flipped:true];
+                        } else {
+                            [cell drawBarInside:barRect flipped:!verticalFlip];
+                        }
                         // This ain't HIG kosher: force unfilled bar look.
                         if (hasDoubleTicks)
                             slider.numberOfTickMarks = numberOfTickMarks;
