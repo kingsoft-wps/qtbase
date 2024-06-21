@@ -104,7 +104,7 @@ NSMenu *QCocoaMenu::nsMenu() const
 
 void QCocoaMenu::insertMenuItem(QPlatformMenuItem *menuItem, QPlatformMenuItem *before)
 {
-    QMacAutoReleasePool pool;
+    @autoreleasepool {
     QCocoaMenuItem *cocoaItem = static_cast<QCocoaMenuItem *>(menuItem);
     QCocoaMenuItem *beforeItem = static_cast<QCocoaMenuItem *>(before);
 
@@ -128,6 +128,7 @@ void QCocoaMenu::insertMenuItem(QPlatformMenuItem *menuItem, QPlatformMenuItem *
     if (isVisible() && attachedItem().hidden) {
         if (auto *mb = qobject_cast<QCocoaMenuBar *>(menuParent()))
             mb->syncMenu(this);
+    }
     }
 }
 
@@ -190,7 +191,7 @@ void QCocoaMenu::setIsAboutToShow(bool isAbout)
 
 void QCocoaMenu::removeMenuItem(QPlatformMenuItem *menuItem)
 {
-    QMacAutoReleasePool pool;
+    @autoreleasepool {
     QCocoaMenuItem *cocoaItem = static_cast<QCocoaMenuItem *>(menuItem);
     if (!m_menuItems.contains(cocoaItem)) {
         qWarning("Menu does not contain the item to be removed");
@@ -210,6 +211,7 @@ void QCocoaMenu::removeMenuItem(QPlatformMenuItem *menuItem)
             return;
         }
         [m_nativeMenu removeItem:cocoaItem->nsItem()];
+    }
     }
 }
 
@@ -243,7 +245,7 @@ void QCocoaMenu::syncMenuItem(QPlatformMenuItem *menuItem)
 
 void QCocoaMenu::syncMenuItem_helper(QPlatformMenuItem *menuItem, bool menubarUpdate)
 {
-    QMacAutoReleasePool pool;
+    @autoreleasepool {
     QCocoaMenuItem *cocoaItem = static_cast<QCocoaMenuItem *>(menuItem);
     if (!m_menuItems.contains(cocoaItem)) {
         qWarning("Item does not belong to this menu");
@@ -283,11 +285,12 @@ void QCocoaMenu::syncMenuItem_helper(QPlatformMenuItem *menuItem, bool menubarUp
     if (menubarUpdate)
         if (QCocoaMenu *submenu = cocoaItem->menu())
             submenu->setAttachedItem(syncedItem);
+    }
 }
 
 void QCocoaMenu::syncSeparatorsCollapsible(bool enable)
 {
-    QMacAutoReleasePool pool;
+    @autoreleasepool {
     if (enable) {
         bool previousIsSeparator = true; // setting to true kills all the separators placed at the top.
         NSMenuItem *previousItem = nil;
@@ -319,6 +322,7 @@ void QCocoaMenu::syncSeparatorsCollapsible(bool enable)
             // sync the visiblity directly
             item->sync();
         }
+    }
     }
 }
 
@@ -471,8 +475,7 @@ QList<QCocoaMenuItem *> QCocoaMenu::merged() const
 
 void QCocoaMenu::propagateEnabledState(bool enabled)
 {
-    QMacAutoReleasePool pool; // FIXME Is this still needed for Creator? See 6a0bb4206a2928b83648
-
+    @autoreleasepool {
     m_parentEnabled = enabled;
     if (!m_enabled && enabled) // Some ancestor was enabled, but this menu is not
         return;
@@ -482,6 +485,7 @@ void QCocoaMenu::propagateEnabledState(bool enabled)
             menu->propagateEnabledState(enabled);
         else
             item->setParentEnabled(enabled);
+    }
     }
 }
 

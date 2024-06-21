@@ -323,6 +323,7 @@ void QCocoaIntegration::updateScreens()
 
     // Now the leftovers in remainingScreens are no longer current, so we can delete them.
     foreach (QCocoaScreen* screen, remainingScreens) {
+        // If it has been released, skip it directly
         if (mRemovedScreens.indexOf(screen) != -1)
             continue ;
         mScreens.removeOne(screen);
@@ -330,6 +331,7 @@ void QCocoaIntegration::updateScreens()
         screen->m_screenIndex = -1;
         qCDebug(lcQpaScreen) << "Removing" << screen;
         QWindowSystemInterface::handleScreenRemoved(screen);
+        // Store the released screen to avoid the crash caused by the next recursive entry
         mRemovedScreens.append(screen);
     }
 }
@@ -349,6 +351,11 @@ QCocoaScreen *QCocoaIntegration::screenForNSScreen(NSScreen *nsScreen)
     }
 
     return nullptr;
+}
+
+bool QCocoaIntegration::screenIsRemoved(QCocoaScreen *screen)
+{
+    return mRemovedScreens.indexOf(screen) != -1;
 }
 
 bool QCocoaIntegration::hasCapability(QPlatformIntegration::Capability cap) const

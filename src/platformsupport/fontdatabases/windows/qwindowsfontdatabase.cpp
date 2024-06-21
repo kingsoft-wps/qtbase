@@ -1984,7 +1984,7 @@ LOGFONT QWindowsFontDatabase::fontDefToLOGFONT(const QFontDef &request, const QS
     lf.lfPitchAndFamily = DEFAULT_PITCH | hint;
 
     QString fam = faceName;
-    if (fam.isEmpty())
+    if (fam.isEmpty() || request.useRequestFamMatching)
         fam = request.family;
 
     if (fam.isEmpty())

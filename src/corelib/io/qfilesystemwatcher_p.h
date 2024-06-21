@@ -94,11 +94,11 @@ class QFileSystemWatcherPrivate : public QObjectPrivate
 {
     Q_DECLARE_PUBLIC(QFileSystemWatcher)
 
-    static QFileSystemWatcherEngine *createNativeEngine(QObject *parent);
+    static QFileSystemWatcherEngine *createNativeEngine(QObject *parent, int latencyMs);
 
 public:
     QFileSystemWatcherPrivate();
-    void init();
+    void init(int latencyMs = 500);
     void initPollerEngine();
 
     QFileSystemWatcherEngine *native, *poller;

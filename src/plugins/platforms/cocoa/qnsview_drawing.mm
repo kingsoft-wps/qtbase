@@ -99,8 +99,8 @@
     if (QMacVersion::currentRuntime() >= QOperatingSystemVersion::MacOSBigSur)
         return true; // Big Sur always enables layer-backing, regardless of SDK
 
-    if (QMacVersion::currentRuntime() >= QOperatingSystemVersion::MacOSMojave
-        && QMacVersion::buildSDK() >= QOperatingSystemVersion::MacOSMojave)
+    if (QMacVersion::currentRuntime() >= QOperatingSystemVersion::MacOSSierra
+        && QMacVersion::buildSDK() >= QOperatingSystemVersion::MacOSSierra)
         return true; // Mojave and Catalina enable layers based on the app's SDK
 
     return false; // Prior versions needed explicitly enabled layer backing

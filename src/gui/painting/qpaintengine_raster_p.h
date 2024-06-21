@@ -201,7 +201,8 @@ public:
 
     void drawStaticTextItem(QStaticTextItem *textItem) override;
     virtual bool drawCachedGlyphs(int numGlyphs, const glyph_t *glyphs, const QFixedPoint *positions,
-                                  QFontEngine *fontEngine);
+                                  QFontEngine *fontEngine, const QFixed* advances = nullptr,
+                                  const QGlyphAttributes *attributes = nullptr);
     bool drawCachedGlyphsColorFont(int numGlyphs, const glyph_t *glyphs,
                                    const QFixedPoint *positions, const QTextItemInt &ti);
 
@@ -254,7 +255,8 @@ private:
     QRect toNormalizedFillRect(const QRectF &rect);
 
     bool drawCachedGlyphBatch(int numGlyphs, const glyph_t *glyphs, const QFixedPoint *positions,
-                              QFontEngine *fontEngine, QFontEngine::GlyphFormat glyphFormat);
+                              QFontEngine *fontEngine, QFontEngine::GlyphFormat glyphFormat,
+                              const QFixed* advances = nullptr, const QGlyphAttributes *attributes = nullptr);
 
 #if !defined(QT_NO_FREETYPE)
     void drawGlyphsFreetypeColor(const QPointF &p, const QTextItemInt &ti);

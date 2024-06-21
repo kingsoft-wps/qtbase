@@ -116,6 +116,7 @@ public:
     void updateScreens();
     void updateScreensByObserver();
     QCocoaScreen *screenForNSScreen(NSScreen *nsScreen);
+    bool screenIsRemoved(QCocoaScreen *);
 
     void setToolbar(QWindow *window, NSToolbar *toolbar);
     NSToolbar *toolbar(QWindow *window) const;
@@ -145,7 +146,7 @@ private:
 #endif
     QScopedPointer<QPlatformTheme> mPlatformTheme;
     QList<QCocoaScreen *> mScreens;
-    QList<QCocoaScreen *> mRemovedScreens; 
+    QList<QCocoaScreen *> mRemovedScreens; //Store the released screens to avoid crash caused by multiple releases of recursive calls 
     QMacNotificationObserver m_screensObserver;
 #ifndef QT_NO_CLIPBOARD
     QCocoaClipboard  *mCocoaClipboard;

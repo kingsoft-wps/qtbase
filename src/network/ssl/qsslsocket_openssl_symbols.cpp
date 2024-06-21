@@ -793,10 +793,22 @@ static QPair<QLibrary *, QLibrary *> loadOpenSslWin32()
 #define QT_SSL_SUFFIX
 #endif // !Q_PROCESSOR_x86_64
 
-    tryToLoadOpenSslWin32Library(QLatin1String("libssl-1_1" QT_SSL_SUFFIX),
-                                 QLatin1String("libcrypto-1_1" QT_SSL_SUFFIX), pair);
+#define QT_SSL_EXTNAME_TOSTR(x) #x
+#define QT_SSL_EXTNAME_TOSTREx(x) QT_SSL_EXTNAME_TOSTR(x)
+
+#ifndef QT_SSL_EXTNAME
+#define QT_SSL_EXTNAME_STR
+#else
+#define QT_SSL_EXTNAME_STR QT_SSL_EXTNAME_TOSTREx(QT_SSL_EXTNAME)
+#endif // !QT_SSL_EXTNAME
+
+    tryToLoadOpenSslWin32Library(QLatin1String("libssl" QT_SSL_EXTNAME_STR "-1_1" QT_SSL_SUFFIX),
+                                 QLatin1String("libcrypto" QT_SSL_EXTNAME_STR "-1_1" QT_SSL_SUFFIX), pair);
 
 #undef QT_SSL_SUFFIX
+#undef QT_SSL_EXTNAME_TOSTR
+#undef QT_SSL_EXTNAME_TOSTREx
+#undef QT_SSL_EXTNAME_STR
 
 #else // QT_CONFIG(opensslv11)
 

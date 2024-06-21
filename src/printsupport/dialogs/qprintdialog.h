@@ -80,6 +80,7 @@ public:
     virtual void GetPaperSize(float *paperWidth, float *paperHeight);
     virtual void GetPrintJobName(QString &jobName);
     virtual void GetPDFFilePathAndPassword(QString &filePath, QString &userKey, QString &ownerKey);
+    virtual bool IsInvoice(const QString &content);
 #endif
 #if defined (Q_OS_UNIX) && !defined(Q_OS_MAC)
     virtual void accept() override;

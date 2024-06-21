@@ -2164,6 +2164,9 @@ QInputMethodEvent::QInputMethodEvent()
 QInputMethodEvent::QInputMethodEvent(const QString &preeditText, const QList<Attribute> &attributes)
     : QEvent(QEvent::InputMethod), preedit(preeditText), attrs(attributes),
       replace_from(0), replace_length(0)
+#ifdef Q_OS_MAC
+      , sender(0)
+#endif
 {
 }
 
@@ -2173,6 +2176,9 @@ QInputMethodEvent::QInputMethodEvent(const QString &preeditText, const QList<Att
 QInputMethodEvent::QInputMethodEvent(const QInputMethodEvent &other)
     : QEvent(QEvent::InputMethod), preedit(other.preedit), attrs(other.attrs),
       commit(other.commit), replace_from(other.replace_from), replace_length(other.replace_length)
+#ifdef Q_OS_MAC
+      , sender(other.sender)
+#endif
 {
 }
 
@@ -2203,6 +2209,13 @@ void QInputMethodEvent::setCommitString(const QString &commitString, int replace
     replace_from = replaceFrom;
     replace_length = replaceLength;
 }
+
+#ifdef Q_OS_MAC
+void QInputMethodEvent::setSenderObject(const WId& id)
+{
+    sender = id;
+}
+#endif
 
 /*!
     \fn const QList<Attribute> &QInputMethodEvent::attributes() const

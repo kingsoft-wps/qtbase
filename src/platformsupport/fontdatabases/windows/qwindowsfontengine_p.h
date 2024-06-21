@@ -89,7 +89,8 @@ public:
 
     void addOutlineToPath(qreal x, qreal y, const QGlyphLayout &glyphs, QPainterPath *path, QTextItem::RenderFlags flags) override;
     void addGlyphsToPath(glyph_t *glyphs, QFixedPoint *positions, int nglyphs,
-                         QPainterPath *path, QTextItem::RenderFlags flags) override;
+                         QPainterPath *path, QTextItem::RenderFlags flags,
+                         const QFixed *advances = nullptr, const QGlyphAttributes *attributes = nullptr) override;
 
     HGDIOBJ selectDesignFont() const;
 

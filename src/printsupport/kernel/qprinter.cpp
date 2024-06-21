@@ -128,7 +128,7 @@ QPrinterInfo QPrinterPrivate::findValidPrinter(const QPrinterInfo &printer)
     return printerToUse;
 }
 
-void QPrinterPrivate::initEngines(QPrinter::OutputFormat format, const QString &printer)
+void QPrinterPrivate::initEngines(QPrinter::OutputFormat format, const QString &printer, bool threading)
 {
     // Default to PdfFormat
 #ifdef Q_OS_MAC
@@ -157,8 +157,9 @@ void QPrinterPrivate::initEngines(QPrinter::OutputFormat format, const QString &
     }
 
     if (outputFormat == QPrinter::NativeFormat) {
-        printEngine = ps->createNativePrintEngine(printerMode, printerName);
+        printEngine = ps->createNativePrintEngine(printerMode, printerName, threading);
         paintEngine = ps->createPaintEngine(printEngine, printerMode);
+        threadingEngine = threading;
     } else {
         static const QHash<QPrinter::PdfVersion, QPdfEngine::PdfVersion> engineMapping {
             {QPrinter::PdfVersion_1_4, QPdfEngine::Version_1_4},
@@ -176,7 +177,7 @@ void QPrinterPrivate::initEngines(QPrinter::OutputFormat format, const QString &
     validPrinter = true;
 }
 
-void QPrinterPrivate::initEngines(QPrinter::OutputFormat format, const QPrinterInfo &printer)
+void QPrinterPrivate::initEngines(QPrinter::OutputFormat format, const QPrinterInfo &printer, bool threading)
 {
     // Default to PdfFormat
 #ifdef Q_OS_MAC
@@ -198,8 +199,9 @@ void QPrinterPrivate::initEngines(QPrinter::OutputFormat format, const QPrinterI
     }
 
     if (outputFormat == QPrinter::NativeFormat) {
-        printEngine = ps->createNativePrintEngine(printerMode, printerName);
+        printEngine = ps->createNativePrintEngine(printerMode, printerName, threading);
         paintEngine = ps->createPaintEngine(printEngine, printerMode);
+        threadingEngine = threading;
     } else {
         static const QHash<QPrinter::PdfVersion, QPdfEngine::PdfVersion> engineMapping {
             {QPrinter::PdfVersion_1_4, QPdfEngine::Version_1_4},
@@ -222,7 +224,7 @@ void QPrinterPrivate::changeEngines(QPrinter::OutputFormat format, const QPrinte
     QPrintEngine *oldPrintEngine = printEngine;
     const bool def_engine = use_default_engine;
 
-    initEngines(format, printer);
+    initEngines(format, printer, threadingEngine);
 
     if (oldPrintEngine) {
         const auto properties = m_properties; // take a copy: setProperty() below modifies m_properties
@@ -604,11 +606,11 @@ public:
 /*!
     Creates a new printer object with the given \a mode.
 */
-QPrinter::QPrinter(PrinterMode mode)
+QPrinter::QPrinter(PrinterMode mode, bool threading)
     : QPagedPaintDevice(new QPrinterPagedPaintDevicePrivate(this)),
       d_ptr(new QPrinterPrivate(this))
 {
-    d_ptr->init(QPrinterInfo(), mode);
+    d_ptr->init(QPrinterInfo(), mode, threading);
 }
 
 /*!
@@ -616,14 +618,14 @@ QPrinter::QPrinter(PrinterMode mode)
 
     Creates a new printer object with the given \a printer and \a mode.
 */
-QPrinter::QPrinter(const QPrinterInfo& printer, PrinterMode mode)
+QPrinter::QPrinter(const QPrinterInfo& printer, PrinterMode mode, bool threading)
     : QPagedPaintDevice(new QPrinterPagedPaintDevicePrivate(this)),
       d_ptr(new QPrinterPrivate(this))
 {
-    d_ptr->init(printer, mode);
+    d_ptr->init(printer, mode, threading);
 }
 
-void QPrinterPrivate::init(const QPrinterInfo &printer, QPrinter::PrinterMode mode)
+void QPrinterPrivate::init(const QPrinterInfo &printer, QPrinter::PrinterMode mode, bool threading)
 {
     if (Q_UNLIKELY(!QCoreApplication::instance())) {
         qFatal("QPrinter: Must construct a QCoreApplication before a QPrinter");
@@ -632,17 +634,17 @@ void QPrinterPrivate::init(const QPrinterInfo &printer, QPrinter::PrinterMode mo
 
     printerMode = mode;
 
-    initEngines(QPrinter::NativeFormat, printer);
+    initEngines(QPrinter::NativeFormat, printer, threading);
 }
 
-QPrinter::QPrinter(const QString& printer, PrinterMode mode)
+QPrinter::QPrinter(const QString& printer, PrinterMode mode, bool threading)
     : QPagedPaintDevice(new QPrinterPagedPaintDevicePrivate(this)),
       d_ptr(new QPrinterPrivate(this))
 {
-    d_ptr->init(printer, mode);
+    d_ptr->init(printer, mode, threading);
 }
 
-void QPrinterPrivate::init(const QString &printer, QPrinter::PrinterMode mode)
+void QPrinterPrivate::init(const QString &printer, QPrinter::PrinterMode mode, bool threading)
 {
     if (Q_UNLIKELY(!QCoreApplication::instance())) {
         qFatal("QPrinter: Must construct a QCoreApplication before a QPrinter");
@@ -651,7 +653,7 @@ void QPrinterPrivate::init(const QString &printer, QPrinter::PrinterMode mode)
 
     printerMode = mode;
 
-    initEngines(QPrinter::NativeFormat, printer);
+    initEngines(QPrinter::NativeFormat, printer, threading);
 }
 
 /*!

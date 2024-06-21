@@ -567,8 +567,12 @@ void QWindowsFontEngineDirectWrite::recalcAdvances(QGlyphLayout *glyphs, QFontEn
 }
 
 void QWindowsFontEngineDirectWrite::addGlyphsToPath(glyph_t *glyphs, QFixedPoint *positions, int nglyphs,
-                                             QPainterPath *path, QTextItem::RenderFlags flags)
+                                             QPainterPath *path, QTextItem::RenderFlags flags,
+                                             const QFixed *advances, const QGlyphAttributes *attributes)
 {
+    Q_UNUSED(advances);
+    Q_UNUSED(attributes);
+
     QVarLengthArray<UINT16> glyphIndices(nglyphs);
     QVarLengthArray<DWRITE_GLYPH_OFFSET> glyphOffsets(nglyphs);
     QVarLengthArray<FLOAT> glyphAdvances(nglyphs);

@@ -64,7 +64,7 @@ static inline uint qwcsnlen(const wchar_t *str, uint maxlen)
     return length;
 }
 
-static QPrint::InputSlot paperBinToInputSlot(int windowsId, const QString &name)
+QPrint::InputSlot paperBinToInputSlot(int windowsId, const QString &name)
 {
     QPrint::InputSlot slot;
     slot.name = name;
@@ -289,6 +289,7 @@ QMarginsF QWindowsPrintDevice::printableMargins(const QPageSize &pageSize,
     if (GetPrinter(m_hPrinter, 2, buffer.data(), needed, &needed)) {
         PPRINTER_INFO_2 info = reinterpret_cast<PPRINTER_INFO_2>(buffer.data());
         LPDEVMODE devMode = info->pDevMode;
+        DEVMODE oldDevMode = { 0 };
         bool separateDevMode = false;
         if (!devMode) {
             // GetPrinter() didn't include the DEVMODE. Get it a different way.
@@ -296,6 +297,8 @@ QMarginsF QWindowsPrintDevice::printableMargins(const QPageSize &pageSize,
             if (!devMode)
                 return margins;
             separateDevMode = true;
+        } else {
+            oldDevMode = *devMode;
         }
 
         HDC pDC = CreateDC(NULL, (LPWSTR)m_id.utf16(), NULL, devMode);
@@ -314,7 +317,8 @@ QMarginsF QWindowsPrintDevice::printableMargins(const QPageSize &pageSize,
             devMode->dmYResolution = resolution.width();
         }
         devMode->dmOrientation = orientation == QPageLayout::Portrait ? DMORIENT_PORTRAIT : DMORIENT_LANDSCAPE;
-        ResetDC(pDC, devMode);
+        if (separateDevMode || memcmp(&oldDevMode, devMode, sizeof(DEVMODE)) != 0)
+            ResetDC(pDC, devMode);
         const int dpiWidth = GetDeviceCaps(pDC, LOGPIXELSX);
         const int dpiHeight = GetDeviceCaps(pDC, LOGPIXELSY);
         const qreal wMult = 72.0 / dpiWidth;

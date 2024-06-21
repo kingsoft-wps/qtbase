@@ -141,8 +141,9 @@ QCupsPrinterSupport::~QCupsPrinterSupport()
 {
 }
 
-QPrintEngine *QCupsPrinterSupport::createNativePrintEngine(QPrinter::PrinterMode printerMode, const QString &deviceId)
+QPrintEngine *QCupsPrinterSupport::createNativePrintEngine(QPrinter::PrinterMode printerMode, const QString &deviceId, bool threading)
 {
+    Q_UNUSED(threading);
     return new QCupsPrintEngine(printerMode, (deviceId.isEmpty() ? defaultPrintDeviceId() : deviceId));
 }
 
@@ -152,13 +153,16 @@ QPaintEngine *QCupsPrinterSupport::createPaintEngine(QPrintEngine *engine, QPrin
     return static_cast<QCupsPrintEngine *>(engine);
 }
 
-QPrintDevice QCupsPrinterSupport::createPrintDevice(const QString &id)
+QPrintDevice QCupsPrinterSupport::createPrintDevice(const QString &id, bool threading)
 {
+    Q_UNUSED(threading);
     return QPlatformPrinterSupport::createPrintDevice(new QPpdPrintDevice(id));
 }
 
-QStringList QCupsPrinterSupport::availablePrintDeviceIds() const
+QStringList QCupsPrinterSupport::availablePrintDeviceIds(bool threading) const
 {
+    Q_UNUSED(threading);
+
     QStringList list;
     cups_dest_t *dests;
     int count = cupsGetDests(&dests);
@@ -173,8 +177,9 @@ QStringList QCupsPrinterSupport::availablePrintDeviceIds() const
     return list;
 }
 
-QString QCupsPrinterSupport::defaultPrintDeviceId() const
+QString QCupsPrinterSupport::defaultPrintDeviceId(bool threading) const
 {
+    Q_UNUSED(threading);
     return staticDefaultPrintDeviceId();
 }
 

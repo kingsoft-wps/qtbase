@@ -553,10 +553,10 @@ glyph_metrics_t QWindowsFontEngine::boundingBox(glyph_t glyph, const QTransform 
         // Bitmap fonts
         wchar_t ch = wchar_t(glyph);
         ABCFLOAT abc;
-        GetCharABCWidthsFloat(hdc, ch, ch, &abc);
-        int width = qRound(abc.abcfB);
-
-        return glyph_metrics_t(QFixed::fromReal(abc.abcfA), -tm.tmAscent, width, tm.tmHeight, width, 0).transformed(t);
+        if (GetCharABCWidthsFloat(hdc, ch, ch, &abc) != 0) {
+            int width = qRound(abc.abcfB);
+            return glyph_metrics_t(QFixed::fromReal(abc.abcfA), -tm.tmAscent, width, tm.tmHeight, width, 0).transformed(t);
+        }
     }
 
     return glyphMetrics;
@@ -896,8 +896,12 @@ static bool addGlyphToPath(glyph_t glyph, const QFixedPoint &position, HDC hdc,
 }
 
 void QWindowsFontEngine::addGlyphsToPath(glyph_t *glyphs, QFixedPoint *positions, int nglyphs,
-                                     QPainterPath *path, QTextItem::RenderFlags)
+                                     QPainterPath *path, QTextItem::RenderFlags,
+                                     const QFixed *advances, const QGlyphAttributes *attributes)
 {
+    Q_UNUSED(advances);
+    Q_UNUSED(attributes);
+
     LOGFONT lf = m_logfont;
     HFONT hf = CreateFontIndirect(&lf);
     HDC hdc = m_fontEngineData->hdc;

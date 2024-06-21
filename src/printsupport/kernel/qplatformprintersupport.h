@@ -72,12 +72,12 @@ public:
     QPlatformPrinterSupport();
     virtual ~QPlatformPrinterSupport();
 
-    virtual QPrintEngine *createNativePrintEngine(QPrinter::PrinterMode printerMode, const QString &deviceId = QString());
+    virtual QPrintEngine *createNativePrintEngine(QPrinter::PrinterMode printerMode, const QString &deviceId = QString(), bool threading = false);
     virtual QPaintEngine *createPaintEngine(QPrintEngine *, QPrinter::PrinterMode printerMode);
 
-    virtual QPrintDevice createPrintDevice(const QString &id);
-    virtual QStringList availablePrintDeviceIds() const;
-    virtual QString defaultPrintDeviceId() const;
+    virtual QPrintDevice createPrintDevice(const QString &id, bool threading = false);
+    virtual QStringList availablePrintDeviceIds(bool threading = false) const;
+    virtual QString defaultPrintDeviceId(bool threading = false) const;
 
 protected:
     static QPrintDevice createPrintDevice(QPlatformPrintDevice *device);

@@ -1353,8 +1353,6 @@ QWindowsWindow::QWindowsWindow(QWindow *aWindow, const QWindowsWindowData &data)
     if (aWindow->surfaceType() == QSurface::VulkanSurface)
         setFlag(VulkanSurface);
 #endif
-    updateDropSite(window()->isTopLevel(),aWindow->acceptEnforceDrops());
-
     registerTouchWindow();
     const qreal opacity = qt_window_private(aWindow)->opacity;
     if (!qFuzzyCompare(opacity, qreal(1.0)))
@@ -1461,7 +1459,7 @@ void QWindowsWindow::destroyWindow()
     }
 }
 
-void QWindowsWindow::updateDropSite(bool topLevel, bool acceptenforceDrop)
+bool QWindowsWindow::needDropSite(bool topLevel)
 {
     bool enabled = false;
     bool parentIsEmbedded = false;
@@ -1488,7 +1486,7 @@ void QWindowsWindow::updateDropSite(bool topLevel, bool acceptenforceDrop)
             break;
         }
     }
-    setDropSiteEnabled(enabled, acceptenforceDrop);
+    return enabled;
 }
 
 void QWindowsWindow::setDropSiteEnabled(bool dropEnabled, bool acceptenforceDrop)
@@ -1593,6 +1591,17 @@ void QWindowsWindow::setVisible(bool visible)
 
             if (win->type() == Qt::Popup && !win->parent() && !QGuiApplication::focusWindow())
                 SetForegroundWindow(m_data.hwnd);
+
+            if (!testFlag(DragdropRegistered)) {
+                setFlag(DragdropRegistered);
+                if (needDropSite(win->isTopLevel())) {
+                    const QVariant propDragdrop = win->property("_q_platform_ShadowBorderWidget");
+                    if (!propDragdrop.isValid() || !propDragdrop.toBool())
+                        QCoreApplication::postEvent(window(),
+                                                    new QEvent(QEvent::WindowsWindowDragdrop),
+                                                    Qt::LowEventPriority);
+                }
+            }
         } else {
             if (hasMouseCapture())
                 setMouseGrabEnabled(false);
@@ -1815,7 +1824,7 @@ void QWindowsWindow::setParent_sys(const QPlatformWindow *parent)
         if (wasTopLevel != isTopLevel) {
             setDropSiteEnabled(false);
             setWindowFlags_sys(window()->flags(), unsigned(isTopLevel ? WindowCreationData::ForceTopLevel : WindowCreationData::ForceChild));
-            updateDropSite(isTopLevel, window()->acceptEnforceDrops());
+            setDropSiteEnabled(needDropSite(isTopLevel), window()->acceptEnforceDrops());
         }
     }
 }
@@ -2179,7 +2188,7 @@ void QWindowsWindow::setWindowFlags(Qt::WindowFlags flags)
         m_data.flags = flags;
         if (m_data.hwnd) {
             m_data = setWindowFlags_sys(flags);
-            updateDropSite(window()->isTopLevel(), window()->acceptEnforceDrops());
+            setDropSiteEnabled(needDropSite(window()->isTopLevel()), window()->acceptEnforceDrops());
         }
     }
     // When switching to a frameless window, geometry
@@ -2451,6 +2460,9 @@ bool QWindowsWindow::windowEvent(QEvent *event)
         break;
     case QEvent::CancelEmbeddingControl:
         m_data.embedded = false;
+        break;
+    case QEvent::WindowsWindowDragdrop:
+        setDropSiteEnabled(true, window()->acceptEnforceDrops());
         break;
     default:
         break;

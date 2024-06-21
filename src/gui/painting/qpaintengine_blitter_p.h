@@ -108,7 +108,8 @@ public:
     void stroke(const QVectorPath &path, const QPen &pen) override;
     void drawStaticTextItem(QStaticTextItem *) override;
     bool drawCachedGlyphs(int numGlyphs, const glyph_t *glyphs, const QFixedPoint *positions,
-                          QFontEngine *fontEngine) override;
+                          QFontEngine *fontEngine, const QFixed* advances = nullptr,
+                          const QGlyphAttributes *attributes = nullptr) override;
 };
 
 QT_END_NAMESPACE

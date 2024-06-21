@@ -3933,6 +3933,10 @@ static bool popupGrabOk;
 static void grabForPopup(QWidget *popup)
 {
     Q_ASSERT(popup->testAttribute(Qt::WA_WState_Created));
+#ifdef Q_OS_LINUX
+    if (popup->property("POPUP_FOR_IBUS").toBool())
+        return;
+#endif
     popupGrabOk = qt_widget_private(popup)->stealKeyboardGrab(true);
     if (popupGrabOk) {
         popupGrabOk = qt_widget_private(popup)->stealMouseGrab(true);

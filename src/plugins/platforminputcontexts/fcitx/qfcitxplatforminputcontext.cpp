@@ -453,9 +453,14 @@ void QFcitxPlatformInputContext::commitString(const QString &str) {
     if (!input)
         return;
 
-    QInputMethodEvent event;
-    event.setCommitString(str);
-    QCoreApplication::sendEvent(input, &event);
+    if (str.length() == 1 && str == QLatin1String("\n")) {
+        QKeyEvent keyevent(QEvent::KeyPress, Qt::Key_Enter, Qt::NoModifier);
+        QCoreApplication::sendEvent(input, &keyevent);
+    } else {
+        QInputMethodEvent event;
+        event.setCommitString(str);
+        QCoreApplication::sendEvent(input, &event);
+    }
 }
 
 void QFcitxPlatformInputContext::updateFormattedPreedit(

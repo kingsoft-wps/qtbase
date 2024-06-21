@@ -271,6 +271,10 @@ int QFontMetrics::ascent() const
 {
     QFontEngine *engine = d->engineForScript(QChar::Script_Common);
     Q_ASSERT(engine != 0);
+#ifdef Q_OS_LINUX
+    if (engine->fontDef.paintDeviceMatrix.m22() > 0)
+        return qRound(engine->ascent().toReal() / engine->fontDef.paintDeviceMatrix.m22());
+#endif
     return qRound(engine->ascent());
 }
 
@@ -307,6 +311,10 @@ int QFontMetrics::descent() const
 {
     QFontEngine *engine = d->engineForScript(QChar::Script_Common);
     Q_ASSERT(engine != 0);
+#ifdef Q_OS_LINUX
+    if (engine->fontDef.paintDeviceMatrix.m22() > 0)
+        return qRound(engine->descent().toReal() / engine->fontDef.paintDeviceMatrix.m22());
+#endif
     return qRound(engine->descent());
 }
 
@@ -685,6 +693,10 @@ int QFontMetrics::horizontalAdvance(const QString &text, int len) const
         return 0;
 
     QStackTextEngine layout(text, QFont(d.data()));
+#ifdef Q_OS_LINUX
+    if (d.data()->request.paintDeviceMatrix.m22() > 0)
+        return qRound(layout.width(0, len).toReal() / d.data()->request.paintDeviceMatrix.m22());
+#endif
     return qRound(layout.width(0, len));
 }
 

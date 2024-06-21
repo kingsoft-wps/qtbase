@@ -73,7 +73,7 @@ class Q_PRINTSUPPORT_EXPORT QWin32PrintEngine : public QAlphaPaintEngine, public
 {
     Q_DECLARE_PRIVATE(QWin32PrintEngine)
 public:
-    QWin32PrintEngine(QPrinter::PrinterMode mode, const QString &deviceId);
+    QWin32PrintEngine(QPrinter::PrinterMode mode, const QString &deviceId, bool threading);
 
     // override QWin32PaintEngine
     bool begin(QPaintDevice *dev);
@@ -109,6 +109,8 @@ public:
     HGLOBAL *createGlobalDevNames();
     HGLOBAL globalDevMode();
 
+    void setAsynAbort(bool enable);
+
 private:
     friend class QPrintDialog;
     friend class QPageSetupDialog;
@@ -137,7 +139,10 @@ public:
         reinit(false),
         complex_xform(false), has_pen(false), has_brush(false), has_custom_paper_size(false),
         embed_fonts(true),
-        txop(0 /* QTransform::TxNone */)
+        threading(false),
+        asynAbort(false),
+        txop(0 /* QTransform::TxNone */),
+        interrupted(false)
     {
     }
 
@@ -176,6 +181,17 @@ public:
     void updatePageLayout();
     void updateMetrics();
     void debugMetrics() const;
+
+    BOOL openPrinter(const QString& name);
+    BOOL getPrinter(DWORD level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD pcbNeeded);
+    BOOL closePrinter();
+    int startDoc(const DOCINFO *info);
+    int endDoc();
+    int abortDoc();
+    int startPage();
+    int endPage();
+    HDC createDC(LPCWSTR pDriver, LPCWSTR pDevice, LPCWSTR pPort, const DEVMODE *pdm);
+    void deleteDC();
 
     // Windows GDI printer references.
     HANDLE hPrinter;
@@ -229,8 +245,11 @@ public:
     uint has_brush : 1;
     uint has_custom_paper_size : 1;
     uint embed_fonts : 1;
+    uint threading : 1;
+    uint asynAbort : 1;
 
     uint txop;
+    bool interrupted;
 
     QColor brush_color;
     QPen pen;

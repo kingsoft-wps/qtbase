@@ -488,7 +488,7 @@ public:
         void *handle;
     };
     QVector<ApplicationFont> applicationFonts;
-    int addAppFont(const QByteArray &fontData, const QString &fileName);
+    int addAppFont(const QByteArray &fontData, const QString &fileName, bool bInValidate = true);
     bool reregisterAppFonts;
     bool isApplicationFont(const QString &fileName);
 
@@ -2456,7 +2456,7 @@ Q_GUI_EXPORT QByteArray qt_fontdata_from_index(int index)
     return privateDb()->applicationFonts.value(index).data;
 }
 
-int QFontDatabasePrivate::addAppFont(const QByteArray &fontData, const QString &fileName)
+int QFontDatabasePrivate::addAppFont(const QByteArray &fontData, const QString &fileName, bool bInValidate)
 {
     QFontDatabasePrivate::ApplicationFont font;
     font.data = fontData;
@@ -2483,7 +2483,10 @@ int QFontDatabasePrivate::addAppFont(const QByteArray &fontData, const QString &
 
     applicationFonts[i] = font;
 
-    invalidate();
+#ifdef Q_OS_MACOS
+    if (bInValidate)
+#endif
+        invalidate();
     return i;
 }
 
@@ -2513,7 +2516,7 @@ bool QFontDatabasePrivate::isApplicationFont(const QString &fileName)
 
     \sa addApplicationFontFromData(), applicationFontFamilies(), removeApplicationFont()
 */
-int QFontDatabase::addApplicationFont(const QString &fileName)
+int QFontDatabase::addApplicationFont(const QString &fileName, bool bInValidate)
 {
     QByteArray data;
     if (!QFileInfo(fileName).isNativePath()) {
@@ -2526,7 +2529,7 @@ int QFontDatabase::addApplicationFont(const QString &fileName)
         data = f.readAll();
     }
     QMutexLocker locker(fontDatabaseMutex());
-    return privateDb()->addAppFont(data, fileName);
+    return privateDb()->addAppFont(data, fileName, bInValidate);
 }
 
 /*!
@@ -2656,6 +2659,16 @@ bool QFontDatabase::removeAllApplicationFonts()
     db->invalidate();
     return true;
 }
+
+#ifdef Q_OS_MACOS
+void QFontDatabase::invalidate()
+{
+    QMutexLocker locker(fontDatabaseMutex());
+    QFontDatabasePrivate *db = privateDb();
+    if (db)
+        db->invalidate();
+}
+#endif
 
 /*!
     \fn bool QFontDatabase::supportsThreadedFontRendering()

@@ -259,14 +259,14 @@ init_context:
             q_X509_STORE_add_cert(q_SSL_CTX_get_cert_store(sslContext->ctx), (X509 *)caCertificate.handle());
         }
     }
-
+#ifdef Q_OS_UNIX
     if (QSslSocketPrivate::s_loadRootCertsOnDemand && allowRootCertOnDemandLoading) {
         // tell OpenSSL the directories where to look up the root certs on demand
         const QList<QByteArray> unixDirs = QSslSocketPrivate::unixRootCertDirectories();
         for (const QByteArray &unixDir : unixDirs)
             q_SSL_CTX_load_verify_locations(sslContext->ctx, 0, unixDir.constData());
     }
-
+#endif
     if (!sslContext->sslConfiguration.localCertificate().isNull()) {
         // Require a private key as well.
         if (sslContext->sslConfiguration.privateKey().isNull()) {

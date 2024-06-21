@@ -1254,7 +1254,9 @@ bool QWindowsKeyMapper::translateKeyEventInternal(QWindow *window, MSG msg,
             const QString text = uch.isNull() ? QString() : QString(uch);
             const char a = uch.row() ? char(0) : char(uch.cell());
             const Qt::KeyboardModifiers modifiers(state);
-            key_recorder.storeKey(int(msg.wParam), a, state, text);
+            // VK_PACKET should not be recorded as it corresponds to all synthesized keystrokes.
+            if (msg.wParam != VK_PACKET)
+                key_recorder.storeKey(int(msg.wParam), a, state, text);
 
             // QTBUG-71210
             // VK_PACKET specifies multiple characters. The system only sends the first

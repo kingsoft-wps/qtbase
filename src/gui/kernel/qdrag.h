@@ -70,6 +70,10 @@ public:
 
     void setHotSpot(const QPoint &hotspot);
     QPoint hotSpot() const;
+    
+    void setRelativeHotSpot(QPointF relativeHotSpot, bool reset = false);
+    QPointF relativeHotSpot();
+    bool useRelativeHotSpot();
 
     QObject *source() const;
     QObject *target() const;

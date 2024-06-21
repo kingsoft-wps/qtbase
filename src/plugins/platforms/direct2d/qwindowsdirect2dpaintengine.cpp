@@ -1177,7 +1177,7 @@ public:
             glyphIndices,      //    const UINT16              *glyphIndices;
             glyphAdvances,     //    const FLOAT               *glyphAdvances;
             glyphOffsets,      //    const DWRITE_GLYPH_OFFSET *glyphOffsets;
-            FALSE,             //    BOOL                      isSideways;
+            fontDef.family.startsWith(QLatin1Char('@')),     //    BOOL                      isSideways;
             rtl ? 1u : 0u      //    UINT32                    bidiLevel;
         };
 

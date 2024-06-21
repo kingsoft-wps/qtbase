@@ -983,21 +983,24 @@ QString QTranslatorPrivate::do_translate(const char *context, const char *source
         Check if the context belongs to this QTranslator. If many
         translators are installed, this step is necessary.
     */
-    if (contextLength) {
+    if (contextLength && *context) {
         quint16 hTableSize = read16(contextArray);
         uint g = elfHash(context) % hTableSize;
         const uchar *c = contextArray + 2 + (g << 1);
         quint16 off = read16(c);
         c += 2;
         if (off == 0)
-            return QString();
+            goto searchDependencies;
         c = contextArray + (2 + (hTableSize << 1) + (off << 1));
 
         const uint contextLen = uint(strlen(context));
+        const uchar *end = contextArray + contextLength;
         for (;;) {
+            if (c >= end)
+                goto searchDependencies;
             quint8 len = read8(c++);
             if (len == 0)
-                return QString();
+                goto searchDependencies;
             if (match(c, len, context, contextLen))
                 break;
             c += len;
@@ -1014,7 +1017,7 @@ QString QTranslatorPrivate::do_translate(const char *context, const char *source
     for (;;) {
         quint32 h = 0;
         elfHash_continue(sourceText, h);
-        elfHash_continue(comment, h);
+        elfHash_continue(context, h);
         elfHash_finish(h);
 
         const uchar *start = offsetArray;

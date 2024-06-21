@@ -977,7 +977,6 @@ void QHttpNetworkConnectionChannel::_q_error(QAbstractSocket::SocketError socket
                     || connection->connectionType() == QHttpNetworkConnection::ConnectionTypeHTTP2) {
                     auto h2Handler = static_cast<QHttp2ProtocolHandler *>(protocolHandler.data());
                     h2Handler->handleConnectionClosure();
-                    protocolHandler.reset();
                 }
             }
             return;

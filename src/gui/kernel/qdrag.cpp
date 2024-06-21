@@ -205,6 +205,25 @@ QPoint QDrag::hotSpot() const
     return d->hotspot;
 }
 
+void QDrag::setRelativeHotSpot(QPointF relativeHotSpot, bool reset)
+{
+    Q_D(QDrag);
+    d->relative_hotspot = relativeHotSpot;
+    d->use_relative_hotspot = !reset;
+}
+    
+QPointF QDrag::relativeHotSpot()
+{
+    Q_D(const QDrag);
+    return d->relative_hotspot;
+}
+
+bool QDrag::useRelativeHotSpot()
+{
+    Q_D(const QDrag);
+    return d->use_relative_hotspot;
+}
+
 /*!
     Returns the source of the drag object. This is the widget where the drag
     and drop operation originated.
@@ -288,7 +307,15 @@ Qt::DropAction QDrag::exec(Qt::DropActions supportedActions, Qt::DropAction defa
     }
     d->supported_actions = supportedActions;
     d->default_action = transformedDefaultDropAction;
+#ifndef Q_OS_MAC
     d->executed_action = QDragManager::self()->drag(this);
+#else
+    QPointer<QDrag> self = this;
+    auto executed_action = QDragManager::self()->drag(self.data());
+    if (self.isNull())
+        return Qt::IgnoreAction;
+    d->executed_action = executed_action;
+#endif
 
     return d->executed_action;
 }

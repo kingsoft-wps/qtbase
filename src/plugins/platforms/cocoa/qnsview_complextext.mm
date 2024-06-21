@@ -50,7 +50,8 @@
         QInputMethodQueryEvent queryEvent(Qt::ImEnabled);
         if (QCoreApplication::sendEvent(m_composingFocusObject, &queryEvent)) {
             if (queryEvent.value(Qt::ImEnabled).toBool()) {
-                QInputMethodEvent e;
+                QInputMethodEvent e;             
+                e.setSenderObject((WId)self);
                 QCoreApplication::sendEvent(m_composingFocusObject, &e);
             }
         }
@@ -68,6 +69,7 @@
             if (QCoreApplication::sendEvent(fo, &queryEvent)) {
                 if (queryEvent.value(Qt::ImEnabled).toBool()) {
                     QInputMethodEvent e;
+                    e.setSenderObject((WId)self);
                     e.setCommitString(m_composingText);
                     QCoreApplication::sendEvent(fo, &e);
                 }
@@ -148,6 +150,7 @@
             if (QCoreApplication::sendEvent(fo, &queryEvent)) {
                 if (queryEvent.value(Qt::ImEnabled).toBool()) {
                     QInputMethodEvent e;
+                    e.setSenderObject((WId)self);
                     e.setCommitString(commitString);
                     QCoreApplication::sendEvent(fo, &e);
                     // prevent handleKeyEvent from sending a key event
@@ -222,7 +225,8 @@
         QInputMethodQueryEvent queryEvent(Qt::ImEnabled);
         if (QCoreApplication::sendEvent(fo, &queryEvent)) {
             if (queryEvent.value(Qt::ImEnabled).toBool()) {
-                QInputMethodEvent e(preeditString, attrs);
+                QInputMethodEvent e(preeditString, attrs);                
+                e.setSenderObject((WId)self);
                 QCoreApplication::sendEvent(fo, &e);
                 // prevent handleKeyEvent from sending a key event
                 m_sendKeyEvent = false;

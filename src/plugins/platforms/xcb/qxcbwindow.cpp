@@ -2417,7 +2417,7 @@ void QXcbWindow::handleFocusOutEvent(const xcb_focus_out_event_t *event)
     // our window, even if the input focus is in a different window.
     if (event->detail == XCB_NOTIFY_DETAIL_POINTER)
         return;
-    if (event->mode == NotifyGrab)
+    if (event->mode == XCB_NOTIFY_MODE_GRAB)
         return;
     doFocusOut();
 }
@@ -3082,7 +3082,7 @@ void QXcbWindow::cleanEmbedInfo()
 void QXcbWindow::moveInputToProxy()
 {
     if (m_inputFocusProxy) {
-        xcb_set_input_focus(xcb_connection(), XCB_INPUT_FOCUS_PARENT, m_inputFocusProxy, CurrentTime);
+        xcb_set_input_focus(xcb_connection(), XCB_INPUT_FOCUS_PARENT, m_inputFocusProxy, XCB_CURRENT_TIME);
     }
 }
 

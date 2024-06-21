@@ -152,6 +152,27 @@ static bool isMouseEvent(NSEvent *ev)
     }
 }
 
+- (NSRect)constrainFrameRect:(NSRect)frameRect toScreen:(NSScreen *)screen
+{
+    NSArray<NSScreen*> *screens = NSScreen.screens;
+    int height = 0;
+    int total_width = 0;
+    int midX = NSMidX(frameRect);
+    for (unsigned int i = 0; i < screens.count; ++ i)
+    {
+        total_width += screens[i].frame.size.width;
+        if (total_width > midX)
+        {
+            height = screens[i].frame.size.height;
+            break;
+        }
+    }
+    int midY = NSMidY(frameRect);
+    if (midY > height)
+        return frameRect;
+    return [super constrainFrameRect: frameRect toScreen: screen];
+}
+
 @end
 
 @implementation QNSPanel
@@ -384,6 +405,40 @@ OSStatus CGSClearWindowTags(const CGSConnectionID, const CGSWindowID, int *, int
     self.delegate = nil;
 
     [super dealloc];
+}
+
+- (bool)is10_14_5to6
+{
+    static bool b10_14_5to6;
+    static bool bChecked;
+    if (!bChecked) {
+        bChecked = true;
+        bool b101456 = false;
+        if (@available(macOS 10.14.5, *)) {
+            b101456 = true;
+        }
+        bool b1015 = false;
+        if (@available(macOS 10.15, *)) {
+            b1015 = true;
+        }
+        b10_14_5to6 = b101456 && !b1015;
+    }
+    
+    return b10_14_5to6;
+}
+
+- (oneway void)release
+{
+    qCDebug(lcQpaWindow) << "Releasing" << self;
+
+    if ([self is10_14_5to6] && [self retainCount] <= 1) {
+        if ([[NSThread currentThread] isMainThread] &&
+            [self isVisible]) {
+            return;
+        }
+    }
+
+    [super release];
 }
 
 - (NSSize)minFullScreenContentSize

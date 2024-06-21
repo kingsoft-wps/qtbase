@@ -62,12 +62,12 @@ public:
     }
 };
 
-QPrinterInfoPrivate::QPrinterInfoPrivate(const QString &id)
+QPrinterInfoPrivate::QPrinterInfoPrivate(const QString &id, bool threading)
 {
     if (!id.isEmpty()) {
         QPlatformPrinterSupport *ps = QPlatformPrinterSupportPlugin::get();
         if (ps)
-            m_printDevice = ps->createPrintDevice(id);
+            m_printDevice = ps->createPrintDevice(id, threading);
     }
 }
 
@@ -118,7 +118,7 @@ QPrinterInfo::QPrinterInfo(const QPrinter &printer)
 {
     QPlatformPrinterSupport *ps = QPlatformPrinterSupportPlugin::get();
     if (ps) {
-        QPrinterInfo pi(printer.printerName());
+        QPrinterInfo pi(printer.printerName(), false);
         if (pi.d_ptr.data() == shared_null)
             d_ptr.reset(shared_null);
         else
@@ -129,8 +129,8 @@ QPrinterInfo::QPrinterInfo(const QPrinter &printer)
 /*!
     \internal
 */
-QPrinterInfo::QPrinterInfo(const QString &name)
-    : d_ptr(new QPrinterInfoPrivate(name))
+QPrinterInfo::QPrinterInfo(const QString &name, bool threading)
+    : d_ptr(new QPrinterInfoPrivate(name, threading))
 {
 }
 
@@ -411,11 +411,11 @@ QList<QPrinter::DuplexMode> QPrinterInfo::supportedDuplexModes() const
 
     \since 5.3
 */
-QStringList QPrinterInfo::availablePrinterNames()
+QStringList QPrinterInfo::availablePrinterNames(bool threading)
 {
     QPlatformPrinterSupport *ps = QPlatformPrinterSupportPlugin::get();
     if (ps)
-        return ps->availablePrintDeviceIds();
+        return ps->availablePrintDeviceIds(threading);
     return QStringList();
 }
 
@@ -429,15 +429,15 @@ QStringList QPrinterInfo::availablePrinterNames()
     system or remote print server. Use availablePrinterNames() instead and
     only instantiate printer instances as you need them.
 */
-QList<QPrinterInfo> QPrinterInfo::availablePrinters()
+QList<QPrinterInfo> QPrinterInfo::availablePrinters(bool threading)
 {
     QList<QPrinterInfo> list;
     QPlatformPrinterSupport *ps = QPlatformPrinterSupportPlugin::get();
     if (ps) {
-        const QStringList availablePrintDeviceIds = ps->availablePrintDeviceIds();
+        const QStringList availablePrintDeviceIds = ps->availablePrintDeviceIds(threading);
         list.reserve(availablePrintDeviceIds.size());
         for (const QString &id : availablePrintDeviceIds)
-            list.append(QPrinterInfo(id));
+            list.append(QPrinterInfo(id, threading));
     }
     return list;
 }
@@ -447,11 +447,11 @@ QList<QPrinterInfo> QPrinterInfo::availablePrinters()
 
     \since 5.3
 */
-QString QPrinterInfo::defaultPrinterName()
+QString QPrinterInfo::defaultPrinterName(bool threading)
 {
     QPlatformPrinterSupport *ps = QPlatformPrinterSupportPlugin::get();
     if (ps)
-        return ps->defaultPrintDeviceId();
+        return ps->defaultPrintDeviceId(threading);
     return QString();
 }
 
@@ -469,11 +469,11 @@ QString QPrinterInfo::defaultPrinterName()
     \sa availablePrinters()
 */
 
-QPrinterInfo QPrinterInfo::defaultPrinter()
+QPrinterInfo QPrinterInfo::defaultPrinter(bool threading)
 {
     QPlatformPrinterSupport *ps = QPlatformPrinterSupportPlugin::get();
     if (ps)
-        return QPrinterInfo(ps->defaultPrintDeviceId());
+        return QPrinterInfo(ps->defaultPrintDeviceId(threading), threading);
     return QPrinterInfo();
 }
 
@@ -486,9 +486,9 @@ QPrinterInfo QPrinterInfo::defaultPrinter()
     \since 5.0
     \sa isNull()
 */
-QPrinterInfo QPrinterInfo::printerInfo(const QString &printerName)
+QPrinterInfo QPrinterInfo::printerInfo(const QString &printerName, bool threading)
 {
-    return QPrinterInfo(printerName);
+    return QPrinterInfo(printerName, threading);
 }
 
 #  ifndef QT_NO_DEBUG_STREAM

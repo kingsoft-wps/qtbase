@@ -258,7 +258,7 @@ void QCoreApplicationPrivate::processCommandLineArguments()
 // Support for introspection
 
 #ifndef QT_NO_QOBJECT
-QSignalSpyCallbackSet Q_CORE_EXPORT qt_signal_spy_callback_set = { 0, 0, 0, 0 };
+QSignalSpyCallbackSet Q_CORE_EXPORT qt_signal_spy_callback_set = { 0, 0, 0, 0, 0, 0 };
 
 void qt_register_signal_spy_callbacks(const QSignalSpyCallbackSet &callback_set)
 {
@@ -1088,8 +1088,12 @@ bool QCoreApplication::notifyInternal2(QObject *receiver, QEvent *event)
     QThreadData *threadData = d->threadData;
     QScopedScopeLevelCounter scopeLevelCounter(threadData);
     if (!selfRequired)
-        return doNotify(receiver, event);
-    return self ? self->notify(receiver, event) : false;
+        result = doNotify(receiver, event);
+    else
+        result = self ? self->notify(receiver, event) : false;
+
+    QInternal::activateCallbacks(QInternal::EventHandledCallback, cbdata);
+    return result;
 }
 
 /*!

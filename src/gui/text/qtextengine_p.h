@@ -187,7 +187,8 @@ struct QGlyphAttributes {
     uchar clusterStart  : 1;
     uchar dontPrint     : 1;
     uchar justification : 4;
-    uchar reserved      : 2;
+    uchar adjustCoordinate : 1;
+    uchar reserved      : 1;
 };
 Q_STATIC_ASSERT(sizeof(QGlyphAttributes) == 1);
 Q_DECLARE_TYPEINFO(QGlyphAttributes, Q_PRIMITIVE_TYPE);

@@ -64,7 +64,7 @@ class QPrintDialogPrivate : public QAbstractPrintDialogPrivate
 
 public:
     QPrintDialogPrivate() : printInfo(0), printPanel(0)
-       {}
+    { pdfdocuments = [NSMutableDictionary dictionary]; }
 
     void openCocoaPrintPanel(Qt::WindowModality modality);
     void closeCocoaPrintPanel();
@@ -74,6 +74,8 @@ public:
     int GetPageCount(bool paperOrientationLand, float rectWidth, float rectHeight, bool isSelectionOnly);
     void GetPaperSize(float *paperWidth, float *paperHeight){}
     void GetPrintJobName(QString &jobName){}
+    void TryConvertInvoice(PDFDocument *document, NSRect rect);
+    NSMutableDictionary *pdfdocuments;
 #endif // Q_OS_MAC
 
     NSPrintInfo *printInfo;
@@ -338,6 +340,7 @@ void QPrintDialogPrivate::openCocoaPrintPanel(Qt::WindowModality modality)
             CFRelease(cfOwnerKey);
         }
 
+        TryConvertInvoice(document, frameRect);
         op = [document printOperationForPrintInfo:printInfo scalingMode:kPDFPrintPageScaleToFit autoRotate:YES];
         CFRelease(cfPath);
     }
@@ -354,15 +357,15 @@ void QPrintDialogPrivate::openCocoaPrintPanel(Qt::WindowModality modality)
     [op setShowsPrintPanel:YES];
     [op setPrintPanel:printPanel];
     [op setJobTitle:jobNameFrom.toNSString()];
-	
-	// Call processEvents in case the event dispatcher has been interrupted, and needs to do
-	// cleanup of modal sessions. Do this before showing the native dialog, otherwise it will
-	// close down during the cleanup.
-	qApp->processEvents(QEventLoop::ExcludeUserInputEvents | QEventLoop::ExcludeSocketNotifiers);
-	
-	// Make sure we don't interrupt the runModalWithPrintInfo call.
-	(void) QMetaObject::invokeMethod(qApp->platformNativeInterface(),
-									 "clearCurrentThreadCocoaEventDispatcherInterruptFlag");
+    
+    // Call processEvents in case the event dispatcher has been interrupted, and needs to do
+    // cleanup of modal sessions. Do this before showing the native dialog, otherwise it will
+    // close down during the cleanup.
+    qApp->processEvents(QEventLoop::ExcludeUserInputEvents | QEventLoop::ExcludeSocketNotifiers);
+    
+    // Make sure we don't interrupt the runModalWithPrintInfo call.
+    (void) QMetaObject::invokeMethod(qApp->platformNativeInterface(),
+                                     "clearCurrentThreadCocoaEventDispatcherInterruptFlag");
 
     BOOL ret = [op runOperation];
     if (document)
@@ -383,8 +386,8 @@ void QPrintDialogPrivate::openCocoaPrintPanel(Qt::WindowModality modality)
             qWarning("QPrintDialog is required to be modal on OS X");
 
 #ifdef Q_OS_MAC
-		//int rval = [printPanel runModalWithPrintInfo:printInfo];
-		[delegate printPanelDidEnd:printPanel returnCode:ret contextInfo:q];
+        //int rval = [printPanel runModalWithPrintInfo:printInfo];
+        [delegate printPanelDidEnd:printPanel returnCode:ret contextInfo:q];
 #else
         // Make sure we don't interrupt the runModalWithPrintInfo call.
         (void) QMetaObject::invokeMethod(qApp->platformNativeInterface(),
@@ -428,6 +431,52 @@ void QPrintDialogPrivate::closeCocoaPrintPanel()
     }
 #endif // Q_OS_MAC
 }
+
+#ifdef Q_OS_MAC
+void QPrintDialogPrivate::TryConvertInvoice(PDFDocument *document, NSRect rect)
+{
+    Q_Q(QPrintDialog);
+
+    if ([document pageCount] != 1)
+        return;
+
+    QString content = QString::fromNSString([document string]);
+    if (!q->IsInvoice(content))
+        return;
+
+    PDFPage *page = [document pageAtIndex:0];
+    NSData *data = [page dataRepresentation];
+    NSPDFImageRep *imageRep = [NSPDFImageRep imageRepWithData:data];
+    const int ratio = 2;
+    rect = NSMakeRect(0, 0, rect.size.width * ratio, rect.size.height * ratio);
+    PDFRect pdfRect = [page boundsForBox:kPDFDisplayBoxMediaBox];
+    if (pdfRect.size.width / pdfRect.size.height > rect.size.width / rect.size.height) {
+        double height = pdfRect.size.height / pdfRect.size.width * rect.size.width;
+        rect.size.height = height;
+    }
+    else {
+        double width = pdfRect.size.width / pdfRect.size.height * rect.size.height;
+        rect.size.width = width;
+    }
+    NSImage* scaledImage = [NSImage imageWithSize:rect.size flipped:NO drawingHandler:^BOOL(NSRect dstRect) {
+        [imageRep drawInRect:dstRect];
+        return YES;
+    }];
+    NSImageRep* scaledImageRep = [[scaledImage representations] firstObject];
+    const CGFloat factor = 300.0f / 72;
+    scaledImageRep.pixelsWide = imageRep.size.width * factor;
+    scaledImageRep.pixelsHigh = imageRep.size.height * factor;
+    NSBitmapImageRep* pngImageRep = [NSBitmapImageRep imageRepWithData:[scaledImage TIFFRepresentation]];
+    NSData* finalData = [pngImageRep representationUsingType:NSBitmapImageFileTypeJPEG properties:[NSDictionary dictionary]];
+    NSImage *image = [[NSImage alloc] initWithData:finalData];
+
+    page = [[PDFPage alloc] initWithImage:image];
+    [document removePageAtIndex:0];
+    [document insertPage:page atIndex:0];
+    [page release];
+    [image release];
+}
+#endif
 
 static bool warnIfNotNative(QPrinter *printer)
 {
@@ -547,6 +596,12 @@ void QPrintDialog::GetPDFFilePathAndPassword(QString &filePath, QString &userKey
     return;
 }
 
+bool QPrintDialog::IsInvoice(const QString &content)
+{
+    //Subclass to achieve
+    return false;
+}
+
 //CGImageRef to NSImage
 NSImage *qt_mac_cgimage_to_nsimage(CGImageRef image)
 {
@@ -641,18 +696,14 @@ void QPrintDialog::DrawImageToContext(void *ctx, const QImage &img, const QRect 
 
 void QPrintDialog::DrawPDFDocumentToContext(void *ctx, QString *filename, int rotate /*= 0*/, unsigned int pageIndex /*= 1*/, const char* password /*= nullptr*/)
 {
-    CFStringRef path;
-    CFURLRef url;
+    Q_D(QPrintDialog);
     CGPDFDocumentRef document;
     size_t count;
 
-    path = filename->toCFString();
-
-    url = CFURLCreateWithFileSystemPath(NULL, path, kCFURLPOSIXPathStyle, 0);
-
-    CFRelease(path);
-    document = CGPDFDocumentCreateWithURL(url);
-    CFRelease(url);
+    NSURL *url = [NSURL fileURLWithPath:filename->toNSString()];
+    PDFDocument *pdfdocument = [[PDFDocument alloc] initWithURL:url];
+    [d->pdfdocuments setObject:pdfdocument forKey:url];
+    document = pdfdocument.documentRef;
     if(CGPDFDocumentIsEncrypted(document))
     {
         CGPDFDocumentUnlockWithPassword(document, password);
@@ -663,7 +714,7 @@ void QPrintDialog::DrawPDFDocumentToContext(void *ctx, QString *filename, int ro
         CGPDFPageRef pageRef;
         CGContextRef context = (CGContextRef)ctx;
         CGContextSaveGState(context);
-	pageRef = CGPDFDocumentGetPage(document, pageIndex);
+        pageRef = CGPDFDocumentGetPage(document, pageIndex);
 
         CGAffineTransform pdfTransform = CGPDFPageGetDrawingTransform(pageRef, kCGPDFCropBox, CGContextGetClipBoundingBox(context), rotate, true);
         CGContextConcatCTM(context, pdfTransform);
@@ -672,9 +723,8 @@ void QPrintDialog::DrawPDFDocumentToContext(void *ctx, QString *filename, int ro
         CGContextSetRenderingIntent(context, kCGRenderingIntentDefault);
         CGContextDrawPDFPage(context, pageRef);
         CGContextRestoreGState(context);
-
-        CFRelease(document);
     }
+    [pdfdocument release];
 
     return;
 }

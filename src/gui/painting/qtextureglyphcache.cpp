@@ -151,8 +151,9 @@ bool QTextureGlyphCache::populate(QFontEngine *fontEngine, int numGlyphs, const 
         GlyphAndSubPixelPosition key(glyph, subPixelPosition);
         int glyph_width = metrics.width.ceil().toInt();
         int glyph_height = metrics.height.ceil().toInt();
-        if (glyph_height == 0 || glyph_width == 0) {
+        if (glyph_height <= 0 || glyph_width <= 0) {
             // Avoid multiple calls to boundingBox() for non-printable characters
+            // In some expcetional cases, glyph_width can be minus. Then a crash occurs during the memory copying from glyph bitmap to the cached texture.
             Coord c = { 0, 0, 0, 0, 0, 0 };
             coords.insert(key, c);
             continue;

@@ -289,7 +289,7 @@ int QGIFFormat::decode(QImage *image, const uchar *buffer, int length,
                     ccount=0;
                     state=GlobalColorMap;
                     globalcmap = new QRgb[gncols+1]; // +1 for trans_index
-                    globalcmap[gncols] = Q_TRANSPARENT;
+                    qFill(globalcmap, globalcmap + gncols + 1, Q_TRANSPARENT);
                 } else {
                     state=Introducer;
                 }
@@ -391,7 +391,7 @@ int QGIFFormat::decode(QImage *image, const uchar *buffer, int length,
                     if (localcmap)
                         delete [] localcmap;
                     localcmap = new QRgb[lncols+1];
-                    localcmap[lncols] = Q_TRANSPARENT;
+                    qFill(localcmap, localcmap + lncols + 1, Q_TRANSPARENT);
                     ncols = lncols;
                 } else {
                     ncols = gncols;

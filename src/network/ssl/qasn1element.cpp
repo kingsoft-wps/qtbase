@@ -357,7 +357,9 @@ QByteArray QAsn1Element::toObjectId() const
 QByteArray QAsn1Element::toObjectName() const
 {
     QByteArray key = toObjectId();
-    return oidNameMap->value(key, key);
+    if (oidNameMap)
+        return oidNameMap->value(key, key);
+    return QByteArray();
 }
 
 QString QAsn1Element::toString() const

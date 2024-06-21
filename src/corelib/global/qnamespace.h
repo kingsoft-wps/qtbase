@@ -303,6 +303,7 @@ public:
         MaximizeUsingFullscreenGeometryHint = 0x00400000,
 
 #ifdef Q_OS_MAC
+        WindowAvoidBeFirstResponder = 0x00800000,
         WindowFullSizeContent = 0x01000000,
 #endif
 
@@ -1912,6 +1913,7 @@ public:
 
     enum Callback {
         EventNotifyCallback,
+        EventHandledCallback,
         LastCallback
     };
     static bool registerCallback(Callback, qInternalCallback);

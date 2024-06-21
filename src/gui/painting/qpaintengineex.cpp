@@ -401,7 +401,7 @@ void QPaintEngineEx::stroke(const QVectorPath &path, const QPen &inPen)
     if (path.isEmpty())
         return;
 
-    if (qpen_is_complex(inPen))
+    if (inPen.isSupportComoplex() && qpen_is_complex(inPen))
     {
         auto stroker = QComplexStroker::fromPen(inPen);
         QRectF clippedDevRect(d->exDeviceRect);

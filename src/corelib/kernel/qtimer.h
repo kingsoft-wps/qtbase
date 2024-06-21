@@ -219,7 +219,14 @@ private:
     inline void killTimer(int){}
 
     static Q_DECL_CONSTEXPR Qt::TimerType defaultTypeFor(int msecs) Q_DECL_NOTHROW
-    { return msecs >= 2000 ? Qt::CoarseTimer : Qt::PreciseTimer; }
+    {
+#ifdef Q_OS_WIN
+        Q_UNUSED(msecs);
+        return Qt::CoarseTimer;
+#else
+        return msecs >= 2000 ? Qt::CoarseTimer : Qt::PreciseTimer;
+#endif
+    }
     static void singleShotImpl(int msec, Qt::TimerType timerType,
                                const QObject *receiver, QtPrivate::QSlotObjectBase *slotObj);
 

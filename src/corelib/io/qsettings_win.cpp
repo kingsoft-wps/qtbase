@@ -409,20 +409,18 @@ QWinSettingsPrivate::QWinSettingsPrivate(QSettings::Scope scope, const QString &
 
     if (!organization.isEmpty()) {
         QString prefix = QLatin1String("Software\\") + organization;
-        QString orgPrefix = prefix + QLatin1String("\\OrganizationDefaults");
-        QString appPrefix = prefix + QLatin1Char('\\') + application;
+        QString appPrefix;
+        if (application.isEmpty())
+            appPrefix = (prefix + QLatin1String("\\OrganizationDefaults"));
+        else
+            appPrefix = (prefix + QLatin1Char('\\') + application);
 
         if (scope == QSettings::UserScope) {
-            if (!application.isEmpty())
-                regList.append(RegistryKey(HKEY_CURRENT_USER, appPrefix, !regList.isEmpty(), access));
-
-            regList.append(RegistryKey(HKEY_CURRENT_USER, orgPrefix, !regList.isEmpty(), access));
+            regList.append(RegistryKey(HKEY_CURRENT_USER, appPrefix, !regList.isEmpty(), access));
         }
 
-        if (!application.isEmpty())
-            regList.append(RegistryKey(HKEY_LOCAL_MACHINE, appPrefix, !regList.isEmpty(), access));
+        regList.append(RegistryKey(HKEY_LOCAL_MACHINE, appPrefix, !regList.isEmpty(), access));
 
-        regList.append(RegistryKey(HKEY_LOCAL_MACHINE, orgPrefix, !regList.isEmpty(), access));
     }
 
     if (regList.isEmpty())

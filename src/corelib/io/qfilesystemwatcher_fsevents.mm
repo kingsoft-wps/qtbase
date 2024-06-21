@@ -283,15 +283,16 @@ bool QFseventsFileSystemWatcherEngine::restartStream()
     return startStream();
 }
 
-QFseventsFileSystemWatcherEngine *QFseventsFileSystemWatcherEngine::create(QObject *parent)
+QFseventsFileSystemWatcherEngine *QFseventsFileSystemWatcherEngine::create(QObject *parent, int latencyMs)
 {
-    return new QFseventsFileSystemWatcherEngine(parent);
+    return new QFseventsFileSystemWatcherEngine(parent, latencyMs);
 }
 
-QFseventsFileSystemWatcherEngine::QFseventsFileSystemWatcherEngine(QObject *parent)
+QFseventsFileSystemWatcherEngine::QFseventsFileSystemWatcherEngine(QObject *parent, int latencyMs)
     : QFileSystemWatcherEngine(parent)
     , stream(0)
     , lastReceivedEvent(kFSEventStreamEventIdSinceNow)
+    , latencyMs(latencyMs)
 {
 
     // We cannot use signal-to-signal queued connections, because the
@@ -510,7 +511,7 @@ bool QFseventsFileSystemWatcherEngine::startStream()
         NULL,
         NULL
     };
-    const CFAbsoluteTime latency = .5; // in seconds
+    const CFAbsoluteTime latency = latencyMs / 1000.0; // in seconds
 
     // Never start with kFSEventStreamEventIdSinceNow, because this will generate an invalid
     // soft-assert in FSEventStreamFlushSync in CarbonCore when no event occurred.

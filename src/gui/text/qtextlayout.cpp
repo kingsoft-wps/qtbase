@@ -2665,6 +2665,18 @@ void QTextLine::draw(QPainter *p, const QPointF &pos, const QTextLayout::FormatR
         } else {
             if (noText)
                 gf.glyphs.numGlyphs = 0; // slightly less elegant than it should be
+
+#ifdef Q_OS_LINUX
+            if (p->font().paintDeviceMatrix().m22() > 0) {
+                QFixed width = QFixed::fromReal(0.0);
+                for (int i = 0; i < gf.glyphs.numGlyphs; ++i) {
+                    gf.glyphs.advances[i] /= QFixed::fromReal(p->font().paintDeviceMatrix().m22());
+                    width += gf.glyphs.advances[i];
+                }
+                gf.width = width;
+            }
+#endif
+
             QPainterPrivate::get(p)->drawTextItem(pos, gf, eng);
         }
 

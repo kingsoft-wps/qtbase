@@ -67,6 +67,8 @@
 #include <QtCore/QMutexLocker>
 #include <QtCore/QMutex>
 
+#include <qmath.h>
+
 // #define QFONTCACHE_DEBUG
 #ifdef QFONTCACHE_DEBUG
 #  define FC_DEBUG qDebug
@@ -78,6 +80,12 @@ QT_BEGIN_NAMESPACE
 
 #ifndef QFONTCACHE_DECREASE_TRIGGER_LIMIT
 #  define QFONTCACHE_DECREASE_TRIGGER_LIMIT 256
+#endif
+
+// copy from qt5/source/qtbase/src/platformsupport/fontdatabases/freetype/qfontengine_ft.cpp:85
+// copy from qt5/source/qtbase/src/gui/painting/qpaintengineex.cpp:53
+#if !defined(QT_MAX_CACHED_GLYPH_SIZE)
+#define QT_MAX_CACHED_GLYPH_SIZE 64
 #endif
 
 bool QFontDef::exactMatch(const QFontDef &other) const
@@ -127,6 +135,7 @@ bool QFontDef::exactMatch(const QFontDef &other) const
             && escapementAngle == other.escapementAngle
             && verticalMetrics == other.verticalMetrics
             && manualBolden == other.manualBolden
+            && useRequestFamMatching == other.useRequestFamMatching
             && forceScalable == other.forceScalable
             && this_family   == other_family
             && (styleName.isEmpty() || other.styleName.isEmpty() || styleName == other.styleName)
@@ -185,7 +194,8 @@ QFontPrivate::QFontPrivate()
     : engineData(0), dpi(qt_defaultDpi()), screen(0),
       underline(false), overline(false), strikeOut(false), kerning(true),
       capital(0), letterSpacingIsAbsolute(false), scFont(0),
-      manualBolden(false)
+      manualBolden(false),
+      useRequestFamMatching(false)
 {
 }
 
@@ -196,7 +206,8 @@ QFontPrivate::QFontPrivate(const QFontPrivate &other)
       capital(other.capital), letterSpacingIsAbsolute(other.letterSpacingIsAbsolute),
       letterSpacing(other.letterSpacing), wordSpacing(other.wordSpacing),
       scFont(other.scFont),
-      manualBolden(other.manualBolden)
+      manualBolden(other.manualBolden),
+      useRequestFamMatching(other.useRequestFamMatching)
 {
     if (scFont && scFont != this)
         scFont->ref.ref();
@@ -331,12 +342,43 @@ void QFontPrivate::resolve(uint mask, const QFontPrivate *other)
     if (! (mask & QFont::EscapementAngleResolved))
         request.escapementAngle = other->request.escapementAngle;
 
-    if (! (mask & QFont::ManualBoldenResolved))
+    if (!(mask & QFont::ManualBoldenResolved))
         request.manualBolden = other->request.manualBolden;
+
+    if (!(mask & QFont::UseReqFamMatchingResolved))
+        request.useRequestFamMatching = other->request.useRequestFamMatching;
 
     if (! (mask & QFont::ForceScalableResolved))
         request.forceScalable = other->request.forceScalable;
 }
+
+#ifdef Q_OS_LINUX
+void QFontPrivate::updatePaintDeviceMatrix()
+{
+    // copy from /qt5/source/qtbase/src/gui/painting/qpaintengineex.cpp:1168-1169
+    const qreal horzScale = (request.stretch == QFont::AnyStretch) ? 1.0 : request.stretch / 100.0;
+    qreal pixelSize = request.pixelSize;
+    qreal xScale = request.paintDeviceMatrix.m11();
+    qreal yScale = request.paintDeviceMatrix.m22();
+    if (request.paintDeviceMatrix.type() >= QTransform::TxRotate) {
+        if (qFuzzyIsNull(request.paintDeviceMatrix.m11() * request.paintDeviceMatrix.m21() + request.paintDeviceMatrix.m12() * request.paintDeviceMatrix.m22())) {
+            xScale = qSqrt(request.paintDeviceMatrix.m11() * request.paintDeviceMatrix.m11() + request.paintDeviceMatrix.m12() * request.paintDeviceMatrix.m12());
+            yScale = qSqrt(request.paintDeviceMatrix.m21() * request.paintDeviceMatrix.m21() + request.paintDeviceMatrix.m22() * request.paintDeviceMatrix.m22());
+        } else {
+            xScale = qSqrt(request.paintDeviceMatrix.m11() * request.paintDeviceMatrix.m11() + request.paintDeviceMatrix.m21() * request.paintDeviceMatrix.m21());
+            yScale = qSqrt(request.paintDeviceMatrix.m12() * request.paintDeviceMatrix.m12() + request.paintDeviceMatrix.m22() * request.paintDeviceMatrix.m22());
+        }
+    }
+    if (yScale > 1)
+        pixelSize *= yScale;
+    if (pixelSize * pixelSize * horzScale * qAbs(request.paintDeviceMatrix.determinant()) <= (QT_MAX_CACHED_GLYPH_SIZE * QT_MAX_CACHED_GLYPH_SIZE))
+        request.paintDeviceMatrix.setMatrix(xScale, request.paintDeviceMatrix.m12(), request.paintDeviceMatrix.m13(),
+                                               request.paintDeviceMatrix.m21(), yScale, request.paintDeviceMatrix.m23(),
+                                               request.paintDeviceMatrix.m31(), request.paintDeviceMatrix.m32(), request.paintDeviceMatrix.m33());
+    else
+        request.paintDeviceMatrix.setMatrix(-1, 0, 0, 0, -1, 0, 0, 0, 0);
+}
+#endif
 
 
 
@@ -960,7 +1002,18 @@ qreal QFont::pointSizeF() const
 {
     return d->request.pointSize;
 }
+#ifdef Q_OS_LINUX
+const QTransform & QFont::paintDeviceMatrix() const
+{
+    return d->request.paintDeviceMatrix;
+}
 
+void QFont::setPaintDeviceMatrix(const QTransform &transformMatrix)
+{
+    d->request.paintDeviceMatrix = transformMatrix;
+    d->updatePaintDeviceMatrix();
+}
+#endif
 /*!
     Sets the font size to \a pixelSize pixels.
 
@@ -1672,6 +1725,23 @@ void QFont::setManualBolden(bool enable)
     resolve_mask |= ManualBoldenResolved;
 }
 
+bool QFont::useRequestFamMatching() const
+{
+    return d->request.useRequestFamMatching;
+}
+
+void QFont::setUseRequestFamMatching(bool enable)
+{
+    if ((resolve_mask & UseReqFamMatchingResolved) &&
+        useRequestFamMatching() == enable) {
+        return;
+    }
+
+    detach();
+    d->request.useRequestFamMatching = enable;
+    resolve_mask |= UseReqFamMatchingResolved;
+}
+
 bool QFont::forceScalable() const
 {
     return d->request.forceScalable;
@@ -1775,6 +1845,7 @@ bool QFont::operator<(const QFont &f) const
     if (r1.escapementAngle != r2.escapementAngle) return r1.escapementAngle < r2.escapementAngle;
     if (r1.verticalMetrics != r2.verticalMetrics) return r1.verticalMetrics < r2.verticalMetrics;
     if (r1.manualBolden != r2.manualBolden) return r1.manualBolden < r2.manualBolden;
+    if (r1.useRequestFamMatching != r2.useRequestFamMatching) return r1.useRequestFamMatching < r2.useRequestFamMatching;
     if (r1.forceScalable != r2.forceScalable) return r1.forceScalable < r2.forceScalable;
     if (r1.weight != r2.weight) return r1.weight < r2.weight;
     if (r1.style != r2.style) return r1.style < r2.style;
@@ -2362,6 +2433,7 @@ QDataStream &operator<<(QDataStream &s, const QFont &font)
         s << font.d->request.escapementAngle;
         s << static_cast<bool>(font.d->request.verticalMetrics);
         s << font.d->request.manualBolden;
+        s << font.d->request.useRequestFamMatching;
         s << static_cast<bool>(font.d->request.forceScalable);
     }
     return s;
@@ -2472,6 +2544,9 @@ QDataStream &operator>>(QDataStream &s, QFont &font)
         bool bolden = false;
         s >> bolden;
         font.d->request.manualBolden = bolden;
+        bool useReqFam = false;
+        s >> useReqFam;
+        font.d->request.useRequestFamMatching = useReqFam;
     }
     return s;
 }

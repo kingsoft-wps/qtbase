@@ -268,13 +268,19 @@ void QHttp2ProtocolHandler::_q_replyDestroyed(QObject *reply)
 
 void QHttp2ProtocolHandler::_q_readyRead()
 {
-    _q_receiveReply();
+    if (!goingAway || activeStreams.size())
+        _q_receiveReply();
 }
 
 void QHttp2ProtocolHandler::_q_receiveReply()
 {
     Q_ASSERT(m_socket);
     Q_ASSERT(m_channel);
+
+    if (goingAway && activeStreams.isEmpty()) {
+        m_channel->close();
+        return;
+    }
 
     while (!goingAway || activeStreams.size()) {
         const auto result = frameReader.read(*m_socket);

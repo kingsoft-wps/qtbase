@@ -54,8 +54,9 @@ QCocoaPrinterSupport::QCocoaPrinterSupport()
 QCocoaPrinterSupport::~QCocoaPrinterSupport()
 { }
 
-QPrintEngine *QCocoaPrinterSupport::createNativePrintEngine(QPrinter::PrinterMode printerMode, const QString &deviceId)
+QPrintEngine *QCocoaPrinterSupport::createNativePrintEngine(QPrinter::PrinterMode printerMode, const QString &deviceId, bool threading)
 {
+    Q_UNUSED(threading);
     return new QMacPrintEngine(printerMode, deviceId);
 }
 
@@ -69,13 +70,16 @@ QPaintEngine *QCocoaPrinterSupport::createPaintEngine(QPrintEngine *printEngine,
     return static_cast<QMacPrintEngine *>(printEngine);
 }
 
-QPrintDevice QCocoaPrinterSupport::createPrintDevice(const QString &id)
+QPrintDevice QCocoaPrinterSupport::createPrintDevice(const QString &id, bool threading)
 {
+    Q_UNUSED(threading);
     return QPlatformPrinterSupport::createPrintDevice(new QCocoaPrintDevice(id));
 }
 
-QStringList QCocoaPrinterSupport::availablePrintDeviceIds() const
+QStringList QCocoaPrinterSupport::availablePrintDeviceIds(bool threading) const
 {
+    Q_UNUSED(threading);
+
     QStringList list;
     QCFType<CFArrayRef> printerList;
     if (PMServerCreatePrinterList(kPMServerLocal, &printerList) == noErr) {
@@ -88,8 +92,10 @@ QStringList QCocoaPrinterSupport::availablePrintDeviceIds() const
     return list;
 }
 
-QString QCocoaPrinterSupport::defaultPrintDeviceId() const
+QString QCocoaPrinterSupport::defaultPrintDeviceId(bool threading) const
 {
+    Q_UNUSED(threading);
+
     QCFType<CFArrayRef> printerList;
     if (PMServerCreatePrinterList(kPMServerLocal, &printerList) == noErr) {
         CFIndex count = CFArrayGetCount(printerList);

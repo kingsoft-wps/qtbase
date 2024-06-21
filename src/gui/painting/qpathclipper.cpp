@@ -2052,6 +2052,9 @@ template <Edge edge>
 QPainterPath clip(const QPainterPath &path, qreal t)
 {
     QPainterPath result;
+    if (path.elementCount() <= 0)
+        return result;
+
     for (int i = 1; i < path.elementCount(); ++i) {
         const QPainterPath::Element &element = path.elementAt(i);
         Q_ASSERT(!element.isMoveTo());

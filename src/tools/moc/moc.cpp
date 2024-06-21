@@ -301,6 +301,8 @@ void Moc::parseFunctionArguments(FunctionDef *def)
             break;
         if (test(IDENTIFIER))
             arg.name = lexem();
+        if (ignoreParamName && !arg.name.isEmpty())
+            arg.name.clear();
         while (test(LBRACK)) {
             arg.rightType += lexemUntil(RBRACK);
         }

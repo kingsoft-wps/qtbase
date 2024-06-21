@@ -804,8 +804,12 @@ void QBlitterPaintEngine::drawStaticTextItem(QStaticTextItem *sti)
 #endif
 }
 
-bool QBlitterPaintEngine::drawCachedGlyphs(int numGlyphs, const glyph_t *glyphs, const QFixedPoint *positions, QFontEngine *fontEngine)
+bool QBlitterPaintEngine::drawCachedGlyphs(int numGlyphs, const glyph_t *glyphs, const QFixedPoint *positions, QFontEngine *fontEngine,
+                                           const QFixed* advances, const QGlyphAttributes *attributes)
 {
+    Q_UNUSED(advances);
+    Q_UNUSED(attributes);
+
     Q_D(QBlitterPaintEngine);
     QFontEngine::GlyphFormat glyphFormat = d->glyphCacheFormat;
     if (fontEngine->glyphFormat != QFontEngine::Format_None)

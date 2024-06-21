@@ -571,7 +571,15 @@ public:
 
     QInputMethodEvent(const QInputMethodEvent &other);
 
+#ifdef Q_OS_MAC
+    void setSenderObject(const WId&);
+    WId senderObject() const { return sender; }
+#endif
+
 private:
+#ifdef Q_OS_MAC
+    WId sender; // need sender after application deactive
+#endif
     QString preedit;
     QList<Attribute> attrs;
     QString commit;

@@ -150,6 +150,9 @@ public:
 
     void setCustomBoldFactor(qreal factor);
     qreal customBoldFactor();
+
+    void setSupportComoplex(bool bSupport);
+    bool isSupportComoplex() const;
     
 private:
     friend Q_GUI_EXPORT QDataStream &operator>>(QDataStream &, QPen &);

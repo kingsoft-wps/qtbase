@@ -372,9 +372,10 @@ bool QCocoaScreen::isRunningDisplayLink() const
 
 qreal QCocoaScreen::devicePixelRatio() const
 {
-    QMacAutoReleasePool pool;
+    @autoreleasepool {
     NSScreen *nsScreen = nativeScreen();
     return qreal(nsScreen ? [nsScreen backingScaleFactor] : 1.0);
+    }
 }
 
 QPlatformScreen::SubpixelAntialiasingType QCocoaScreen::subpixelAntialiasingTypeHint() const

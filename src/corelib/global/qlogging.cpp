@@ -163,9 +163,6 @@ static QT_PREPEND_NAMESPACE(qint64) qt_gettid()
 
 QT_BEGIN_NAMESPACE
 
-#if !defined(Q_CC_MSVC)
-Q_NORETURN
-#endif
 static void qt_message_fatal(QtMsgType, const QMessageLogContext &context, const QString &message);
 static void qt_message_print(QtMsgType, const QMessageLogContext &context, const QString &message);
 static void qt_message_print(const QString &message);

@@ -53,6 +53,9 @@
 #endif
 
 #include <algorithm>
+#ifdef Q_OS_LINUX
+#include <qstandardpaths.h>
+#endif
 
 #ifdef Q_OS_WIN
 #  include <QtCore/QVarLengthArray>
@@ -831,6 +834,39 @@ QString QFileSystemModelPrivate::name(const QModelIndex &index) const
         QString fullPath = QDir::fromNativeSeparators(filePath(index));
         return resolvedSymLinks.value(fullPath, dirNode->fileName);
     }
+#ifdef Q_OS_LINUX
+    QLocale locale;
+    if ("uos" == QSysInfo::productType().toLower() &&
+            QLocale::Chinese == locale.language() &&
+            dirNode->isDir())
+    {
+        QString path = QDir::toNativeSeparators(filePath(index));
+        if (path == QStandardPaths::writableLocation(QStandardPaths::DesktopLocation))
+        {
+            return QString::fromLocal8Bit("桌面");
+        }
+        else if (path == QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
+        {
+            return QString::fromLocal8Bit("文档");
+        }
+        else if (path == QStandardPaths::writableLocation(QStandardPaths::MusicLocation))
+        {
+            return QString::fromLocal8Bit("音乐");
+        }
+        else if (path == QStandardPaths::writableLocation(QStandardPaths::MoviesLocation))
+        {
+            return QString::fromLocal8Bit("视频");
+        }
+        else if (path == QStandardPaths::writableLocation(QStandardPaths::PicturesLocation))
+        {
+            return QString::fromLocal8Bit("图片");
+        }
+        else if (path == QStandardPaths::writableLocation(QStandardPaths::DownloadLocation))
+        {
+            return QString::fromLocal8Bit("下载");
+        }
+    }
+#endif
     return dirNode->fileName;
 }
 

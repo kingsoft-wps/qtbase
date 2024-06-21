@@ -11,7 +11,9 @@ HEADERS += \
         $$PWD/qplatformprintplugin.h \
         $$PWD/qplatformprintersupport.h \
         $$PWD/qtprintsupportglobal_p.h \
-        $$PWD/qtprintsupportglobal.h
+        $$PWD/qtprintsupportglobal.h \
+        $$PWD/qprintworker.h \
+        $$PWD/qprintworker_p.h
 
 SOURCES += \
         $$PWD/qpaintengine_alpha.cpp \
@@ -21,7 +23,8 @@ SOURCES += \
         $$PWD/qprinterinfo.cpp \
         $$PWD/qplatformprintdevice.cpp \
         $$PWD/qplatformprintplugin.cpp \
-        $$PWD/qplatformprintersupport.cpp
+        $$PWD/qplatformprintersupport.cpp \
+        $$PWD/qprintworker.cpp
 
 qtConfig(printpreviewwidget) {
     HEADERS += $$PWD/qpaintengine_preview_p.h
@@ -30,9 +33,11 @@ qtConfig(printpreviewwidget) {
 
 win32 {
         HEADERS += \
-                $$PWD/qprintengine_win_p.h
+                $$PWD/qprintengine_win_p.h \
+                $$PWD/qthreadingprint_win_p.h
         SOURCES += \
-                $$PWD/qprintengine_win.cpp
+                $$PWD/qprintengine_win.cpp \
+                $$PWD/qthreadingprint_win.cpp
         !winrt: LIBS_PRIVATE += -lwinspool -lcomdlg32 -lgdi32 -luser32
 }
 

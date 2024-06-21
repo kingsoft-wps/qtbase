@@ -55,6 +55,7 @@ static const char *application_menu_strings[] =
 {
     QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","About %1"),
     QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Preferences..."),
+    QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Add Extension"),
     QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Services"),
     QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Hide %1"),
     QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU","Hide Others"),
@@ -121,6 +122,8 @@ QPlatformMenuItem::MenuRole detectMenuRole(const QString &caption)
         return QPlatformMenuItem::AppStoreEvalRole;
     if (!captionNoAmpersand.compare(QCoreApplication::translate("QCocoaMenuItem", "Login Proxy Setting"), Qt::CaseInsensitive))
         return QPlatformMenuItem::ProxySettingRole;
+    if (!captionNoAmpersand.compare(QCoreApplication::translate("QCocoaMenuItem", "Add Extension"), Qt::CaseInsensitive))
+        return QPlatformMenuItem::FinderSettingRole;
     return QPlatformMenuItem::NoRole;
 }
 

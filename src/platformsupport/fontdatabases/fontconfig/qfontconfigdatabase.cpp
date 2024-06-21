@@ -63,14 +63,17 @@
 
 QT_BEGIN_NAMESPACE
 
-static QStringList matchWithFcFamilys = QStringList() << QString::fromLatin1("Bookman Old Style")
-                                                      << QString::fromLatin1("Arial")
-                                                      << QString::fromWCharArray(L"微软雅黑 Light")
-                                                      << QString::fromWCharArray(L"微软雅黑 Heavy")
-                                                      << QString::fromWCharArray(L"微软雅黑 Semibold")
-                                                      << QString::fromWCharArray(L"微软雅黑 Semilight")
-                                                      << QString::fromWCharArray(L"微软雅黑")
-                                                      << QString::fromLatin1("Times New Roman");
+static bool matchWithFcFamilys(const QString &name)
+{
+    static QStringList s_matchWithFcFamilys = QStringList()
+            << QString::fromLatin1("Bookman Old Style") << QString::fromLatin1("Arial")
+            << QString::fromWCharArray(L"微软雅黑 Light")
+            << QString::fromWCharArray(L"微软雅黑 Heavy")
+            << QString::fromWCharArray(L"微软雅黑 Semibold")
+            << QString::fromWCharArray(L"微软雅黑 Semilight")
+            << QString::fromWCharArray(L"微软雅黑") << QString::fromLatin1("Times New Roman");
+    return s_matchWithFcFamilys.contains(name);
+}
 
 struct FontInfo
 {
@@ -797,7 +800,7 @@ QFontEngine *QFontconfigDatabase::fontEngine(const QFontDef &f, void *usrPtr)
     fid.filename = QFile::encodeName(fontfile->fileName);
     fid.index = fontfile->indexValue;
 
-    if (matchWithFcFamilys.contains(f.family))
+    if (matchWithFcFamilys(f.family))
         fid = faceId(f, fid);
 
     // FIXME: Unify with logic in QFontEngineFT::create()

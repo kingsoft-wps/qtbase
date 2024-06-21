@@ -610,8 +610,8 @@ bool QWindowsInputContext::startComposition(HWND hwnd)
         if (!inWnd)
             return false;
 
-        const QVariant propNotFocusWindow = inWnd->property("_q_platform_NotFocusWindow");
-        if (!propNotFocusWindow.isValid() || !propNotFocusWindow.toBool())
+        const QVariant propShadowBorderWidget = inWnd->property("_q_platform_ShadowBorderWidget");
+        if (!propShadowBorderWidget.isValid() || !propShadowBorderWidget.toBool())
             return false;
     }
 

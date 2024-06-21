@@ -1629,6 +1629,7 @@ void QCocoaWindow::recreateWindowIfNeeded()
     QCocoaWindow *parentCocoaWindow = static_cast<QCocoaWindow *>(parentWindow);
 
     // Remove current window (if any)
+    QCocoaNSWindow *nsWindowOld = nil;
     if ((isContentView() && !shouldBeContentView) || (recreateReason & PanelChanged)) {
         if (m_nsWindow) {
             qCDebug(lcQpaWindow) << "Getting rid of existing window" << m_nsWindow;
@@ -1636,6 +1637,10 @@ void QCocoaWindow::recreateWindowIfNeeded()
                 qCCritical(lcQpaWindow) << m_nsWindow << "has active key-value observers (KVO)!"
                     << "These will stop working now that the window is recreated, and will result in exceptions"
                     << "when the observers are removed. Break in QCocoaWindow::recreateWindowIfNeeded to debug.";
+            }
+            if (QSysInfo::macVersion() >= Q_MV_OSX(10, 13) && QSysInfo::macVersion() <= Q_MV_OSX(10, 14)) {
+                nsWindowOld = m_nsWindow;
+                [nsWindowOld retain];
             }
             [m_nsWindow closeAndRelease];
             if (isContentView() && !isEmbeddedView) {
@@ -1694,6 +1699,8 @@ void QCocoaWindow::recreateWindowIfNeeded()
     // update function which will attach to the NSWindow.
     if (!parentWindow && !isEmbeddedView)
         updateNSToolbar();
+    
+    [nsWindowOld release];
 }
 
 void QCocoaWindow::requestUpdate()
@@ -1759,11 +1766,9 @@ QCocoaNSWindow *QCocoaWindow::createNSWindow(bool shouldBePanel)
     }
 
     NSWindowStyleMask styleMask = windowStyleMask(flags);
-    bool usePrimaryScreen = false;
     if (!targetScreen) {
         qCWarning(lcQpaWindow) << "Window position" << rect << "outside any known screen, using primary screen";
         targetScreen = QGuiApplication::primaryScreen();
-        usePrimaryScreen = true;
         // Unless the window is created as borderless AppKit won't find a position and
         // screen that's close to the requested invalid position, and will always place
         // the window on the primary screen.
@@ -1806,10 +1811,10 @@ QCocoaNSWindow *QCocoaWindow::createNSWindow(bool shouldBePanel)
     // But may not always be resolved at this point, in which case we fall back
     // to the target screen. The real screen will be delivered as a screen change
     // when resolved as part of ordering the window on screen.
-    if (!resultingScreen && !usePrimaryScreen)
+    if (!resultingScreen)
         resultingScreen = targetCocoaScreen;
 
-    if (resultingScreen) {
+    if (resultingScreen && !QCocoaIntegration::instance()->screenIsRemoved(resultingScreen)) {
         if (resultingScreen->screen() != window()->screen()) {
             QWindowSystemInterface::handleWindowScreenChanged<
                 QWindowSystemInterface::SynchronousDelivery>(window(), resultingScreen->screen());

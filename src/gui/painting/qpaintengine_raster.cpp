@@ -679,10 +679,13 @@ QRasterPaintEngineState::QRasterPaintEngineState(QRasterPaintEngineState &s)
     , interpolate(s.interpolate)
     , flag_bits(s.flag_bits)
 {
-    brushData.tempImage = 0;
+    brushData.has_effect_ownership = false;
+    brushData.tempImage = nullptr;
     if (brushData.type == QSpanData::PathGradient)
         brushData.gradient.path.ownGenerator = false;
-    penData.tempImage = 0;
+
+    penData.has_effect_ownership = false;
+    penData.tempImage = nullptr;
     if (penData.type == QSpanData::PathGradient)
         penData.gradient.path.ownGenerator = false;
     flags.has_clip_ownership = false;
@@ -3317,7 +3320,8 @@ bool QRasterPaintEngine::drawCachedGlyphsColorFont(int numGlyphs, const glyph_t 
 
             if (newGlyphType != glyphFormat) {
                 bResult = drawCachedGlyphBatch(i - begin, &glyphs[begin], &positions[begin],
-                                               fontEngine, glyphFormat);
+                                               fontEngine, glyphFormat,
+                                               ti.glyphs.advances, ti.glyphs.attributes);
                 glyphFormat = newGlyphType;
                 begin = i;
             }
@@ -3330,12 +3334,14 @@ bool QRasterPaintEngine::drawCachedGlyphsColorFont(int numGlyphs, const glyph_t 
 
     if (begin < numGlyphs)
         bResult = drawCachedGlyphBatch(numGlyphs - begin, &glyphs[begin], &positions[begin],
-                                       fontEngine, glyphFormat);
+                                       fontEngine, glyphFormat,
+                                       ti.glyphs.advances, ti.glyphs.attributes);
     return bResult;
 }
 
 bool QRasterPaintEngine::drawCachedGlyphs(int numGlyphs, const glyph_t *glyphs,
-                                          const QFixedPoint *positions, QFontEngine *fontEngine)
+                                          const QFixedPoint *positions, QFontEngine *fontEngine,
+                                          const QFixed* advances, const QGlyphAttributes *attributes)
 {
     Q_D(QRasterPaintEngine);
 #ifdef Q_OS_MAC
@@ -3354,12 +3360,13 @@ bool QRasterPaintEngine::drawCachedGlyphs(int numGlyphs, const glyph_t *glyphs,
             ? fontEngine->glyphFormat
             : d->glyphCacheFormat;
     
-    return drawCachedGlyphBatch(numGlyphs, glyphs, positions, fontEngine, glyphFormat);
+    return drawCachedGlyphBatch(numGlyphs, glyphs, positions, fontEngine, glyphFormat, advances, attributes);
 }
 
 bool QRasterPaintEngine::drawCachedGlyphBatch(int numGlyphs, const glyph_t *glyphs,
                                               const QFixedPoint *positions, QFontEngine *fontEngine,
-                                              QFontEngine::GlyphFormat glyphFormat)
+                                              QFontEngine::GlyphFormat glyphFormat,
+                                              const QFixed* advances, const QGlyphAttributes *attributes)
 {
     QRasterPaintEngineState *s = state();
     const QFixed offs = fontEngine->supportsSubPixelPositions() ? QFixed() : QFixed::fromReal(aliasedCoordinateDelta);
@@ -3377,18 +3384,27 @@ bool QRasterPaintEngine::drawCachedGlyphBatch(int numGlyphs, const glyph_t *glyp
             QFixed spp = fontEngine->subPixelPositionForX(positions[i].x);
 
             const QFontEngine::Glyph *alphaMap = nullptr;
+            QTransform matrix = s->matrix;
+#ifdef Q_OS_LINUX
+            if (fontEngine->fontDef.paintDeviceMatrix.m22() > 0) {
+                //The font size only use scaleY（m22）reference by qfontengine_ft.cpp:2060
+                qreal scaleY = fontEngine->fontDef.paintDeviceMatrix.m22() > 0 ? qreal(1 / fontEngine->fontDef.paintDeviceMatrix.m22()) : 1;
+                matrix.scale(scaleY, scaleY);
+            }
+#endif
             if (!s->lastPen.isDrawCustomTextBold()) {
-                alphaMap = fontEngine->glyphData(glyphs[i], spp, neededFormat, s->matrix);
+                alphaMap = fontEngine->glyphData(glyphs[i], spp, neededFormat, matrix);
             } else {
                 int wx = 0;
                 int wy = 0;
                 const bool customEmbolden = fontEngine->hasCustomBoldWidth(s->lastPen.widthF(), s->vw, s->vh, s->ww, s->wh, wx, wy);
                 if (customEmbolden) {
-                    alphaMap = fontEngine->glyphDataForCustomBold(glyphs[i], spp, neededFormat, s->matrix, wx, wy);
+                    alphaMap = fontEngine->glyphDataForCustomBold(glyphs[i], spp, neededFormat, matrix, wx, wy);
                 } else {
-                    alphaMap = fontEngine->glyphData(glyphs[i], spp, neededFormat, s->matrix);
+                    alphaMap = fontEngine->glyphData(glyphs[i], spp, neededFormat, matrix);
                 }
             }
+
             if (!alphaMap)
                 continue;
 
@@ -3411,8 +3427,19 @@ bool QRasterPaintEngine::drawCachedGlyphBatch(int numGlyphs, const glyph_t *glyp
                 Q_UNREACHABLE();
             };
 
+            int xOffset = 0;
+            if (advances && attributes && attributes[i].adjustCoordinate)
+            {
+                QFixed curWidth = QFixed::fromFixed(alphaMap->linearAdvance);
+                QFixed advanceWidth = *(advances + i);
+                qreal diffWidth = (advanceWidth.toReal() - curWidth.toReal()) / curWidth.toReal();
+                xOffset = diffWidth * alphaMap->advance / 2;
+                if (xOffset < 0)
+                    xOffset = xOffset < -1 * alphaMap->x ? -1 * alphaMap->x : xOffset;
+            }
+
             alphaPenBlt(alphaMap->data, bytesPerLine, depth,
-                        qFloor(positions[i].x + offs) + alphaMap->x,
+                        qFloor(positions[i].x + offs) + alphaMap->x + xOffset,
                         qRound(positions[i].y) - alphaMap->y,
                         alphaMap->width, alphaMap->height,
                         fontEngine->expectsGammaCorrectedBlending());
@@ -3504,7 +3531,7 @@ void QRasterPaintEngine::drawGlyphsFreetypeColor(const QPointF &p, const QTextIt
             ti.fontEngine->addColorLayersToPath(glyphs[i], positions[i], paths, colors);
         } else {
             QPainterPath path;
-            ti.fontEngine->addGlyphsToPath(&glyphs[i], &positions[i], 1, &path, QFlag(0));
+            ti.fontEngine->addGlyphsToPath(&glyphs[i], &positions[i], 1, &path, QFlag(0), &ti.glyphs.advances[i], &ti.glyphs.attributes[i]);
             paths.append(path);
             colors.append(QColor(0, 0, 0, 0));
         }
@@ -3513,17 +3540,6 @@ void QRasterPaintEngine::drawGlyphsFreetypeColor(const QPointF &p, const QTextIt
             QBrush brush = colors[j].alpha() ? QBrush(colors[j]) : painter()->pen().brush();
             paths[j].setFillRule(Qt::WindingFill);
             painter()->fillPath(paths[j], brush);
-            if (ti.fontEngine->needEmbolden()) {
-                //to get more accurate value, change the algorithm
-                qreal width = (ti.fontEngine->fontDef.pixelSize / 96 * 2) * (ti.fontEngine->fontDef.weight / QFont::Bold);
-                QPen pen(brush, width);
-                if (ti.fontEngine->changeCapJoinStyle())
-                {
-                    pen.setCapStyle(Qt::FlatCap);
-                    pen.setJoinStyle(Qt::MiterJoin);
-                }
-                painter()->strokePath(paths[j], pen);
-            }
         }
     }
     painter()->setRenderHint(QPainter::Antialiasing, oldAA);
@@ -3743,14 +3759,20 @@ void QRasterPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textIte
         QScopedValueRollback<QFixed> customBoldRollback(ti.fontEngine->customBoldwidth);
         if (ti.fontEngine->type() == QFontEngine::Win && s->lastPen.isDrawCustomTextBold())
             ti.fontEngine->customBoldwidth = QFixed::fromReal(s->lastPen.widthF());
-#endif
+#endif`
 
         if (ti.oprFlags & (QTextItem::UseColorFontDefaultColor | QTextItem::UseColorFontCustomColor))
             drawCachedGlyphsColorFont(glyphs.size(), glyphs.constData(), positions.constData(),
                                          ti);
         else
             drawCachedGlyphs(glyphs.size(), glyphs.constData(), positions.constData(),
-                             ti.fontEngine);
+                             ti.fontEngine, ti.glyphs.advances, ti.glyphs.attributes);
+#ifdef Q_OS_MAC
+        if (ti.fontEngine->fontDef.manualBolden)
+        {
+            painter()->setManualBoldenSuccess(false);
+        }
+#endif
 #ifdef Q_OS_LINUX
     } else if (ti.fontEngine->type() == QFontEngine::Freetype) {
 #else
@@ -3758,12 +3780,6 @@ void QRasterPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textIte
                && (ti.oprFlags & QTextItem::UseColorFontDefaultColor)) {
 #endif
         drawGlyphsFreetypeColor(p, ti);
-#ifdef Q_OS_MAC
-        if (ti.fontEngine->fontDef.manualBolden)
-        {
-            painter()->setManualBoldenSuccess(false);
-        }
-#endif
     } else if (matrix.type() < QTransform::TxProject
                && ti.fontEngine->supportsTransformation(matrix)) {
 
@@ -4039,11 +4055,6 @@ bool QRasterPaintEngine::shouldDrawCachedGlyphs(QFontEngine *fontEngine, const Q
     // to fill up our cache in that case.
     if (!fontEngine->hasInternalCaching() && !fontEngine->supportsTransformation(m))
         return false;
-
-#ifdef Q_OS_LINUX
-    if (fontEngine->forceDrawAsOutline())
-        return false;
-#endif
 
     return QPaintEngineEx::shouldDrawCachedGlyphs(fontEngine, m);
 }

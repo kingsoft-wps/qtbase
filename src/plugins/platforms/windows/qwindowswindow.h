@@ -226,6 +226,7 @@ public:
         ResizeMoveActive = 0x1000000,
         DisableNonClientScaling = 0x2000000,
         FullFrameMarginsChanged = 0x4000000,
+        DragdropRegistered = 0x8000000,
     };
 
     QWindowsWindow(QWindow *window, const QWindowsWindowData &data);
@@ -371,7 +372,7 @@ private:
     void destroyWindow();
     inline bool isDropSiteEnabled() const { return m_dropTarget != 0; }
     void setDropSiteEnabled(bool enabled, bool acceptenforceDrop = false);
-    void updateDropSite(bool topLevel,bool acceptenforceDrop = false);
+    bool needDropSite(bool topLevel);
     void handleGeometryChange();
     void handleWindowStateChange(Qt::WindowStates state);
     inline void destroyIcon();

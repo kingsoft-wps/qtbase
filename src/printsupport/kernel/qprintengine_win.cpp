@@ -64,6 +64,7 @@
 #include <QtCore/qt_windows.h>
 #include <QtGui/qpagelayout.h>
 #include <QtGui/qcomplexstroker.h>
+#include <private/qthreadingprint_win_p.h>
 
 Q_DECLARE_METATYPE(HFONT)
 Q_DECLARE_METATYPE(LOGFONT)
@@ -80,7 +81,7 @@ extern QMarginsF qt_convertMargins(const QMarginsF &margins, QPageLayout::Unit f
 static void draw_text_item_win(const QPointF &_pos, const QTextItemInt &ti, HDC hdc,
                                const QTransform &xform, const QPointF &topLeft);
 
-QWin32PrintEngine::QWin32PrintEngine(QPrinter::PrinterMode mode, const QString &deviceId)
+QWin32PrintEngine::QWin32PrintEngine(QPrinter::PrinterMode mode, const QString &deviceId, bool threading)
     : QAlphaPaintEngine(*(new QWin32PrintEnginePrivate),
                    PaintEngineFeatures(PrimitiveTransform
                                        | PixmapTransform
@@ -91,9 +92,10 @@ QWin32PrintEngine::QWin32PrintEngine(QPrinter::PrinterMode mode, const QString &
 {
     Q_D(QWin32PrintEngine);
     d->mode = mode;
+    d->threading = threading;
     QPlatformPrinterSupport *ps = QPlatformPrinterSupportPlugin::get();
     if (ps)
-        d->m_printDevice = ps->createPrintDevice(deviceId.isEmpty() ? ps->defaultPrintDeviceId() : deviceId);
+        d->m_printDevice = ps->createPrintDevice(deviceId.isEmpty() ? ps->defaultPrintDeviceId() : deviceId, threading);
     d->m_pageLayout.setPageSize(d->m_printDevice.defaultPageSize());
     d->initialize();
 }
@@ -144,12 +146,12 @@ bool QWin32PrintEngine::begin(QPaintDevice *pdev)
         di.lpszOutput = reinterpret_cast<const wchar_t *>(d->fileName.utf16());
     if (d->printToFile)
         di.lpszOutput = d->fileName.isEmpty() ? L"FILE:" : reinterpret_cast<const wchar_t *>(d->fileName.utf16());
-    if (ok && StartDoc(d->hdc, &di) == SP_ERROR) {
+    if (ok && d->startDoc(&di) == SP_ERROR) {
         qErrnoWarning(msgBeginFailed("StartDoc", di));
         ok = false;
     }
 
-    if (ok && StartPage(d->hdc) <= 0) {
+    if (ok && d->startPage() <= 0) {
         qErrnoWarning(msgBeginFailed("StartPage", di));
         ok = false;
     }
@@ -187,7 +189,7 @@ bool QWin32PrintEngine::end()
     if (d->hdc) {
         if (d->state == QPrinter::Aborted) {
             cleanUp();
-            AbortDoc(d->hdc);
+            d->abortDoc();
             return true;
         }
     }
@@ -197,9 +199,9 @@ bool QWin32PrintEngine::end()
         return true;
 
     if (d->hdc) {
-        if (EndPage(d->hdc) <= 0) // end; printing done
+        if (d->endPage() <= 0) // end; printing done
             qErrnoWarning("QWin32PrintEngine::end: EndPage failed (%p)", d->hdc);
-        if (EndDoc(d->hdc) <= 0)
+        if (d->endDoc() <= 0)
             qErrnoWarning("QWin32PrintEngine::end: EndDoc failed");
     }
 
@@ -219,7 +221,7 @@ bool QWin32PrintEngine::newPage()
 
     bool transparent = GetBkMode(d->hdc) == TRANSPARENT;
 
-    if (EndPage(d->hdc) <= 0) {
+    if (d->endPage() <= 0) {
         qErrnoWarning("QWin32PrintEngine::newPage: EndPage failed");
         return false;
     }
@@ -230,7 +232,7 @@ bool QWin32PrintEngine::newPage()
         d->reinit = false;
     }
 
-    if (StartPage(d->hdc) <= 0) {
+    if (d->startPage() <= 0) {
         qErrnoWarning("Win32PrintEngine::newPage: StartPage failed");
         return false;
     }
@@ -922,7 +924,7 @@ void QWin32PrintEnginePrivate::initialize()
     txop = QTransform::TxNone;
 
     QString printerName = m_printDevice.id();
-    bool ok = OpenPrinter((LPWSTR)printerName.utf16(), (LPHANDLE)&hPrinter, 0);
+    bool ok = openPrinter(printerName);
     if (!ok) {
         qErrnoWarning("QWin32PrintEngine::initialize: OpenPrinter failed");
         return;
@@ -931,10 +933,16 @@ void QWin32PrintEnginePrivate::initialize()
     // Fetch the PRINTER_INFO_2 with DEVMODE data containing the
     // printer settings.
     DWORD infoSize, numBytes;
-    GetPrinter(hPrinter, 2, NULL, 0, &infoSize);
+    getPrinter(2, NULL, 0, &infoSize);
+    if (interrupted) {
+        qErrnoWarning("QWin32PrintEngine::initialize: GetPrinter failed");
+        release();
+        return;
+    }
+
     hMem = GlobalAlloc(GHND, infoSize);
     pInfo = (PRINTER_INFO_2*) GlobalLock(hMem);
-    ok = GetPrinter(hPrinter, 2, (LPBYTE)pInfo, infoSize, &numBytes);
+    ok = getPrinter(2, (LPBYTE)pInfo, infoSize, &numBytes);
 
     if (!ok) {
         qErrnoWarning("QWin32PrintEngine::initialize: GetPrinter failed");
@@ -968,7 +976,7 @@ void QWin32PrintEnginePrivate::initialize()
         }
     }
 
-    hdc = CreateDC(NULL, (LPCWSTR)printerName.utf16(), 0, devMode);
+    hdc = createDC(NULL, (LPCWSTR)printerName.utf16(), 0, devMode);
 
     if (!hdc) {
         qErrnoWarning("QWin32PrintEngine::initialize: CreateDC failed");
@@ -1037,9 +1045,9 @@ void QWin32PrintEnginePrivate::release()
         GlobalFree(hMem);
     }
     if (hPrinter)
-        ClosePrinter(hPrinter);
+        closePrinter();
     if (hdc)
-        DeleteDC(hdc);
+        deleteDC();
 
     // Check if devMode was allocated separately from pInfo / hMem.
     if (ownsDevMode)
@@ -1069,8 +1077,12 @@ bool QWin32PrintEnginePrivate::resetDC()
         qWarning("ResetDC() called with null hdc.");
         return false;
     }
+
+    if (interrupted)
+        return false;
+
     const HDC oldHdc = hdc;
-    const HDC hdc = ResetDC(oldHdc, devMode);
+    const HDC hdc = threading ? QThreadingPrint::resetDC(oldHdc, devMode, &interrupted) : ResetDC(oldHdc, devMode);
     if (!hdc) {
         const int lastError = GetLastError();
         qErrnoWarning(lastError, "ResetDC() on %p failed (%d)", oldHdc, lastError);
@@ -1289,7 +1301,7 @@ void QWin32PrintEngine::setProperty(PrintEnginePropertyKey key, const QVariant &
         QVariant orientation = QVariant::fromValue(d->m_pageLayout.orientation());
         QVariant margins = QVariant::fromValue(
             QPair<QMarginsF, QPageLayout::Unit>(d->m_pageLayout.margins(), d->m_pageLayout.units()));
-        QPrintDevice printDevice = ps->createPrintDevice(id.isEmpty() ? ps->defaultPrintDeviceId() : id);
+        QPrintDevice printDevice = ps->createPrintDevice(id.isEmpty() ? ps->defaultPrintDeviceId() : id, d->threading);
         if (printDevice.isValid()) {
             d->m_printDevice = printDevice;
             d->initialize();
@@ -1495,7 +1507,11 @@ QVariant QWin32PrintEngine::property(PrintEnginePropertyKey key) const
                 break;
             }
 
-            int nCopies = ::DeviceCapabilities((const wchar_t *)d->m_printDevice.name().utf16(), NULL, DC_COPIES, NULL, d->devMode);
+            int nCopies = 0;
+            if (d->threading)
+                nCopies = QThreadingPrint::deviceCapabilities((const wchar_t *)d->m_printDevice.name().utf16(), NULL, DC_COPIES, NULL, d->devMode, 0);
+            else
+                nCopies = ::DeviceCapabilities((const wchar_t *)d->m_printDevice.name().utf16(), NULL, DC_COPIES, NULL, d->devMode);
             value = (nCopies >= d->num_copies);
         }
         break;
@@ -1660,7 +1676,7 @@ void QWin32PrintEngine::setGlobalDevMode(HGLOBAL globalDevNames, HGLOBAL globalD
             QString::fromWCharArray(reinterpret_cast<const wchar_t*>(dn) + dn->wDeviceOffset);
         QPlatformPrinterSupport *ps = QPlatformPrinterSupportPlugin::get();
         if (ps)
-            d->m_printDevice = ps->createPrintDevice(id.isEmpty() ? ps->defaultPrintDeviceId() : id);
+            d->m_printDevice = ps->createPrintDevice(id.isEmpty() ? ps->defaultPrintDeviceId() : id, d->threading);
         GlobalUnlock(globalDevNames);
     }
 
@@ -1673,12 +1689,12 @@ void QWin32PrintEngine::setGlobalDevMode(HGLOBAL globalDevNames, HGLOBAL globalD
             d->ownsDevMode = false;
         }
         d->devMode = dm;
-        d->hdc = CreateDC(NULL, reinterpret_cast<const wchar_t *>(d->m_printDevice.id().utf16()), 0, dm);
+        d->hdc = d->createDC(NULL, reinterpret_cast<const wchar_t *>(d->m_printDevice.id().utf16()), 0, dm);
 
         d->num_copies = d->devMode->dmCopies;
         d->updatePageLayout();
 
-        if (!OpenPrinter((wchar_t*)d->m_printDevice.id().utf16(), &d->hPrinter, 0))
+        if (!d->openPrinter(d->m_printDevice.id()))
             qWarning("QPrinter: OpenPrinter() failed after reading DEVMODE.");
     }
 
@@ -1695,6 +1711,12 @@ HGLOBAL QWin32PrintEngine::globalDevMode()
 {
     Q_D(QWin32PrintEngine);
     return d->globalDevMode;
+}
+
+void QWin32PrintEngine::setAsynAbort(bool enable)
+{
+    Q_D(QWin32PrintEngine);
+    d->asynAbort = enable;
 }
 
 void QWin32PrintEnginePrivate::setPageSize(const QPageSize &pageSize)
@@ -1800,6 +1822,97 @@ void QWin32PrintEnginePrivate::debugMetrics() const
     qDebug() << "    " << "origin            = " << origin_x << origin_y;
     qDebug() << "    " << "dpi               = " << dpi_x << dpi_y;
     qDebug() << "";
+}
+
+BOOL QWin32PrintEnginePrivate::openPrinter(const QString& name)
+{
+    if (threading)
+        return QThreadingPrint::openPrinter(name, &hPrinter);
+
+    return OpenPrinter((LPWSTR)name.utf16(), &hPrinter, 0);
+}
+
+BOOL QWin32PrintEnginePrivate::getPrinter(DWORD level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD pcbNeeded)
+{
+    if (interrupted)
+        return 0;
+
+    if (threading)
+        return QThreadingPrint::getPrinter(hPrinter, level, hMem, cbBuf, pcbNeeded, &interrupted);
+
+    return GetPrinter(hPrinter, level, pPrinter, cbBuf, pcbNeeded);
+}
+
+BOOL QWin32PrintEnginePrivate::closePrinter()
+{
+    if (threading)
+        return QThreadingPrint::closePrinter(hPrinter);
+
+    return ClosePrinter(hPrinter);
+}
+
+int QWin32PrintEnginePrivate::startDoc(const DOCINFO *info)
+{
+    if (interrupted)
+        return SP_ERROR;
+    if (threading)
+        return QThreadingPrint::startDoc(hdc, info, &interrupted);
+    return StartDoc(hdc, info);
+}
+
+int QWin32PrintEnginePrivate::endDoc()
+{
+    if (interrupted)
+        return 0;
+    if (threading)
+        return QThreadingPrint::endDoc(hdc, &interrupted);
+    return EndDoc(hdc);
+}
+
+int QWin32PrintEnginePrivate::abortDoc()
+{
+    if (threading && asynAbort)
+        return QThreadingPrint::abortDoc(hdc);
+
+    return AbortDoc(hdc);
+}
+
+int QWin32PrintEnginePrivate::startPage()
+{
+    if (interrupted)
+        return 0;
+    if (threading)
+        return QThreadingPrint::startPage(hdc, &interrupted);
+    return StartPage(hdc);
+}
+
+int QWin32PrintEnginePrivate::endPage()
+{
+    if (interrupted)
+        return 0;
+
+    if (threading) {
+        GdiFlush();
+        return QThreadingPrint::endPage(hdc, &interrupted);
+    }
+
+    return EndPage(hdc);
+}
+
+HDC QWin32PrintEnginePrivate::createDC(LPCWSTR pDriver, LPCWSTR pDevice, LPCWSTR pPort, const DEVMODE *pdm)
+{
+    if (threading)
+        return QThreadingPrint::createDC(pDriver, pDevice, pPort, pdm);
+
+    return CreateDC(pDriver, pDevice, pPort, pdm);
+}
+
+void QWin32PrintEnginePrivate::deleteDC()
+{
+    if (threading)
+        QThreadingPrint::deleteDC(hdc);
+    else
+        DeleteDC(hdc);
 }
 
 static void draw_text_item_win(const QPointF &pos, const QTextItemInt &ti, HDC hdc,

@@ -72,7 +72,7 @@ class QFseventsFileSystemWatcherEngine : public QFileSystemWatcherEngine
 public:
     ~QFseventsFileSystemWatcherEngine();
 
-    static QFseventsFileSystemWatcherEngine *create(QObject *parent);
+    static QFseventsFileSystemWatcherEngine *create(QObject *parent, int latencyMs);
 
     QStringList addPaths(const QStringList &paths, QStringList *files, QStringList *directories);
     QStringList removePaths(const QStringList &paths, QStringList *files, QStringList *directories);
@@ -131,7 +131,7 @@ private:
         PathRefCounts watchedPaths;
     };
 
-    QFseventsFileSystemWatcherEngine(QObject *parent);
+    QFseventsFileSystemWatcherEngine(QObject *parent, int latencyMs);
     bool startStream();
     void stopStream(bool isStopped = false);
     InfoByName scanForDirEntries(const QString &path);
@@ -146,6 +146,7 @@ private:
     FSEventStreamRef stream;
     FSEventStreamEventId lastReceivedEvent;
     WatchingState watchingState;
+    int latencyMs;
 };
 
 QT_END_NAMESPACE

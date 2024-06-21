@@ -57,6 +57,7 @@ class Q_CORE_EXPORT QFileSystemWatcher : public QObject
 public:
     QFileSystemWatcher(QObject *parent = nullptr);
     QFileSystemWatcher(const QStringList &paths, QObject *parent = nullptr);
+    QFileSystemWatcher(int latencyMs, QObject *parent = nullptr);
     ~QFileSystemWatcher();
 
     bool addPath(const QString &file);

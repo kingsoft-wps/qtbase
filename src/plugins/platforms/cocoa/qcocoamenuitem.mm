@@ -110,7 +110,7 @@ QCocoaMenuItem::QCocoaMenuItem() :
 
 QCocoaMenuItem::~QCocoaMenuItem()
 {
-    QMacAutoReleasePool pool;
+    @autoreleasepool {
 
     if (m_menu && m_menu->menuParent() == this)
         m_menu->setMenuParent(nullptr);
@@ -123,6 +123,7 @@ QCocoaMenuItem::~QCocoaMenuItem()
     }
 
     [m_itemView release];
+    }
 }
 
 void QCocoaMenuItem::setText(const QString &text)
@@ -266,6 +267,9 @@ NSMenuItem *QCocoaMenuItem::sync()
             break;
         case PreferencesRole:
             mergeItem = [loader preferencesMenuItem];
+            break;
+        case FinderSettingRole:
+            mergeItem = [loader finderSettingMenuItem];
             break;
         case CheckForUpdatesRole:
             mergeItem = [loader checkUpdateMenuItem];

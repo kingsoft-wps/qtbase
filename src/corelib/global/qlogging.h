@@ -117,9 +117,6 @@ public:
     Q_DECL_COLD_FUNCTION
     void critical(CategoryFunction catFunc, const char *msg, ...) const Q_ATTRIBUTE_FORMAT_PRINTF(3, 4);
 
-#ifndef Q_CC_MSVC
-    Q_NORETURN
-#endif
     Q_DECL_COLD_FUNCTION
     void fatal(const char *msg, ...) const Q_DECL_NOTHROW Q_ATTRIBUTE_FORMAT_PRINTF(2, 3);
 

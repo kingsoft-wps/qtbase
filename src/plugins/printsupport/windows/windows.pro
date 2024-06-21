@@ -11,10 +11,12 @@ SOURCES += \
     main.cpp \
     qwindowsprintersupport.cpp \
     qwindowsprintdevice.cpp \
+    qwindowsthreadingprintdevice.cpp \
 
 HEADERS += \
     qwindowsprintersupport.h \
     qwindowsprintdevice.h \
+    qwindowsthreadingprintdevice.h \
 
 OTHER_FILES += windows.json
 

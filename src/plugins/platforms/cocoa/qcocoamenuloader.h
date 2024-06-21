@@ -71,6 +71,7 @@ QT_FORWARD_DECLARE_CLASS(QCocoaMenuItem);
 - (NSMenuItem *)proxySettingMenuItem;
 - (void)qtTranslateApplicationMenu;
 - (NSArray<NSMenuItem *> *)mergeable;
+- (NSMenuItem *)finderSettingMenuItem;
 @end
 
 QT_NAMESPACE_ALIAS_OBJC_CLASS(QCocoaMenuLoader);

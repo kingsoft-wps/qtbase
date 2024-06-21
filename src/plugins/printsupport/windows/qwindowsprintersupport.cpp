@@ -39,6 +39,7 @@
 
 #include "qwindowsprintersupport.h"
 #include "qwindowsprintdevice.h"
+#include "qwindowsthreadingprintdevice.h"
 
 #include <QtCore/QStringList>
 #include <qprintengine_win_p.h>
@@ -55,9 +56,10 @@ QWindowsPrinterSupport::~QWindowsPrinterSupport()
 {
 }
 
-QPrintEngine *QWindowsPrinterSupport::createNativePrintEngine(QPrinter::PrinterMode printerMode, const QString &deviceId)
+QPrintEngine *QWindowsPrinterSupport::createNativePrintEngine(QPrinter::PrinterMode printerMode,
+                                                              const QString &deviceId, bool threading)
 {
-    return new QWin32PrintEngine(printerMode, deviceId);
+    return new QWin32PrintEngine(printerMode, deviceId, threading);
 }
 
 QPaintEngine *QWindowsPrinterSupport::createPaintEngine(QPrintEngine *engine, QPrinter::PrinterMode printerMode)
@@ -66,18 +68,25 @@ QPaintEngine *QWindowsPrinterSupport::createPaintEngine(QPrintEngine *engine, QP
     return static_cast<QWin32PrintEngine *>(engine);
 }
 
-QPrintDevice QWindowsPrinterSupport::createPrintDevice(const QString &id)
+QPrintDevice QWindowsPrinterSupport::createPrintDevice(const QString &id, bool threading)
 {
-    return QPlatformPrinterSupport::createPrintDevice(new QWindowsPrintDevice(id));
+    if (threading)
+        return QPlatformPrinterSupport::createPrintDevice(new QWindowsThreadingPrintDevice(id));
+    else
+        return QPlatformPrinterSupport::createPrintDevice(new QWindowsPrintDevice(id));
 }
 
-QStringList QWindowsPrinterSupport::availablePrintDeviceIds() const
+QStringList QWindowsPrinterSupport::availablePrintDeviceIds(bool threading) const
 {
+    if (threading)
+        return QWindowsThreadingPrintDevice::availablePrintDeviceIds();
     return QWindowsPrintDevice::availablePrintDeviceIds();
 }
 
-QString QWindowsPrinterSupport::defaultPrintDeviceId() const
+QString QWindowsPrinterSupport::defaultPrintDeviceId(bool threading) const
 {
+    if (threading)
+        return QWindowsThreadingPrintDevice::defaultPrintDeviceId();
     return QWindowsPrintDevice::defaultPrintDeviceId();
 }
 

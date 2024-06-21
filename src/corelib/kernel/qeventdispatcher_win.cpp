@@ -431,7 +431,7 @@ void QEventDispatcherWin32Private::registerTimer(WinTimerInfo *t)
         // optimization for single-shot-zero-timer
         QCoreApplication::postEvent(q, new QZeroTimerEvent(t->timerId));
         ok = true;
-    } else if ((interval < 20u || t->timerType == Qt::PreciseTimer) && qtimeSetEvent) {
+    } else if ((t->timerType == Qt::PreciseTimer) && qtimeSetEvent) {
         t->fastTimerId = qtimeSetEvent(interval, 1, qt_fast_timer_proc, (DWORD_PTR)t,
                                             TIME_CALLBACK_FUNCTION | TIME_PERIODIC | TIME_KILL_SYNCHRONOUS);
         ok = t->fastTimerId;

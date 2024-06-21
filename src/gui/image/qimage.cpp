@@ -127,7 +127,7 @@ QImageData * QImageData::create(const QSize &size, QImage::Format format)
     if (!params.isValid())
         return nullptr;
 
-#ifdef Q_OS_MAC
+#ifdef Q_OS_UNIX
     const int bytes_per_line = ((width * depth + 31) >> 5) << 2; // bytes per scanline (must be multiple of 4)
 
     // sanity check for potential overflows
@@ -4119,10 +4119,20 @@ QPaintEngine *QImage::paintEngine() const
 
     if (!d->paintEngine) {
         QPaintDevice *paintDevice = const_cast<QImage *>(this);
-        QPaintEngine *paintEngine = 0;
-        QPlatformIntegration *platformIntegration = QGuiApplicationPrivate::platformIntegration();
-        if (platformIntegration)
-            paintEngine = platformIntegration->createImagePaintEngine(paintDevice);
+        QPaintEngine *paintEngine = nullptr;
+        if (qApp) {
+            typedef QPaintEngine *(*createImagePaintEnginePtr)(QPaintDevice *);
+            auto ptr = qApp->property("createImagePaintEnginePtr").value<void *>();
+            if (ptr) {
+                paintEngine = ((createImagePaintEnginePtr)ptr)(paintDevice);
+            }
+        }
+        if (!paintEngine) {
+            QPlatformIntegration *platformIntegration =
+                    QGuiApplicationPrivate::platformIntegration();
+            if (platformIntegration)
+                paintEngine = platformIntegration->createImagePaintEngine(paintDevice);
+        }
         d->paintEngine = paintEngine ? paintEngine : new QRasterPaintEngine(paintDevice);
     }
 

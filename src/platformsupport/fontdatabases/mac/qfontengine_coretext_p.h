@@ -91,7 +91,8 @@ public:
     QFixed averageCharWidth() const override;
 
     void addGlyphsToPath(glyph_t *glyphs, QFixedPoint *positions, int numGlyphs,
-                         QPainterPath *path, QTextItem::RenderFlags) override;
+                         QPainterPath *path, QTextItem::RenderFlags,
+                         const QFixed *advances = nullptr, const QGlyphAttributes *attributes = nullptr) override;
 
     bool canRender(const QChar *string, int len) const override;
 

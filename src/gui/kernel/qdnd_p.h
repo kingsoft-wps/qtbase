@@ -76,12 +76,15 @@ public:
         : source(0)
         , target(0)
         , data(0)
+        , use_relative_hotspot(false)
     { }
     QObject *source;
     QObject *target;
     QMimeData *data;
     QPixmap pixmap;
     QPoint hotspot;
+    QPointF relative_hotspot;
+    bool use_relative_hotspot;
     Qt::DropAction executed_action;
     Qt::DropActions supported_actions;
     Qt::DropAction default_action;
@@ -101,7 +104,7 @@ public:
     void setCurrentTarget(QObject *target, bool dropped = false);
     QObject *currentTarget() const;
 
-    QDrag *object() const { return m_object; }
+    QPointer<QDrag> object() const { return m_object; }
     QObject *source() const;
 
     bool notifyCanceled(const QDrag *drag, const QPoint &pos);
@@ -109,7 +112,7 @@ public:
 private:
     QObject *m_currentDropTarget;
     QPlatformDrag *m_platformDrag;
-    QDrag *m_object;
+    QPointer<QDrag> m_object;
 
     static QDragManager *m_instance;
     Q_DISABLE_COPY(QDragManager)

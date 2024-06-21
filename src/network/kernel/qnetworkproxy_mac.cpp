@@ -203,6 +203,37 @@ void proxyAutoConfigCallback(void *client, CFArrayRef proxylist, CFErrorRef erro
         info->proxies = proxylist;
     }
 }
+
+class PacLimiter
+{
+public:
+    static PacLimiter& instance()
+    {
+        static PacLimiter ins;
+        return ins;
+    }
+
+    bool check(const QString& pacLoactionUrl)
+    {
+        if (m_strLastErrUrl.isEmpty())
+            return false;
+
+        if (0 == m_strLastErrUrl.compare(pacLoactionUrl))
+            return true;
+
+        m_strLastErrUrl.clear();   
+        return false;
+    }
+
+    void update(const QString& pacLoactionUrl)
+    {
+        m_strLastErrUrl = pacLoactionUrl;
+    }
+
+private:
+    QString m_strLastErrUrl;
+};
+
 } // anon namespace
 
 QList<QNetworkProxy> macQueryInternal(const QNetworkProxyQuery &query)
@@ -247,6 +278,11 @@ QList<QNetworkProxy> macQueryInternal(const QNetworkProxyQuery &query)
             if (!targetURL) {
                 return result; // URL creation problem, abort
             }
+            
+            if (PacLimiter::instance().check(QString::fromCFString(cfPacLocation))) {
+                qWarning("Error PAC URL \"%s\" , Skip using it", qPrintable(QString::fromCFString(cfPacLocation)));
+                return result;
+            }
 
             CFStreamClientContext pacCtx;
             pacCtx.version = 0;
@@ -260,12 +296,21 @@ QList<QNetworkProxy> macQueryInternal(const QNetworkProxyQuery &query)
 
             QCFType<CFRunLoopSourceRef> pacRunLoopSource = CFNetworkExecuteProxyAutoConfigurationURL(pacUrl, targetURL, &proxyAutoConfigCallback, &pacCtx);
             CFRunLoopAddSource(CFRunLoopGetCurrent(), pacRunLoopSource, pacRunLoopMode);
-            while (!pacInfo.done)
-                CFRunLoopRunInMode(pacRunLoopMode, 1000, /*returnAfterSourceHandled*/ true);
+            // while (!pacInfo.done)
+            //     CFRunLoopRunInMode(pacRunLoopMode, 1000, /*returnAfterSourceHandled*/ true);
+            CFRunLoopRunInMode(pacRunLoopMode, 3, /*returnAfterSourceHandled*/ true);
+
+            if (!pacInfo.done) {
+                QString pacLocation = QString::fromCFString(cfPacLocation);
+                PacLimiter::instance().update(pacLocation);
+                qWarning("Execution of PAC script at \"%s\" failed: timeout", qPrintable(pacLocation));
+                return result;
+            }
 
             if (!pacInfo.proxies) {
                 QString pacLocation = QString::fromCFString(cfPacLocation);
                 QCFType<CFStringRef> pacErrorDescription = CFErrorCopyDescription(pacInfo.error);
+                PacLimiter::instance().update(pacLocation);
                 qWarning("Execution of PAC script at \"%s\" failed: %s", qPrintable(pacLocation), qPrintable(QString::fromCFString(pacErrorDescription)));
                 return result;
             }

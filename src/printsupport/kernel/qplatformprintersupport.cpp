@@ -68,7 +68,7 @@ QPlatformPrinterSupport::~QPlatformPrinterSupport()
 {
 }
 
-QPrintEngine *QPlatformPrinterSupport::createNativePrintEngine(QPrinter::PrinterMode, const QString &)
+QPrintEngine *QPlatformPrinterSupport::createNativePrintEngine(QPrinter::PrinterMode, const QString &, bool)
 {
     return nullptr;
 }
@@ -83,19 +83,22 @@ QPrintDevice QPlatformPrinterSupport::createPrintDevice(QPlatformPrintDevice *de
     return QPrintDevice(device);
 }
 
-QPrintDevice QPlatformPrinterSupport::createPrintDevice(const QString &id)
+QPrintDevice QPlatformPrinterSupport::createPrintDevice(const QString &id, bool threading)
 {
     Q_UNUSED(id)
+    Q_UNUSED(threading)
     return QPrintDevice();
 }
 
-QStringList QPlatformPrinterSupport::availablePrintDeviceIds() const
+QStringList QPlatformPrinterSupport::availablePrintDeviceIds(bool threading) const
 {
+    Q_UNUSED(threading)
     return QStringList();
 }
 
-QString QPlatformPrinterSupport::defaultPrintDeviceId() const
+QString QPlatformPrinterSupport::defaultPrintDeviceId(bool threading) const
 {
+    Q_UNUSED(threading)
     return QString();
 }
 

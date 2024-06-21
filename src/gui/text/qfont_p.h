@@ -59,6 +59,7 @@
 #include "QtCore/qstringlist.h"
 #include <QtGui/qfontdatabase.h>
 #include "private/qfixed_p.h"
+#include <QtGui/qtransform.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -72,6 +73,7 @@ struct QFontDef
         : pointSize(-1.0), pixelSize(-1),
           escapementAngle(0.0),
           manualBolden(false),
+          useRequestFamMatching(false),
           styleStrategy(QFont::PreferDefault), styleHint(QFont::AnyStyle),
           weight(50), fixedPitch(false), style(QFont::StyleNormal), 
           hintingPreference(QFont::PreferDefaultHinting), ignorePitch(true),
@@ -79,8 +81,11 @@ struct QFontDef
           verticalMetrics(false),
           forceScalable(false),
           reserved(0),
-#ifdef Q_OS_MAC
+#if defined(Q_OS_MAC)
           stretch(QFont::Unstretched) // We No expansion by default
+#elif defined(Q_OS_LINUX)
+          stretch(QFont::AnyStretch),
+          paintDeviceMatrix(-1.0, 0.0, 0.0, -1.0, 0.0, 0.0)
 #else
           stretch(QFont::AnyStretch)
 #endif // Q_OS_MAC
@@ -97,6 +102,7 @@ struct QFontDef
 
     qreal escapementAngle;
     bool manualBolden;
+    bool useRequestFamMatching;
 
     uint styleStrategy : 16;
     uint styleHint     : 8;
@@ -113,6 +119,9 @@ struct QFontDef
     uint verticalMetrics : 1;
     uint forceScalable : 1;
     int reserved   : 12; // for future extensions
+#ifdef Q_OS_LINUX
+    QTransform paintDeviceMatrix;
+#endif
 
     bool exactMatch(const QFontDef &other) const;
     bool operator==(const QFontDef &other) const
@@ -130,8 +139,12 @@ struct QFontDef
                     && hintingPreference == other.hintingPreference
                     && verticalMetrics ==  other.verticalMetrics
                     && manualBolden ==  other.manualBolden
-                    && forceScalable == other.forceScalable;
-                          ;
+                    && useRequestFamMatching == other.useRequestFamMatching
+                    && forceScalable == other.forceScalable
+#ifdef Q_OS_LINUX
+                    && paintDeviceMatrix == other.paintDeviceMatrix
+#endif
+                    ;
     }
     inline bool operator<(const QFontDef &other) const
     {
@@ -152,7 +165,11 @@ struct QFontDef
         if (fixedPitch != other.fixedPitch) return fixedPitch < other.fixedPitch;
         if (verticalMetrics != other.verticalMetrics) return verticalMetrics < other.verticalMetrics;
         if (manualBolden != other.manualBolden) return manualBolden < other.manualBolden;
+        if (useRequestFamMatching != other.useRequestFamMatching) return useRequestFamMatching < other.useRequestFamMatching;
         if (forceScalable != other.forceScalable) return forceScalable < other.forceScalable;
+#ifdef Q_OS_LINUX
+        if (paintDeviceMatrix.m22() != other.paintDeviceMatrix.m22()) return paintDeviceMatrix.m22() < other.paintDeviceMatrix.m22();
+#endif
         return false;
     }
 };
@@ -173,6 +190,9 @@ inline uint qHash(const QFontDef &fd, uint seed = 0) Q_DECL_NOTHROW
         ^  qHash(fd.hintingPreference)
         ^  qHash(fd.verticalMetrics)
         ^  qHash(fd.forceScalable)
+#ifdef Q_OS_LINUX
+        ^  qHash(fd.paintDeviceMatrix)
+#endif
         ;
 }
 
@@ -209,6 +229,7 @@ public:
     int dpi;
     int screen;
     bool manualBolden;
+    bool useRequestFamMatching;
 
     uint underline  :  1;
     uint overline   :  1;
@@ -230,6 +251,10 @@ public:
     }
 
     void resolve(uint mask, const QFontPrivate *other);
+
+#ifdef Q_OS_LINUX
+    void updatePaintDeviceMatrix();
+#endif
 
     static void detachButKeepEngineData(QFont *font);
 

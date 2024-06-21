@@ -238,7 +238,8 @@ inline QPenPrivate::QPenPrivate(const QBrush &_brush, qreal _width, Qt::PenStyle
       dashCap(_capStyle),
       cosmetic(false), defaultWidth(_defaultWidth),
       bDrawCustomTextBold(false),
-      boldFactor(1)
+      boldFactor(1),
+      bSupportComoplex(true)
 {
     width = _width;
     brush = _brush;
@@ -1048,6 +1049,16 @@ void QPen::setCustomBoldFactor(qreal factor)
 qreal QPen::customBoldFactor()
 {
     return d->boldFactor;
+}
+
+void QPen::setSupportComoplex(bool bSupport)
+{
+    d->bSupportComoplex = bSupport;
+}
+
+bool QPen::isSupportComoplex() const
+{
+    return d->bSupportComoplex;
 }
 
 /*****************************************************************************

@@ -293,6 +293,10 @@ int runMoc(int argc, char **argv)
     ignoreConflictsOption.setDescription(QStringLiteral("Ignore all options that conflict with compilers, like -pthread conflicting with moc's -p option."));
     parser.addOption(ignoreConflictsOption);
 
+    QCommandLineOption noParamNameOption(QStringLiteral("no-param-name"));
+    noParamNameOption.setDescription(QStringLiteral("ignore function param name."));
+    parser.addOption(noParamNameOption);
+
     parser.addPositionalArgument(QStringLiteral("[header-file]"),
             QStringLiteral("Header file to read from, otherwise stdin."));
     parser.addPositionalArgument(QStringLiteral("[@option-file]"),
@@ -335,6 +339,9 @@ int runMoc(int argc, char **argv)
         if (parser.isSet(pathPrefixOption))
             moc.includePath = QFile::encodeName(parser.value(pathPrefixOption));
     }
+
+    if (parser.isSet(noParamNameOption))
+        moc.ignoreParamName = true;
 
     const auto includePaths = parser.values(includePathOption);
     for (const QString &path : includePaths)

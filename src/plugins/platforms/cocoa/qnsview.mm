@@ -68,6 +68,7 @@
 // Private interface
 @interface QT_MANGLE_NAMESPACE(QNSView) ()
 - (BOOL)isTransparentForUserInput;
+- (BOOL)isAvoidBeFirstResponder;
 @property (assign) NSView* previousSuperview;
 @property (assign) NSWindow* previousWindow;
 @end
@@ -299,11 +300,19 @@
         m_platformWindow->window()->flags() & Qt::WindowTransparentForInput;
 }
 
+- (BOOL)isAvoidBeFirstResponder
+{
+    return m_platformWindow && m_platformWindow->window() &&
+        m_platformWindow->window()->flags() & Qt::WindowAvoidBeFirstResponder;
+}
+
 - (BOOL)becomeFirstResponder
 {
     if (!m_platformWindow)
         return NO;
     if ([self isTransparentForUserInput])
+        return NO;
+    if ([self isAvoidBeFirstResponder])
         return NO;
     if (!m_platformWindow->windowIsPopupType())
         QWindowSystemInterface::handleWindowActivated([self topLevelWindow]);
@@ -317,6 +326,8 @@
     if (m_platformWindow->shouldRefuseKeyWindowAndFirstResponder())
         return NO;
     if ([self isTransparentForUserInput])
+        return NO;
+    if ([self isAvoidBeFirstResponder])
         return NO;
     if ((m_platformWindow->window()->flags() & Qt::ToolTip) == Qt::ToolTip)
         return NO;

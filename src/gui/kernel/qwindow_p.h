@@ -218,7 +218,7 @@ public:
 #endif
 
 #ifdef Q_OS_MAC
-    bool isFullScreen;
+	bool isFullScreen;
 #endif
 
     bool compositing;

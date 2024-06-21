@@ -111,13 +111,14 @@ Qt::DropAction QDragManager::drag(QDrag *o)
 
     m_object = o;
 
-    m_object->d_func()->target = 0;
+    m_object->d_func()->target = nullptr;
 
-    QGuiApplicationPrivate::instance()->notifyDragStarted(o);
+    QGuiApplicationPrivate::instance()->notifyDragStarted(m_object.data());
     const Qt::DropAction result = m_platformDrag->drag(m_object);
-    m_object = 0;
-    if (!m_platformDrag->ownsDragObject())
-        o->deleteLater();
+    if (!m_object.isNull() && !m_platformDrag->ownsDragObject())
+        m_object->deleteLater();
+
+    m_object.clear();
     return result;
 }
 

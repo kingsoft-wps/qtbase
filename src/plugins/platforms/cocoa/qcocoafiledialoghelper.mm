@@ -495,6 +495,11 @@ QT_NAMESPACE_ALIAS_OBJC_CLASS(QNSOpenSavePanelDelegate);
     // resetting our mCurrentDir, set the delegate
     // here to make sure it gets the correct value.
     [mSavePanel setDelegate:self];
+    if (@available(macOS 12.0, *)) {
+        if (mOptions->acceptMode() == QFileDialogOptions::AcceptSave){
+            [mSavePanel setDelegate:nil];
+        }
+    }
     mOpenPanel.accessoryViewDisclosed = YES;
 
     if (mOptions->isLabelExplicitlySet(QFileDialogOptions::Accept))
@@ -593,7 +598,14 @@ static QString strippedText(QString s)
     // Make sure we don't interrupt the runModal call below.
     QCocoaEventDispatcher::clearCurrentThreadCocoaEventDispatcherInterruptFlag();
 
+    NSWindow *key1 = NSApp.keyWindow;
     mReturnCode = [mSavePanel runModal];
+    NSWindow *key2 = NSApp.keyWindow;
+    if (@available(macOS 13.0, *)) {
+        if (key1 != key2) {
+            [key1 makeKeyAndOrderFront:nil];
+        }
+    }
 
     QAbstractEventDispatcher::instance()->interrupt();
     return (mReturnCode == NSModalResponseOK);

@@ -399,6 +399,7 @@ bool QCocoaEventDispatcher::processEvents(QEventLoop::ProcessEventsFlags flags)
             // [NSApp run], which is the normal code path for cocoa applications.
             if (NSModalSession session = d->currentModalSession()) {
                 QBoolBlocker execGuard(d->currentExecIsNSAppRun, false);
+                @try {
                 while ([NSApp runModalSession:session] == NSModalResponseContinue && !d->interrupt) {
                     qt_mac_waitForMoreEvents(NSModalPanelRunLoopMode);
                     if (session != d->currentModalSessionCached) {
@@ -410,6 +411,10 @@ bool QCocoaEventDispatcher::processEvents(QEventLoop::ProcessEventsFlags flags)
                         // call runModalSession: after calling endModalSesion:."
                         break;
                     }
+                }
+                }
+                @catch (NSException *e) {
+                    NSLog(@"%@", [e reason]);
                 }
 
                 if (!d->interrupt && session == d->currentModalSessionCached) {
@@ -442,7 +447,13 @@ bool QCocoaEventDispatcher::processEvents(QEventLoop::ProcessEventsFlags flags)
                     // to use cocoa's native way of running modal sessions:
                     if (flags & QEventLoop::WaitForMoreEvents)
                         qt_mac_waitForMoreEvents(NSModalPanelRunLoopMode);
-                    NSInteger status = [NSApp runModalSession:session];
+                    NSInteger status;
+                    @try {
+                        status = [NSApp runModalSession:session];
+                    }
+                    @catch (NSException *e) {
+                        NSLog(@"%@", [e reason]);
+                    }
                     if (status != NSModalResponseContinue && session == d->currentModalSessionCached) {
                         // INVARIANT: Someone called [NSApp stopModal:] from outside the event
                         // dispatcher (e.g to stop a native dialog). But that call wrongly stopped

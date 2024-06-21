@@ -42,6 +42,10 @@
 #include "qabstracteventdispatcher.h"
 #include "qcoreapplication.h"
 #include "qobject_p.h"
+#ifdef Q_OS_MAC
+#include <qdebug.h>
+#include <QMetaMethod>
+#endif
 
 QT_BEGIN_NAMESPACE
 
@@ -208,6 +212,16 @@ void QTimer::start()
     if (id != INV_TIMER)                        // stop running timer
         stop();
     nulltimer = (!inter && single);
+#ifdef Q_OS_MAC
+    static const QMetaMethod timeoutSignal = QMetaMethod::fromSignal(&QTimer::timeout);
+    if (!inter && !single && !isSignalConnected(timeoutSignal))
+    {
+        qCritical() << "error: QTimer is not single shot and no signal connected.";
+        qCritical() << this;
+        qCritical() << parent();
+        return;
+    }
+#endif
     id = QObject::startTimer(inter, Qt::TimerType(type));
 }
 
@@ -371,7 +385,7 @@ void QTimer::singleShot(int msec, const QObject *receiver, const char *member)
     // coarse timers are worst in their first firing
     // so we prefer a high precision timer for something that happens only once
     // unless the timeout is too big, in which case we go for coarse anyway
-    singleShot(msec, msec >= 2000 ? Qt::CoarseTimer : Qt::PreciseTimer, receiver, member);
+    singleShot(msec, defaultTypeFor(msec), receiver, member);
 }
 
 /*! \overload

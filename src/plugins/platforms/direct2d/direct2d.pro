@@ -1,7 +1,7 @@
 TARGET = qdirect2d
 
 QT += \
-    core-private gui-private \
+    core-private gui-private widgets-private \
     eventdispatcher_support-private \
     fontdatabase_support-private theme_support-private
 

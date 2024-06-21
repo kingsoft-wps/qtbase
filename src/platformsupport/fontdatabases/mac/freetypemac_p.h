@@ -94,7 +94,7 @@ public:
     int getFreeTypePath(QPainterPath *path, const glyphInfo &info);
     OUTLINE_PARAMS* getGlyphOutline(const glyphInfo &info);
 private:
-    FT_Face getFontFace(const QString &fontFile, const QString &family);
+    FT_Face getFontFace(const QString &fontFile, const QString &family, const QString &styleName);
 
 private:
     FT_Library m_ftLibrary;

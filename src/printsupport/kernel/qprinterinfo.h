@@ -93,16 +93,16 @@ public:
     QPrinter::DuplexMode defaultDuplexMode() const;
     QList<QPrinter::DuplexMode> supportedDuplexModes() const;
 
-    static QStringList availablePrinterNames();
-    static QList<QPrinterInfo> availablePrinters();
+    static QStringList availablePrinterNames(bool threading = false);
+    static QList<QPrinterInfo> availablePrinters(bool threading = false);
 
-    static QString defaultPrinterName();
-    static QPrinterInfo defaultPrinter();
+    static QString defaultPrinterName(bool threading = false);
+    static QPrinterInfo defaultPrinter(bool threading = false);
 
-    static QPrinterInfo printerInfo(const QString &printerName);
+    static QPrinterInfo printerInfo(const QString &printerName, bool threading = false);
 
 private:
-    explicit QPrinterInfo(const QString &name);
+    explicit QPrinterInfo(const QString &name, bool threading);
 
 private:
     friend class QPlatformPrinterSupport;

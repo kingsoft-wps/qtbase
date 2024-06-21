@@ -93,7 +93,7 @@
 Q_GLOBAL_STATIC_WITH_ARGS(bool, useHarfbuzzNG,(qgetenv("QT_HARFBUZZ") != "old"))
 static inline bool qt_useHarfbuzzNG()
 {
-	return *useHarfbuzzNG();
+    return *useHarfbuzzNG();
 }
 #endif
 
@@ -1162,34 +1162,98 @@ quint8 qt_verticalGlyphAttributes[UCS2_LIMIT] = {
 };
 
 FT_ULong qt_punctuationSubstitude[][2] = {
-	{0x005F, 0xFE33},
-	{0x2013, 0xFE32},
-	{0x2014, 0xFE31},
-	{0x2018, 0xFE41},
-	{0x2019, 0xFE42},
-	{0x201C, 0xFE43},
-	{0x201D, 0xFE44},
-	{0x3008, 0xFE3F},
-	{0x3009, 0xFE40},
-	{0x300A, 0xFE3D},
-	{0x300B, 0xFE3E},
-	{0x300C, 0xFE41},
-	{0x300D, 0xFE42},
-	{0x300E, 0xFE43},
-	{0x300F, 0xFE44},
-	{0x3010, 0xFE3B},
-	{0x3011, 0xFE3C},
-	{0x3014, 0xFE39},
-	{0x3015, 0xFE3A},
-	{0xFE4F, 0xFE34},
-	{0xFF08, 0xFE35},
-	{0xFF09, 0xFE36},
-	{0xFF5B, 0xFE37},
-	{0xFF5D, 0xFE38},
-	{0,      0     }
+    {0x005F, 0xFE33},
+    {0x2013, 0xFE32},
+    {0x2014, 0xFE31},
+    {0x2018, 0xFE41},
+    {0x2019, 0xFE42},
+    {0x201C, 0xFE43},
+    {0x201D, 0xFE44},
+    {0x3008, 0xFE3F},
+    {0x3009, 0xFE40},
+    {0x300A, 0xFE3D},
+    {0x300B, 0xFE3E},
+    {0x300C, 0xFE41},
+    {0x300D, 0xFE42},
+    {0x300E, 0xFE43},
+    {0x300F, 0xFE44},
+    {0x3010, 0xFE3B},
+    {0x3011, 0xFE3C},
+    {0x3014, 0xFE39},
+    {0x3015, 0xFE3A},
+    {0xFE4F, 0xFE34},
+    {0xFF08, 0xFE35},
+    {0xFF09, 0xFE36},
+    {0xFF5B, 0xFE37},
+    {0xFF5D, 0xFE38},
+    {0,      0     }
 };
 
 // -------------------------- Freetype support ------------------------------
+#ifdef Q_OS_LINUX
+// Initially increase the width of the bitmap to make the bold result look like windows
+void FT_GlyphSlot_Embolden_Outline(FT_GlyphSlot slot)
+{
+    FT_Library  library;
+    FT_Face     face;
+    FT_Error    error;
+    FT_Pos      xstr, ystr;
+
+    if (!slot)
+        return;
+
+    library = slot->library;
+    face    = slot->face;
+
+    if (slot->format != FT_GLYPH_FORMAT_OUTLINE &&
+            slot->format != FT_GLYPH_FORMAT_BITMAP)
+        return;
+
+    /* some reasonable strength */
+    xstr = FT_MulFix(face->units_per_EM,
+                     face->size->metrics.y_scale) / 48;
+    ystr = xstr;
+
+    if (slot->format == FT_GLYPH_FORMAT_OUTLINE) {
+        FT_Outline_Embolden(&slot->outline, xstr);
+    } else {
+        /* slot->format == FT_GLYPH_FORMAT_BITMAP */
+        return;
+    }
+
+    if (slot->advance.x)
+        slot->advance.x += xstr;
+
+    if (slot->advance.y)
+        slot->advance.y += ystr;
+
+    slot->metrics.width        += xstr;
+    slot->metrics.height       += ystr;
+    slot->metrics.horiAdvance  += xstr;
+    slot->metrics.vertAdvance  += ystr;
+    slot->metrics.horiBearingY += ystr;
+
+    /* XXX: 16-bit overflow case must be excluded before here */
+    slot->bitmap_top += (FT_Int)(ystr >> 6);
+    if (slot->format != FT_GLYPH_FORMAT_BITMAP) {
+        slot->bitmap.width += (FT_UInt)(xstr >> 6);
+        slot->bitmap.rows += (FT_UInt)(ystr >> 6);
+    }
+}
+
+void FT_GlyphSlot_Embolden_Linux(FT_GlyphSlot slot)
+{
+    if (!slot)
+        return;
+
+    /* BITMAP format is Continue to use "FT_GlyphSlot_Embolden"，repair it in the future */
+    if (slot->format == FT_GLYPH_FORMAT_BITMAP) {
+        FT_GlyphSlot_Embolden(slot);
+    } else {
+        FT_GlyphSlot_Embolden_Outline(slot);
+    }
+}
+#endif
 
 class QtFreetypeData
 {
@@ -1432,7 +1496,7 @@ void QFreetypeFace::initForVerticalMode()
         return;
 
     glyphVerticalAttributes.resize(face->num_glyphs);
-	memset(glyphVerticalAttributes.data(), 1,  glyphVerticalAttributes.size());
+    memset(glyphVerticalAttributes.data(), 1,  glyphVerticalAttributes.size());
 
     FT_ULong  charcode;
     FT_UInt   gindex;
@@ -1569,22 +1633,22 @@ bool QFreetypeFace::testCJKFont()
         FT_Get_Char_Index(face, 0x4eba) || FT_Get_Char_Index(face, 0x4e2d))
         return true;
 
-	// traditional Chinese
-	if (FT_Get_Char_Index(face, 0x570b) || FT_Get_Char_Index(face, 0x6230) ||
-		FT_Get_Char_Index(face, 0x5f35) || FT_Get_Char_Index(face, 0x611b))
-		return true;
+    // traditional Chinese
+    if (FT_Get_Char_Index(face, 0x570b) || FT_Get_Char_Index(face, 0x6230) ||
+        FT_Get_Char_Index(face, 0x5f35) || FT_Get_Char_Index(face, 0x611b))
+        return true;
 
-	// Japanese
-	if (FT_Get_Char_Index(face, 0x3041) || FT_Get_Char_Index(face, 0x3045) ||
-		FT_Get_Char_Index(face, 0x30a1) || FT_Get_Char_Index(face, 0x30b3))
-		return true;
+    // Japanese
+    if (FT_Get_Char_Index(face, 0x3041) || FT_Get_Char_Index(face, 0x3045) ||
+        FT_Get_Char_Index(face, 0x30a1) || FT_Get_Char_Index(face, 0x30b3))
+        return true;
 
-	// Korean
-	if (FT_Get_Char_Index(face, 0xac00) || FT_Get_Char_Index(face, 0xac10) ||
-		FT_Get_Char_Index(face, 0xac4d) || FT_Get_Char_Index(face, 0xac70))
-		return true;
+    // Korean
+    if (FT_Get_Char_Index(face, 0xac00) || FT_Get_Char_Index(face, 0xac10) ||
+        FT_Get_Char_Index(face, 0xac4d) || FT_Get_Char_Index(face, 0xac70))
+        return true;
 
-	return false;
+    return false;
 }
 
 void QFreetypeFace::computeSize(const QFontDef &fontDef, int *xsize, int *ysize, bool *outline_drawing, QFixed *scalableBitmapScaleFactor)
@@ -1696,6 +1760,19 @@ static void scaleOutline(FT_Face face, FT_GlyphSlot g, FT_Fixed x_scale, FT_Fixe
         p->y = FT_MulFix(p->y, y_scale);
         ++p;
     }
+}
+
+static QFixed calcXPosOffset(const FT_Face &face, FT_Fixed x_scale, const FT_GlyphSlot &g, const QFixed &advanceWidth)
+{
+    x_scale = FT_MulDiv(x_scale, 1 << 10, face->units_per_EM);
+    FT_Long width = FT_MulFix(g->metrics.horiAdvance, x_scale);
+    QFixed curWidth = QFixed::fromFixed(width);
+    qreal xOffset = (advanceWidth.toReal() - curWidth.toReal()) / 2.0f;
+    FT_Long left = FT_MulFix(g->metrics.horiBearingX, x_scale);
+    if (xOffset < 0.0f)
+        xOffset = xOffset < -1.0f * left ? -1.0f * left : xOffset;
+
+    return QFixed::fromReal(xOffset);
 }
 
 #define GLYPH2PATH_DEBUG QT_NO_QDEBUG_MACRO // qDebug
@@ -1991,6 +2068,12 @@ bool QFontEngineFT::init(FaceId faceId, bool antialias, GlyphFormat format,
         symbol = bool(fontDef.family.contains(QLatin1String("symbol"), Qt::CaseInsensitive));
     }
 
+#ifdef Q_OS_LINUX
+    if (fontDef.paintDeviceMatrix.m22() > 0) {
+         fontDef.pixelSize *= fontDef.paintDeviceMatrix.m22();
+         fontDef.pointSize *= fontDef.paintDeviceMatrix.m22();
+    }
+#endif
     freetype->computeSize(fontDef, &xsize, &ysize, &defaultGlyphSet.outline_drawing, &scalableBitmapScaleFactor);
 
     FT_Face face = lockFace();
@@ -2070,20 +2153,20 @@ bool QFontEngineFT::init(FaceId faceId, bool antialias, GlyphFormat format,
     }
 
 #if defined(FT_FONT_FORMATS_H)
-	/*from freetype-2.6.1
-	2015-03-11  Werner Lemberg  <wl@gnu.org>
-	[base] Rename `FT_Get_X11_Font_Format' to `FT_Get_Font_Format'.*/
-	FT_Int amajor = 0, aminor = 0, apatch = 0;
-	FT_Library_Version(qt_getFreetype(), &amajor, &aminor, &apatch);
-	const char *fmt = NULL;
-	if ((amajor*1000 + aminor)*1000 + apatch < 2006000)
-	{
-		fmt = FT_Get_X11_Font_Format(face);
-	}
-	else
-	{
-		fmt = FT_Get_Font_Format(face);
-	}
+    /*from freetype-2.6.1
+    2015-03-11  Werner Lemberg  <wl@gnu.org>
+    [base] Rename `FT_Get_X11_Font_Format' to `FT_Get_Font_Format'.*/
+    FT_Int amajor = 0, aminor = 0, apatch = 0;
+    FT_Library_Version(qt_getFreetype(), &amajor, &aminor, &apatch);
+    const char *fmt = NULL;
+    if ((amajor*1000 + aminor)*1000 + apatch < 2006000)
+    {
+        fmt = FT_Get_X11_Font_Format(face);
+    }
+    else
+    {
+        fmt = FT_Get_Font_Format(face);
+    }
 
     if (fmt && qstrncmp(fmt, "CFF", 4) == 0) {
         FT_Bool no_stem_darkening = true;
@@ -2231,9 +2314,17 @@ static inline void transformBoundingBox(int *left, int *top, int *right, int *bo
     *bottom = b;
 }
 
+
+
 #ifndef Q_OS_WIN
+#ifdef Q_OS_LINUX
+#define FT_GlyphSlot_Embolden_Ex FT_GlyphSlot_Embolden_Linux
+#else
 #define FT_GlyphSlot_Embolden_Ex FT_GlyphSlot_Embolden
 #endif
+#endif
+
+
 
 QFontEngineFT::Glyph *QFontEngineFT::loadGlyph(QGlyphSet *set, uint glyph,
                                                QFixed subPixelPosition,
@@ -2275,10 +2366,13 @@ QFontEngineFT::Glyph *QFontEngineFT::loadGlyph(QGlyphSet *set, uint glyph,
                      || matrix.yy != 0x10000
                      || matrix.xy != 0
                      || matrix.yx != 0;
-
+#ifdef Q_OS_LINUX
+    if (transform)
+        load_flags |= FT_LOAD_NO_BITMAP;
+#else
     if (transform || obliquen || (format != Format_Mono && !isScalableBitmap()))
         load_flags |= FT_LOAD_NO_BITMAP;
-
+#endif
     FT_Error err = FT_Load_Glyph(face, substGlyph, load_flags);
     if (err && (load_flags & FT_LOAD_NO_BITMAP)) {
         load_flags &= ~FT_LOAD_NO_BITMAP;
@@ -2741,7 +2835,12 @@ QFontEngineFT::QGlyphSet *QFontEngineFT::loadGlyphSet(const QTransform &matrix)
         gs->clear();
         gs->transformationMatrix = m;
         const qreal horzScale = (fontDef.stretch == QFont::AnyStretch) ? 1.0 : fontDef.stretch / 100.0;
-        gs->outline_drawing = fontDef.pixelSize * fontDef.pixelSize * horzScale * qAbs(matrix.det())
+        QTransform transformMatrix = matrix;
+#ifdef Q_OS_LINUX
+        if (fontDef.paintDeviceMatrix.m22() > 0)
+            transformMatrix.scale(fontDef.paintDeviceMatrix.m22(), fontDef.paintDeviceMatrix.m22());
+#endif
+        gs->outline_drawing = fontDef.pixelSize * fontDef.pixelSize * horzScale * qAbs(transformMatrix.det())
                 > QT_MAX_CACHED_GLYPH_SIZE * QT_MAX_CACHED_GLYPH_SIZE;
         if (fontDef.verticalMetrics) {
             FT_Matrix m;
@@ -2824,8 +2923,9 @@ void QFontEngineFT::addOutlineToPath(qreal x, qreal y, const QGlyphLayout &glyph
     }
 }
 
-void QFontEngineFT::addGlyphsToPath(glyph_t *glyphs, QFixedPoint *positions, int numGlyphs,
-                                    QPainterPath *path, QTextItem::RenderFlags)
+void QFontEngineFT::addGlyphsToPath(glyph_t *glyphs, QFixedPoint *positions, int numGlyphs, 
+                                    QPainterPath *path, QTextItem::RenderFlags,
+                                    const QFixed *advances, const QGlyphAttributes *attributes)
 {
     FT_Face face = lockFace(Unscaled);
 
@@ -2868,6 +2968,9 @@ void QFontEngineFT::addGlyphsToPath(glyph_t *glyphs, QFixedPoint *positions, int
             if (g->format != FT_GLYPH_FORMAT_OUTLINE)
                 continue;
 
+            if (advances && attributes && attributes[gl].adjustCoordinate)
+                positions[gl].x += calcXPosOffset(face, xsize, g, advances[gl]);
+
             QFreetypeFace::addGlyphToPath(face, g, pos, path, xsize, ysize);
         }
     } else {
@@ -2879,16 +2982,22 @@ void QFontEngineFT::addGlyphsToPath(glyph_t *glyphs, QFixedPoint *positions, int
             FT_GlyphSlot g = face->glyph;
             if (g->format != FT_GLYPH_FORMAT_OUTLINE)
                 continue;
-                //fake bold，Refer to the logic of Qt4, temporarily shield Qt's own bolding
-//            if (embolden) {
-//                const int scalex = face->size->metrics.x_scale;
-//                const int scaley = face->size->metrics.y_scale;
-//                face->size->metrics.x_scale = scalex / 0x10000 * qSqrt(matrix.xx * matrix.xx + matrix.xy * matrix.xy); // Need to consider rotation
-//                face->size->metrics.y_scale = scaley / 0x10000 * qSqrt(matrix.yy * matrix.yy + matrix.yx * matrix.yx);
-//                FT_GlyphSlot_Embolden_Ex(g);
-//                face->size->metrics.x_scale = scalex;
-//                face->size->metrics.y_scale = scaley;
-//            }
+
+            if (advances && attributes && attributes[gl].adjustCoordinate)
+                positions[gl].x += calcXPosOffset(face, xsize, g, advances[gl]);
+
+            // 1.fake bold，Refer to the logic of Qt4, temporarily shield Qt's own bolding （last modify）
+            // 2.use “FT_GlyphSlot_Embolden_Ex” of freetype to make bold effect like windows platform
+            //   the effect can be used to show WordArt and normal text（2022.6.30）
+            if (embolden) {
+                const int scalex = face->size->metrics.x_scale;
+                const int scaley = face->size->metrics.y_scale;
+                face->size->metrics.x_scale = scalex / 0x10000 * qSqrt(matrix.xx * matrix.xx + matrix.xy * matrix.xy); // Need to consider rotation
+                face->size->metrics.y_scale = scaley / 0x10000 * qSqrt(matrix.yy * matrix.yy + matrix.yx * matrix.yx);
+                FT_GlyphSlot_Embolden_Ex(g);
+                face->size->metrics.x_scale = scalex;
+                face->size->metrics.y_scale = scaley;
+            }
             if (obliquen)
                 FT_GlyphSlot_Oblique(g);
             QFreetypeFace::addGlyphToPath(face, g, positions[gl], path, xsize, ysize);
@@ -3328,8 +3437,12 @@ bool QFontEngineFT::hasColorLayer(glyph_t g) const
 }
 
 void QFontEngineFT::addColorLayersToPath(glyph_t glyph, const QFixedPoint &position,
-                                         QVector<QPainterPath> &paths, QVector<QColor> &colors)
+                                         QVector<QPainterPath> &paths, QVector<QColor> &colors,
+                                         const QFixed *advances, const QGlyphAttributes *attributes)
 {
+    Q_UNUSED(advances);
+    Q_UNUSED(attributes);
+
     FT_Face face = lockFace(Unscaled);
 
     FT_Load_Glyph(face, glyph, FT_LOAD_NO_BITMAP);
@@ -3787,7 +3900,12 @@ QFontEngineFT::QGlyphSet* QFontEngineFT::loadCustomBoldGlyphSet(int wx, int wy, 
         gs->customBoldWidthy = wy;
         gs->transformationMatrix = m;
         const qreal horzScale = (fontDef.stretch == QFont::AnyStretch) ? 1.0 : fontDef.stretch / 100.0;
-        gs->outline_drawing = fontDef.pixelSize * fontDef.pixelSize * horzScale * qAbs(matrix.det())
+        QTransform transformMatrix = matrix;
+#ifdef Q_OS_LINUX
+        if (fontDef.paintDeviceMatrix.m22() > 0)
+             transformMatrix.scale(fontDef.paintDeviceMatrix.m22(), fontDef.paintDeviceMatrix.m22());
+#endif
+        gs->outline_drawing = fontDef.pixelSize * fontDef.pixelSize * horzScale * qAbs(transformMatrix.det())
                 > QT_MAX_CACHED_GLYPH_SIZE * QT_MAX_CACHED_GLYPH_SIZE;
 
         if (fontDef.verticalMetrics) {

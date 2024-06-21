@@ -393,7 +393,7 @@ bool QCALayerBackingStore::beginPaint(const QRegion &region)
 {
     Q_UNUSED(region);
 
-    QMacAutoReleasePool pool;
+    @autoreleasepool {
 
     qCInfo(lcQpaBackingStore) << "Beginning paint of" << region << "into backingstore of" << m_requestedSize;
 
@@ -416,6 +416,7 @@ bool QCALayerBackingStore::beginPaint(const QRegion &region)
 
     m_paintedRegion += region;
     return true;
+    }
 }
 
 void QCALayerBackingStore::ensureBackBuffer()
@@ -536,7 +537,7 @@ void QCALayerBackingStore::flush(QWindow *flushedWindow, const QRegion &region, 
     if (!prepareForFlush())
         return;
 
-    QMacAutoReleasePool pool;
+    @autoreleasepool {
 
     NSView *backingStoreView = static_cast<QCocoaWindow *>(window()->handle())->view();
     NSView *flushedView = static_cast<QCocoaWindow *>(flushedWindow->handle())->view();
@@ -602,6 +603,7 @@ void QCALayerBackingStore::flush(QWindow *flushedWindow, const QRegion &region, 
     // it to a layer, but as that's not the case we may end up painting to the same back
     // buffer once more if we are painting faster than CA can ship the surfaces over to
     // the window server.
+    }
 }
 
 #ifndef QT_NO_OPENGL

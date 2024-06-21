@@ -189,7 +189,8 @@ public:
     virtual void doKerning(QGlyphLayout *, ShaperFlags) const;
 
     virtual void addGlyphsToPath(glyph_t *glyphs, QFixedPoint *positions, int nglyphs,
-                                 QPainterPath *path, QTextItem::RenderFlags flags);
+                                 QPainterPath *path, QTextItem::RenderFlags flags,
+                                 const QFixed *advances = nullptr, const QGlyphAttributes *attributes = nullptr);
 
     void getGlyphPositions(const QGlyphLayout &glyphs, const QTransform &matrix, QTextItem::RenderFlags flags,
                            QVarLengthArray<glyph_t> &glyphs_out, QVarLengthArray<QFixedPoint> &positions);
@@ -212,13 +213,16 @@ public:
                                           const QTransform &t, int wx, int wy);
     virtual bool hasInternalCaching() const { return false; }
 #ifdef Q_OS_MAC
-    virtual bool drawGlyphOnImage(void *cgContext, int numGlyphs, const glyph_t *glyphs, const QFixedPoint *positions, const QTransform &matrix, QSize size, const QColor &color) { return false;}
+    virtual bool drawGlyphOnImage(void *cgContext, int numGlyphs, const glyph_t *glyphs, const QFixedPoint *positions, const QTransform &matrix, QSize size, const QColor &color)
+    { Q_UNUSED(cgContext); Q_UNUSED(numGlyphs); Q_UNUSED(glyphs); Q_UNUSED(positions); Q_UNUSED(matrix); Q_UNUSED(size); Q_UNUSED(color); return false;}
 #endif
 
     virtual bool isColorFont() const { return false; }
     virtual bool hasColorLayer(glyph_t) const { return false; }
     virtual void addColorLayersToPath(glyph_t /*glyph*/, const QFixedPoint &/*position*/,
-                                      QVector<QPainterPath> &/*paths*/, QVector<QColor> &/*colors*/) {}
+                                      QVector<QPainterPath> &/*paths*/, QVector<QColor> &/*colors*/,
+                                      const QFixed *advances = nullptr, const QGlyphAttributes *attributes = nullptr) 
+                                      {Q_UNUSED(advances); Q_UNUSED(attributes);}
 
     virtual glyph_metrics_t alphaMapBoundingBox(glyph_t glyph, QFixed /*subPixelPosition*/, const QTransform &matrix, GlyphFormat /*format*/)
     {
@@ -308,15 +312,10 @@ public:
 
     virtual bool needEmbolden() const { return false; }
 
-    bool changeCapJoinStyle();
-    bool forceDrawAsOutline();
-
     virtual bool hasCustomBoldWidth(int penWidth, int vw, int vh, int ww, int wh, int& wx, int& wy);
 
 private:
     const Type m_type;
-    static QStringList changeCapJoinFamilys;
-    static QStringList forceDrawAsOutlineFamilys;
 
 public:
     QAtomicInt ref;

@@ -86,7 +86,8 @@ public:
           q_ptr(printer),
           printRange(QPrinter::AllPages),
           use_default_engine(true),
-          validPrinter(false)
+          validPrinter(false),
+          threadingEngine(false)
     {
     }
 
@@ -98,11 +99,11 @@ public:
         return printer->d_ptr.get();
     }
 
-    void init(const QPrinterInfo &printer, QPrinter::PrinterMode mode);
-    void init(const QString &printer, QPrinter::PrinterMode mode);
+    void init(const QPrinterInfo &printer, QPrinter::PrinterMode mode, bool threading);
+    void init(const QString &printer, QPrinter::PrinterMode mode, bool threading);
     QPrinterInfo findValidPrinter(const QPrinterInfo &printer = QPrinterInfo());
-    void initEngines(QPrinter::OutputFormat format, const QPrinterInfo &printer);
-    void initEngines(QPrinter::OutputFormat format, const QString &printer);
+    void initEngines(QPrinter::OutputFormat format, const QPrinterInfo &printer, bool threading);
+    void initEngines(QPrinter::OutputFormat format, const QString &printer, bool threading);
     void changeEngines(QPrinter::OutputFormat format, const QPrinterInfo &printer);
 #if QT_CONFIG(printpreviewwidget)
     QList<const QPicture *> previewPages() const;
@@ -132,6 +133,7 @@ public:
 
     uint validPrinter : 1;
     uint hasCustomPageMargins : 1;
+    uint threadingEngine : 1;
 
     // Used to remember which properties have been manually set by the user.
     QSet<QPrintEngine::PrintEnginePropertyKey> m_properties;

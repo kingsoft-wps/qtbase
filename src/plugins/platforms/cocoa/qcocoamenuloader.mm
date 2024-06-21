@@ -56,6 +56,7 @@
     NSMenu *appMenu;
     NSMenuItem *quitItem;
     NSMenuItem *preferencesItem;
+    NSMenuItem *finderSettingItem;
     NSMenuItem *aboutItem;
     NSMenuItem *aboutQtItem;
     NSMenuItem *hideItem;
@@ -159,8 +160,16 @@
         preferencesItem.hidden = YES;
         [appMenu addItem:preferencesItem];
 
-        [appMenu addItem:[NSMenuItem separatorItem]];
+        //FinderSettingMenu
+        finderSettingItem = [[QCocoaNSMenuItem alloc] init];
+        finderSettingItem.title = @"Add Extension";
+        // Disable until a QAction is associated
+        finderSettingItem.enabled = NO;
+        finderSettingItem.hidden = YES;
+        [appMenu addItem:finderSettingItem];
 
+        [appMenu addItem:[NSMenuItem separatorItem]];
+        
         // Services item and menu
         servicesItem = [[NSMenuItem alloc] init];
         servicesItem.title = @"Services";
@@ -218,6 +227,7 @@
     [aboutItem release];
     [aboutQtItem release];
     [preferencesItem release];
+    [finderSettingItem release];
     [servicesItem release];
     [hideItem release];
     [hideAllOthersItem release];
@@ -279,6 +289,11 @@
 - (NSMenuItem *)preferencesMenuItem
 {
     return [[preferencesItem retain] autorelease];
+}
+
+- (NSMenuItem *)finderSettingMenuItem
+{
+    return [[finderSettingItem retain] autorelease];
 }
 
 - (NSMenuItem *)aboutMenuItem
@@ -355,6 +370,7 @@
 #ifndef QT_NO_TRANSLATION
     aboutItem.title = qt_mac_applicationmenu_string(AboutAppMenuItem).arg(qt_mac_applicationName()).toNSString();
     preferencesItem.title = qt_mac_applicationmenu_string(PreferencesAppMenuItem).toNSString();
+    finderSettingItem.title = qt_mac_applicationmenu_string(FinderSettingMenuItem).toNSString();
     servicesItem.title = qt_mac_applicationmenu_string(ServicesAppMenuItem).toNSString();
     hideItem.title = qt_mac_applicationmenu_string(HideAppMenuItem).arg(qt_mac_applicationName()).toNSString();
     hideAllOthersItem.title = qt_mac_applicationmenu_string(HideOthersAppMenuItem).toNSString();

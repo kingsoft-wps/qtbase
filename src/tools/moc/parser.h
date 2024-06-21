@@ -38,11 +38,12 @@ QT_BEGIN_NAMESPACE
 class Parser
 {
 public:
-    Parser():index(0), displayWarnings(true), displayNotes(true) {}
+    Parser():index(0), displayWarnings(true), displayNotes(true), ignoreParamName(false) {}
     Symbols symbols;
     int index;
     bool displayWarnings;
     bool displayNotes;
+    bool ignoreParamName;
 
     struct IncludePath
     {

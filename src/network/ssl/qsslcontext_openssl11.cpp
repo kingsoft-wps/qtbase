@@ -332,12 +332,14 @@ init_context:
         }
     }
 
+#ifdef Q_OS_UNIX
     if (QSslSocketPrivate::s_loadRootCertsOnDemand && allowRootCertOnDemandLoading) {
         // tell OpenSSL the directories where to look up the root certs on demand
         const QList<QByteArray> unixDirs = QSslSocketPrivate::unixRootCertDirectories();
         for (const QByteArray &unixDir : unixDirs)
             q_SSL_CTX_load_verify_locations(sslContext->ctx, nullptr, unixDir.constData());
     }
+#endif
 
     if (!sslContext->sslConfiguration.localCertificate().isNull()) {
         // Require a private key as well.

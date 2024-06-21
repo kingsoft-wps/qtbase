@@ -1188,6 +1188,8 @@ Q_DECL_CONSTEXPR static inline QPixelLayout pixelLayoutARGBPM()
 
 static void QT_FASTCALL convertIndexedToARGB32PM(uint *buffer, int count, const QVector<QRgb> *clut)
 {
+    if (!clut)
+        return;
     for (int i = 0; i < count; ++i)
         buffer[i] = qPremultiply(clut->at(buffer[i]));
 }

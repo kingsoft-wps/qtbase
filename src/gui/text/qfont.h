@@ -168,6 +168,7 @@ public:
         EscapementAngleResolved     = 0x40000,
         ForceScalableResolved       = 0x80000,
         ManualBoldenResolved        = 0x100000,
+        UseReqFamMatchingResolved   = 0x200000,
         AllPropertiesResolved       = 0xfffff
     };
 
@@ -190,7 +191,10 @@ public:
     void setPointSize(int);
     qreal pointSizeF() const;
     void setPointSizeF(qreal);
-
+#ifdef Q_OS_LINUX
+    const QTransform &paintDeviceMatrix() const;
+    void setPaintDeviceMatrix(const QTransform &);
+#endif
     int pixelSize() const;
     void setPixelSize(int);
 
@@ -253,6 +257,9 @@ public:
 
     bool forceScalable() const;
     void setForceScalable(bool);
+
+    bool useRequestFamMatching() const;
+    void setUseRequestFamMatching(bool);
 
 #if QT_DEPRECATED_SINCE(5, 5)
     bool rawMode() const;

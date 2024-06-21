@@ -329,7 +329,7 @@ bool QXcbDrag::findXdndAwareTarget(const QPoint &globalPos, xcb_window_t *target
     int ly = translate->dst_y;
 
     if (target && target != rootwin) {
-        unsigned long app_pid = static_cast<unsigned long>(getpid());
+        quint32 app_pid = getpid();
         xcb_window_t src = rootwin;
         while (target != 0) {
             qCDebug(lcQpaXDnd) << "checking target for XdndAware" << target;
@@ -351,7 +351,7 @@ bool QXcbDrag::findXdndAwareTarget(const QPoint &globalPos, xcb_window_t *target
             if (aware) {
                 reply = Q_XCB_REPLY(xcb_get_property, xcb_connection(), false, target, atom(QXcbAtom::_NET_WM_PID),
                                     XCB_GET_PROPERTY_TYPE_ANY, 0, 1);
-                if (app_pid == *(unsigned long*)xcb_get_property_value(reply.get()))
+                if (app_pid == *(quint32*)xcb_get_property_value(reply.get()))
                 {
                     qCDebug(lcQpaXDnd) << "found XdndAware on" << target;
                     break;

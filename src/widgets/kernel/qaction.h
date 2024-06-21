@@ -88,7 +88,7 @@ public:
     enum MenuRole { NoRole = 0, TextHeuristicRole, ApplicationSpecificRole, AboutQtRole,
                     AboutRole, PreferencesRole, QuitRole,
 #ifdef Q_OS_MAC
-                    CheckForUpdatesRole, AppStoreEvalRole, ProxySettingRole
+                    FinderSettingRole, CheckForUpdatesRole, AppStoreEvalRole, ProxySettingRole
 #endif // Q_OS_MAC
 					 };
     Q_ENUM(MenuRole)

@@ -301,6 +301,9 @@ void QMdiSubWindowPrivate::setNewWindowTitle()
     QString childTitle = q->windowTitle();
     if (childTitle.isEmpty())
         return;
+#ifdef Q_OS_MAC
+    q->window()->setWindowTitle(childTitle);
+#else
     QString original = originalWindowTitle();
     if (!original.isEmpty()) {
         if (!original.contains(QMdiSubWindow::tr("- [%1]").arg(childTitle)))
@@ -309,6 +312,7 @@ void QMdiSubWindowPrivate::setNewWindowTitle()
     } else {
         q->window()->setWindowTitle(childTitle);
     }
+#endif
 }
 
 static inline bool isHoverControl(QStyle::SubControl control)
@@ -3041,7 +3045,9 @@ void QMdiSubWindow::changeEvent(QEvent *changeEvent)
     Q_D(QMdiSubWindow);
     if (!isVisible()) {
         d->ensureWindowState(Qt::WindowNoState);
-        setVisible(true);
+        if (!(newState & Qt::WindowMaximized)) {
+            setVisible(true);
+        }
     }
 
 #ifdef Q_OS_MAC
@@ -3073,6 +3079,9 @@ void QMdiSubWindow::changeEvent(QEvent *changeEvent)
     else if (!(newState & (Qt::WindowMaximized | Qt::WindowMinimized | Qt::WindowFullScreen)))
         d->setNormalMode();
 
+    if (!isVisible()) {
+        setVisible(true);
+    }
     if (d->isActive)
         d->ensureWindowState(Qt::WindowActive);
     if (d->activationEnabled)

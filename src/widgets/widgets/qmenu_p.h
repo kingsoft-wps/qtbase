@@ -351,6 +351,7 @@ public:
     QPoint mousePopupPos;
 
     QAction *currentAction = nullptr;
+    QAction *focusAction = nullptr;
 #ifdef QT_KEYPAD_NAVIGATION
     QAction *selectAction = nullptr;
     QAction *cancelAction = nullptr;
@@ -386,10 +387,10 @@ public:
     };
     QWidget *topCausedWidget() const;
     QAction *actionAt(QPoint p) const;
-    void setFirstActionActive();
+    void setFirstActionActive(SelectionReason reason = SelectedFromElsewhere);
     void restoreCurrentAction();
     void setCurrentAction(QAction *, int popup = -1, SelectionReason reason = SelectedFromElsewhere, bool activateFirst = false);
-    void popupAction(QAction *, int, bool);
+    void popupAction(QAction *, int, bool, SelectionReason reason = SelectedFromElsewhere);
     void setSyncAction();
 
     //scrolling support

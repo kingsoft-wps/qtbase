@@ -1398,15 +1398,9 @@ void QGuiApplicationPrivate::createPlatformIntegration()
         const char *arg = argv[i];
         if (arg[1] == '-') // startsWith("--")
             ++arg;
-        if (strcmp(arg, "-platformpluginpath") == 0) {
-            if (++i < argc)
-                platformPluginPath = QString::fromLocal8Bit(argv[i]);
-        } else if (strcmp(arg, "-platform") == 0) {
+        if (strcmp(arg, "-platform") == 0) {
             if (++i < argc)
                 platformName = argv[i];
-        } else if (strcmp(arg, "-platformtheme") == 0) {
-            if (++i < argc)
-                platformThemeName = QString::fromLocal8Bit(argv[i]);
         } else if (strcmp(arg, "-qwindowgeometry") == 0 || (xcbIsDefault && strcmp(arg, "-geometry") == 0)) {
             if (++i < argc)
                 windowGeometrySpecification = QWindowGeometrySpecification::fromArgument(argv[i]);

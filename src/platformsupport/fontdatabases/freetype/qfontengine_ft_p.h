@@ -214,7 +214,8 @@ private:
     bool supportsTransformation(const QTransform &transform) const override;
 
     void addGlyphsToPath(glyph_t *glyphs, QFixedPoint *positions, int nglyphs,
-                 QPainterPath *path, QTextItem::RenderFlags flags) override;
+                 QPainterPath *path, QTextItem::RenderFlags flags,
+                 const QFixed *advances = nullptr, const QGlyphAttributes *attributes = nullptr) override;
     void addOutlineToPath(qreal x, qreal y, const QGlyphLayout &glyphs,
                   QPainterPath *path, QTextItem::RenderFlags flags) override;
 
@@ -242,7 +243,8 @@ private:
     bool isColorFont() const override;
     bool hasColorLayer(glyph_t g) const override;
     void addColorLayersToPath(glyph_t glyph, const QFixedPoint &position,
-                              QVector<QPainterPath> &paths, QVector<QColor> &colors) override;
+                              QVector<QPainterPath> &paths, QVector<QColor> &colors,
+                              const QFixed *advances = nullptr, const QGlyphAttributes *attributes = nullptr) override;
 
     bool expectsGammaCorrectedBlending() const override;
 

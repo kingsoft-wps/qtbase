@@ -48,6 +48,7 @@ QT_BEGIN_NAMESPACE
 enum {
     AboutAppMenuItem = 0,
     PreferencesAppMenuItem,
+    FinderSettingMenuItem,
     ServicesAppMenuItem,
     HideAppMenuItem,
     HideOthersAppMenuItem,

@@ -282,12 +282,13 @@ static void getFontDescription(CTFontDescriptorRef font, FontDescription *fd)
     }
 
     if (QCFType<CFArrayRef> languages = (CFArrayRef) CTFontDescriptorCopyAttribute(font, kCTFontLanguagesAttribute)) {
+        NSSet *sets = [NSSet setWithArray:(__bridge NSArray*)(CFArrayRef)languages];
         CFIndex length = CFArrayGetCount(languages);
         for (int i = 1; i < LanguageCount; ++i) {
             if (!languageForWritingSystem[i])
                 continue;
             QCFString lang = CFStringCreateWithCString(NULL, languageForWritingSystem[i], kCFStringEncodingASCII);
-            if (CFArrayContainsValue(languages, CFRangeMake(0, length), lang))
+            if ([sets containsObject:QString(lang).toNSString()])
                 fd->writingSystems.setSupported(QFontDatabase::WritingSystem(i));
         }
     }

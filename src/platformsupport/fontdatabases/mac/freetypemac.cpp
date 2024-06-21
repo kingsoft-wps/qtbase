@@ -219,7 +219,7 @@ OUTLINE_PARAMS* freeTypeFontMgr::getGlyphOutline(const glyphInfo &info)
         return m_outlineCacheMap[glyphKey];
 
     int error;
-    FT_Face face = getFontFace(info.fontPath, info.fontFamily);
+    FT_Face face = getFontFace(info.fontPath, info.fontFamily, info.fontFaceName);
     if (!face)
         return nullptr;
     FT_Matrix  ft_matrix = {65536, 0, 0, 65536};
@@ -292,7 +292,7 @@ OUTLINE_PARAMS* freeTypeFontMgr::getGlyphOutline(const glyphInfo &info)
     return params;
 }
 
-FT_Face freeTypeFontMgr::getFontFace(const QString &fontFile, const QString &family)
+FT_Face freeTypeFontMgr::getFontFace(const QString &fontFile, const QString &family, const QString &styleName)
 {
     if (m_faceMap.find(fontFile) != m_faceMap.end())
         return m_faceMap[fontFile];
@@ -311,6 +311,8 @@ FT_Face freeTypeFontMgr::getFontFace(const QString &fontFile, const QString &fam
         return nullptr;
     int num_faces = face->num_faces;
     FT_Done_Face(face);
+
+    std::vector<FT_Face> vecFaces;
     for (int faceIndex = 0; faceIndex < num_faces; faceIndex++)
     {
         iError = FT_New_Face(m_ftLibrary, fontFile.toUtf8().data(), faceIndex, &face);
@@ -325,11 +327,41 @@ FT_Face freeTypeFontMgr::getFontFace(const QString &fontFile, const QString &fam
         {
             if(family == QString::fromUtf8(face->family_name))
             {
-                bFind = true;
-                break;
+                vecFaces.push_back(face);
+                continue;
             }
         }
         FT_Done_Face(face);
+    }
+
+    if (vecFaces.size() > 1)
+    {
+        if (styleName.isEmpty())
+        {
+            for(FT_Face iter : vecFaces)
+            {
+                FT_Done_Face(iter);
+            }
+            return nullptr;
+        }
+        
+        for (int i = 0; i < vecFaces.size(); i++)
+        {
+            if (styleName == QString::fromUtf8(vecFaces[i]->style_name))
+            {
+                face = vecFaces[i];
+                bFind = true;
+            }
+            else
+            {
+                FT_Done_Face(vecFaces[i]);
+            }
+        }
+    }
+    else if (vecFaces.size() == 1)
+    {
+        face = vecFaces[0];
+        bFind = true;
     }
 
     if (!bFind)

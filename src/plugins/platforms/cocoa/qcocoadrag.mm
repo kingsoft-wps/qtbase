@@ -136,7 +136,13 @@ Qt::DropAction QCocoaDrag::drag(QDrag *o)
 
     if (nullptr == m_drag->mimeData())
         return Qt::IgnoreAction;
-
+#ifdef Q_OS_MAC
+    if (m_drag->useRelativeHotSpot())
+    {
+        QPointF relativeHotSpot = m_drag->relativeHotSpot();
+        hotSpot = QPoint(pmDeviceIndependentSize.width() * relativeHotSpot.x(), pmDeviceIndependentSize.height() * relativeHotSpot.y());
+    }
+#endif
     QMacPasteboard dragBoard((CFStringRef) NSDragPboard, QMacInternalPasteboardMime::MIME_DND);
     m_drag->mimeData()->setData(QLatin1String("application/x-qt-mime-type-name"), QByteArray("dummy"));
     dragBoard.setMimeData(m_drag->mimeData(), QMacPasteboard::LazyRequest);
@@ -150,6 +156,7 @@ Qt::DropAction QCocoaDrag::drag(QDrag *o)
     NSSize mouseOffset_unused = NSMakeSize(0.0, 0.0);
     NSPasteboard *pboard = [NSPasteboard pasteboardWithName:NSDragPboard];
 
+    @try {
     [theWindow dragImage:nsimage
         at:event_location
         offset:mouseOffset_unused
@@ -157,6 +164,10 @@ Qt::DropAction QCocoaDrag::drag(QDrag *o)
         pasteboard:pboard
         source:m_lastView
         slideBack:YES];
+    }
+    @catch (NSException *e) {
+        NSLog(@"%@", [e reason]);
+    }
 
     [nsimage release];
 
@@ -195,7 +206,7 @@ QPixmap QCocoaDrag::dragPixmap(QDrag *drag, QPoint &hotSpot) const
             if (s.length() > dragImageMaxChars)
                 s = s.left(dragImageMaxChars -3) + QChar(0x2026);
             if (!s.isEmpty()) {
-				// ·ÀÖ¹tabÏÔÊ¾¹ý¿í£¬´¿ÎÄ±¾ËõÂÔÍ¼µ¼³ö°ÑtabÌæ»»³É¿Õ¸ñ
+				// ï¿½ï¿½Ö¹tabï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä±ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½tabï¿½æ»»ï¿½É¿Õ¸ï¿½
 				s.replace("\t", " ");
                 const int width = fm.horizontalAdvance(s);
                 const int height = fm.height();
@@ -254,6 +265,7 @@ QStringList QCocoaDropData::formats_sys() const
         return formats;
     }
     formats = QMacPasteboard(board, QMacInternalPasteboardMime::MIME_DND).formats();
+    CFRelease(board);
     return formats;
 }
 

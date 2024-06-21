@@ -287,8 +287,8 @@ QXcbClipboard::QXcbClipboard(QXcbConnection *c)
         xcb_xfixes_select_selection_input_checked(xcb_connection(), m_owner, atom(QXcbAtom::CLIPBOARD), mask);
     }
 
-    // change property protocol request is 24 bytes
-    m_increment = (xcb_get_maximum_request_length(xcb_connection()) * 4) - 24;
+    // xcb_change_property_request_t and xcb_get_property_request_t are the same size
+    m_maxPropertyRequestDataBytes = connection()->maxRequestDataBytes(sizeof(xcb_change_property_request_t));
 }
 
 QXcbClipboard::~QXcbClipboard()
@@ -533,7 +533,7 @@ xcb_atom_t QXcbClipboard::sendSelection(QMimeData *d, xcb_atom_t target, xcb_win
         if (m_clipboard_closing)
             allow_incr = false;
 
-        if (data.size() > m_increment && allow_incr) {
+        if (data.size() > m_maxPropertyRequestDataBytes && allow_incr) {
             long bytes = data.size();
             xcb_change_property(xcb_connection(), XCB_PROP_MODE_REPLACE, window, property,
                                 atom(QXcbAtom::INCR), 32, 1, (const void *)&bytes);
@@ -543,7 +543,7 @@ xcb_atom_t QXcbClipboard::sendSelection(QMimeData *d, xcb_atom_t target, xcb_win
         }
 
         // make sure we can perform the XChangeProperty in a single request
-        if (data.size() > m_increment)
+        if (data.size() > m_maxPropertyRequestDataBytes)
             return XCB_NONE; // ### perhaps use several XChangeProperty calls w/ PropModeAppend?
         int dataSize = data.size() / (dataFormat / 8);
         // use a single request to transfer data
@@ -725,17 +725,8 @@ void QXcbClipboard::handleXFixesSelectionRequest(xcb_xfixes_selection_notify_eve
         emitChanged(mode);
 }
 
-
-static inline int maxSelectionIncr(xcb_connection_t *c)
-{
-    int l = xcb_get_maximum_request_length(c);
-    return (l > 65536 ? 65536*4 : l*4) - 100;
-}
-
 bool QXcbClipboard::clipboardReadProperty(xcb_window_t win, xcb_atom_t property, bool deleteProperty, QByteArray *buffer, int *size, xcb_atom_t *type, int *format)
 {
-    int    maxsize = maxSelectionIncr(xcb_connection());
-    ulong  bytes_left; // bytes_after
     xcb_atom_t   dummy_type;
     int    dummy_format;
 
@@ -752,7 +743,8 @@ bool QXcbClipboard::clipboardReadProperty(xcb_window_t win, xcb_atom_t property,
     }
     *type = reply->type;
     *format = reply->format;
-    bytes_left = reply->bytes_after;
+
+    auto bytes_left = reply->bytes_after;
 
     int  offset = 0, buffer_offset = 0;
 
@@ -767,7 +759,8 @@ bool QXcbClipboard::clipboardReadProperty(xcb_window_t win, xcb_atom_t property,
         while (bytes_left) {
             // more to read...
 
-            reply = Q_XCB_REPLY(xcb_get_property, xcb_connection(), false, win, property, XCB_GET_PROPERTY_TYPE_ANY, offset, maxsize/4);
+            reply = Q_XCB_REPLY(xcb_get_property, xcb_connection(), false, win, property,
+                                XCB_GET_PROPERTY_TYPE_ANY, offset, m_maxPropertyRequestDataBytes / 4);
             if (!reply || reply->type == XCB_NONE)
                 break;
 
@@ -855,17 +848,26 @@ xcb_generic_event_t *QXcbClipboard::waitForClipboardEvent(xcb_window_t window, i
                     return nullptr;
             }
 
-        // It is safe to assume here that the pointed to node won't be re-used
-        // while we are holding the pointer to it. The nodes can be recycled
-        // only when they are dequeued, which is done only by
-        // QXcbConnection::processXcbEvents().
-        const QXcbEventNode *flushedTailNode = queue->flushedTail();
+            // It is safe to assume here that the pointed to node won't be re-used
+            // while we are holding the pointer to it. The nodes can be recycled
+            // only when they are dequeued, which is done only by
+            // QXcbConnection::processXcbEvents().
+            const QXcbEventNode *flushedTailNode = queue->flushedTail();
 
-        if (checkManager) {
-            auto reply = Q_XCB_REPLY(xcb_get_selection_owner, xcb_connection(), atom(QXcbAtom::CLIPBOARD_MANAGER));
-            if (!reply || reply->owner == XCB_NONE)
-                return nullptr;
-        }
+
+            connection()->sync();
+            usleep(50000);
+            now.start();
+            // Need to manually execute a message loop to give cef a chance to return to the clipboard data (the message loop of cef is currently placed in QTimer).
+            // But if the message processed in processEvents() here comes to get the clipboard again, it will become a recursive call to this function, although there are cases of recursion
+            // The waiting_for_data above is protected, but it will cause the paste to fail, so we need to exclude some more messages here to make processEvents() and this function return as soon as possible.
+            // Let the outer message loop process the remaining messages.
+            // After the cef upgrade supports multi_threaded_message_loop to true, we are reconsidering here
+            QEventLoop::ProcessEventsFlags flags(QEventLoop::ExcludeSocketNotifiers
+                                                 | QEventLoop::ExcludeUserInputEvents
+                                                 | QEventLoop::X11ExcludeTimers);
+            QAbstractEventDispatcher *eventDispatcher = QAbstractEventDispatcher::instance();
+            eventDispatcher->processEvents(flags);
 
             if (qclipboard_filter->has_captured_event) {
                 qclipboard_filter->waiting_for_data = false;
@@ -893,11 +895,17 @@ xcb_generic_event_t *QXcbClipboard::waitForClipboardEvent(xcb_window_t window, i
             });
             if (e) // found the waited for event
                 return e;
+            // It is safe to assume here that the pointed to node won't be re-used
+            // while we are holding the pointer to it. The nodes can be recycled
+            // only when they are dequeued, which is done only by
+            // QXcbConnection::processXcbEvents().
+            const QXcbEventNode *flushedTailNode = queue->flushedTail();
 
-        const auto elapsed = timer.elapsed();
-        if (elapsed < clipboard_timeout)
-            queue->waitForNewEvents(flushedTailNode, clipboard_timeout - elapsed);
-    } while (timer.elapsed() < clipboard_timeout);
+            if (checkManager) {
+                auto reply = Q_XCB_REPLY(xcb_get_selection_owner, xcb_connection(), atom(QXcbAtom::CLIPBOARD_MANAGER));
+                if (!reply || reply->owner == XCB_NONE)
+                    return nullptr;
+            }
 
             // process other clipboard events, since someone is probably requesting data from us
             auto clipboardAtom = atom(QXcbAtom::CLIPBOARD);
@@ -918,7 +926,7 @@ xcb_generic_event_t *QXcbClipboard::waitForClipboardEvent(xcb_window_t window, i
 
             const auto elapsed = timer.elapsed();
             if (elapsed < clipboard_timeout)
-                queue->waitForNewEvents(clipboard_timeout - elapsed);
+                queue->waitForNewEvents(flushedTailNode, clipboard_timeout - elapsed);
         } while (timer.elapsed() < clipboard_timeout);
     }
 
@@ -932,7 +940,11 @@ QByteArray QXcbClipboard::clipboardReadIncrementalProperty(xcb_window_t win, xcb
     bool alloc_error = false;
     int  length;
     int  offset = 0;
-    xcb_timestamp_t prev_time = m_incr_receive_time;
+    /*
+     * 1. Data should not be read when the event time is equal to m_incr_receive_time.
+     * 2. Because the INCR data size has been read, it needs to be filtered out.
+    */
+    xcb_timestamp_t prev_time = m_incr_receive_time + 1;
 
     if (nbytes > 0) {
         // Reserve buffer + zero-terminator (for text data)

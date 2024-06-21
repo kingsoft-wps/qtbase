@@ -402,7 +402,8 @@ int QHostInfo::lookupHost(const QString &name, QObject *receiver,
 */
 void QHostInfo::abortHostLookup(int id)
 {
-    theHostInfoLookupManager()->abortLookup(id);
+    if (theHostInfoLookupManager())
+        theHostInfoLookupManager()->abortLookup(id);
 }
 
 /*!
@@ -426,7 +427,8 @@ QHostInfo QHostInfo::fromName(const QString &name)
 
     QHostInfo hostInfo = QHostInfoAgent::fromName(name);
     QAbstractHostInfoLookupManager* manager = theHostInfoLookupManager();
-    manager->cache.put(name, hostInfo);
+    if (manager)
+        manager->cache.put(name, hostInfo);
     return hostInfo;
 }
 
@@ -439,7 +441,8 @@ QHostInfo QHostInfoPrivate::fromName(const QString &name, QSharedPointer<QNetwor
 
     QHostInfo hostInfo = QHostInfoAgent::fromName(name, session);
     QAbstractHostInfoLookupManager* manager = theHostInfoLookupManager();
-    manager->cache.put(name, hostInfo);
+    if (manager)
+        manager->cache.put(name, hostInfo);
     return hostInfo;
 }
 #endif
@@ -716,7 +719,7 @@ void QHostInfoRunnable::run()
 {
     QHostInfoLookupManager *manager = theHostInfoLookupManager();
     // check aborted
-    if (manager->wasAborted(id)) {
+    if (manager && manager->wasAborted(id)) {
         manager->lookupFinished(this);
         return;
     }
@@ -778,7 +781,7 @@ QHostInfoLookupManager::QHostInfoLookupManager() : mutex(QMutex::Recursive), was
     moveToThread(QCoreApplicationPrivate::mainThread());
 #if QT_CONFIG(thread)
     connect(QCoreApplication::instance(), SIGNAL(destroyed()), SLOT(waitForThreadPoolDone()), Qt::DirectConnection);
-    threadPool.setMaxThreadCount(20); // do up to 20 DNS lookups in parallel
+    threadPool.setMaxThreadCount(10); // do up to 10 DNS lookups in parallel
 #endif
 }
 

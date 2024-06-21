@@ -182,11 +182,13 @@ QLockFile::LockError QLockFilePrivate::tryLock_sys()
     // We hold the lock, continue.
     fileHandle = fd;
 
+#ifndef Q_OS_LINUX
     // Sync to disk if possible. Ignore errors (e.g. not supported).
 #if defined(_POSIX_SYNCHRONIZED_IO) && _POSIX_SYNCHRONIZED_IO > 0
     fdatasync(fileHandle);
 #else
     fsync(fileHandle);
+#endif
 #endif
 
     return QLockFile::NoError;

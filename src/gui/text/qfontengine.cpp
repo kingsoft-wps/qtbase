@@ -247,30 +247,29 @@ Q_AUTOTEST_EXPORT QList<QFontEngine *> QFontEngine_stopCollectingEngines()
 
 #define kBearingNotInitialized std::numeric_limits<qreal>::max()
 
-QStringList QFontEngine::changeCapJoinFamilys = QStringList() << QString::fromWCharArray(L"方正美黑_GBK")
-                                                              << QString::fromLatin1("FZMeiHei-M07")
-                                                              << QString::fromWCharArray(L"黑体")
-                                                              << QString::fromLatin1("SimHei")
-                                                              << QString::fromWCharArray(L"方正大黑_GBK")
-                                                              << QString::fromLatin1("FZDaHei-B02")
-                                                              << QString::fromWCharArray(L"方正黑体简体")
-                                                              << QString::fromLatin1("FZHei-B01S")
-                                                              << QString::fromWCharArray(L"方正黑体_GBK")
-                                                              << QString::fromLatin1("FZHei-B01")
-                                                              << QString::fromWCharArray(L"方正黑体")
-                                                              << QString::fromLatin1("FZHTK--GBK1-0")
-                                                              << QString::fromWCharArray(L"方正粗黑宋简体")
-                                                              << QString::fromLatin1("FZCHSJW--GB1-0");
+static bool changeCapJoinFamilys(const QString& familyname)
+{
+    static QStringList s_changeCapJoinFamilys = QStringList()
+            << QString::fromWCharArray(L"方正美黑_GBK") << QString::fromLatin1("FZMeiHei-M07")
+            << QString::fromWCharArray(L"黑体") << QString::fromLatin1("SimHei")
+            << QString::fromWCharArray(L"方正大黑_GBK") << QString::fromLatin1("FZDaHei-B02")
+            << QString::fromWCharArray(L"方正黑体简体") << QString::fromLatin1("FZHei-B01S")
+            << QString::fromWCharArray(L"方正黑体_GBK") << QString::fromLatin1("FZHei-B01")
+            << QString::fromWCharArray(L"方正黑体") << QString::fromLatin1("FZHTK--GBK1-0")
+            << QString::fromWCharArray(L"方正粗黑宋简体") << QString::fromLatin1("FZCHSJW--GB1-0");
+    return s_changeCapJoinFamilys.contains(familyname);
+}
 
-QStringList QFontEngine::forceDrawAsOutlineFamilys = QStringList() << QString::fromWCharArray(L"方正黑体简体")
-                                                                   << QString::fromLatin1("FZHei-B01S")
-                                                                   << QString::fromWCharArray(L"方正黑体_GBK")
-                                                                   << QString::fromLatin1("FZHei-B01")
-                                                                   << QString::fromWCharArray(L"方正黑体")
-                                                                   << QString::fromLatin1("FZHTK--GBK1-0")
-                                                                   << QString::fromWCharArray(L"方正粗黑宋简体")
-                                                                   << QString::fromLatin1("FZCHSJW--GB1-0")
-                                                                   << QString::fromWCharArray(L"宋体");
+static bool forceDrawAsOutlineFamilys(const QString &familyname)
+{
+    static QStringList s_forceDrawAsOutlineFamilys = QStringList()
+            << QString::fromWCharArray(L"方正黑体简体") << QString::fromLatin1("FZHei-B01S")
+            << QString::fromWCharArray(L"方正黑体_GBK") << QString::fromLatin1("FZHei-B01")
+            << QString::fromWCharArray(L"方正黑体") << QString::fromLatin1("FZHTK--GBK1-0")
+            << QString::fromWCharArray(L"方正粗黑宋简体") << QString::fromLatin1("FZCHSJW--GB1-0")
+            << QString::fromWCharArray(L"宋体");
+    return s_forceDrawAsOutlineFamilys.contains(familyname);
+}
 
 QFontEngine::QFontEngine(Type type)
     : m_type(type), ref(0),
@@ -719,7 +718,7 @@ void QFontEngine::addOutlineToPath(qreal x, qreal y, const QGlyphLayout &glyphs,
     QVarLengthArray<glyph_t> positioned_glyphs;
     QTransform matrix = QTransform::fromTranslate(x, y);
     getGlyphPositions(glyphs, matrix, flags, positioned_glyphs, positions);
-    addGlyphsToPath(positioned_glyphs.data(), positions.data(), positioned_glyphs.size(), path, flags);
+    addGlyphsToPath(positioned_glyphs.data(), positions.data(), positioned_glyphs.size(), path, flags, glyphs.advances, glyphs.attributes);
 }
 
 #define GRID(x, y) grid[(y)*(w+1) + (x)]
@@ -866,8 +865,12 @@ void QFontEngine::addBitmapFontToPath(qreal x, qreal y, const QGlyphLayout &glyp
 }
 
 void QFontEngine::addGlyphsToPath(glyph_t *glyphs, QFixedPoint *positions, int nGlyphs,
-                                  QPainterPath *path, QTextItem::RenderFlags flags)
+                                  QPainterPath *path, QTextItem::RenderFlags flags, 
+                                  const QFixed *advances, const QGlyphAttributes *attributes)
 {
+    Q_UNUSED(advances);
+    Q_UNUSED(attributes);
+
     qreal x = positions[0].x.toReal();
     qreal y = positions[0].y.toReal();
     QVarLengthGlyphLayoutArray g(nGlyphs);
@@ -1656,16 +1659,6 @@ QFixed QFontEngine::getCustomBoldPixWidth(const QTransform &t)
     line = t.map(line);
 
     return QFixed::fromReal(line.length()); // pen width(in pixel);
-}
-
-bool QFontEngine::changeCapJoinStyle()
-{
-    return changeCapJoinFamilys.contains(fontDef.family);
-}
-
-bool QFontEngine::forceDrawAsOutline()
-{
-    return forceDrawAsOutlineFamilys.contains(fontDef.family);
 }
 
 bool QFontEngine::hasCustomBoldWidth(int, int, int, int, int, int&, int&)

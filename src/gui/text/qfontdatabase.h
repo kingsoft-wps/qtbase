@@ -144,12 +144,15 @@ public:
     static QString writingSystemName(WritingSystem writingSystem);
     static QString writingSystemSample(WritingSystem writingSystem);
 
-    static int addApplicationFont(const QString &fileName);
+    static int addApplicationFont(const QString &fileName, bool bInValidate = true);
     static int addApplicationFontFromData(const QByteArray &fontData);
     static QStringList applicationFontFamilies(int id);
     static bool removeApplicationFont(int id);
     static bool removeAllApplicationFonts();
 
+#ifdef Q_OS_MACOS
+    static void invalidate();
+#endif
 #if QT_DEPRECATED_SINCE(5, 2)
     QT_DEPRECATED static bool supportsThreadedFontRendering();
 #endif

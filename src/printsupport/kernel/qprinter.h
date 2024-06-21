@@ -68,9 +68,9 @@ class Q_PRINTSUPPORT_EXPORT QPrinter : public QPagedPaintDevice
 public:
     enum PrinterMode { ScreenResolution, PrinterResolution, HighResolution, ExportResolution };
 
-    explicit QPrinter(PrinterMode mode = ScreenResolution);
-    explicit QPrinter(const QPrinterInfo& printer, PrinterMode mode = ScreenResolution);
-    explicit QPrinter(const QString& printer, PrinterMode mode = ScreenResolution);
+    explicit QPrinter(PrinterMode mode = ScreenResolution, bool threading = false);
+    explicit QPrinter(const QPrinterInfo& printer, PrinterMode mode = ScreenResolution, bool threading = false);
+    explicit QPrinter(const QString& printer, PrinterMode mode = ScreenResolution, bool threading = false);
     ~QPrinter();
 
     int devType() const override;

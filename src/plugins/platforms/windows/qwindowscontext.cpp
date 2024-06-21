@@ -1611,8 +1611,8 @@ bool QWindowsContext::windowsProc(HWND hwnd, UINT message,
 
 static inline bool testNotFocusWindow(const QWindow* window)
 {
-    const QVariant propNotFocusWindow = window->property("_q_platform_NotFocusWindow");
-    return propNotFocusWindow.isValid() && propNotFocusWindow.toBool();
+    const QVariant propShadowBorderWidget = window->property("_q_platform_ShadowBorderWidget");
+    return propShadowBorderWidget.isValid() && propShadowBorderWidget.toBool();
 }
 
 void QWindowsContext::handleFocusEvent(QtWindows::WindowsEventType et,

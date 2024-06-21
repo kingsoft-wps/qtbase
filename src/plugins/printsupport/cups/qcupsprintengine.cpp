@@ -235,7 +235,12 @@ void QCupsPrintEnginePrivate::closePrintDevice()
             break;
         }
 
-        if (m_pageLayout.orientation() == QPageLayout::Landscape)
+
+        const bool bSupportNumberUp = cupsOptions.contains("number-up")
+            && cupsOptions.contains("number-up-layout")
+            && cupsOptions.contains("orientation-requested");
+
+        if (m_pageLayout.orientation() == QPageLayout::Landscape && !bSupportNumberUp)
             options.append(QPair<QByteArray, QByteArray>("landscape", ""));
 
         QStringList::const_iterator it = cupsOptions.constBegin();

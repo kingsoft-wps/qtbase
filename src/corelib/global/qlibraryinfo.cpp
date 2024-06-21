@@ -138,26 +138,27 @@ void QLibrarySettings::load()
     settings.reset(QLibraryInfoPrivate::findConfiguration());
 #ifndef QT_BUILD_QMAKE
     reloadOnQAppAvailable = (settings.data() == 0 && QCoreApplication::instance() == 0);
-    bool haveDevicePaths;
-    bool haveEffectivePaths;
-    bool havePaths;
+    bool havePaths = false;
 #endif
     if (settings) {
         // This code needs to be in the regular library, as otherwise a qt.conf that
         // works for qmake would break things for dynamically built Qt tools.
         QStringList children = settings->childGroups();
-        haveDevicePaths = children.contains(QLatin1String("DevicePaths"));
 #ifdef QT_BUILD_QMAKE
+        haveDevicePaths = children.contains(QLatin1String("DevicePaths"));
         haveEffectiveSourcePaths = children.contains(QLatin1String("EffectiveSourcePaths"));
-#else
-        // EffectiveSourcePaths is for the Qt build only, so needs no backwards compat trickery.
-        bool haveEffectiveSourcePaths = false;
-#endif
-        haveEffectivePaths = haveEffectiveSourcePaths || children.contains(QLatin1String("EffectivePaths"));
+        haveEffectivePaths =
+                haveEffectiveSourcePaths || children.contains(QLatin1String("EffectivePaths"));
         // Backwards compat: an existing but empty file is claimed to contain the Paths section.
         havePaths = (!haveDevicePaths && !haveEffectivePaths
                      && !children.contains(QLatin1String(platformsSection)))
-                    || children.contains(QLatin1String("Paths"));
+                || children.contains(QLatin1String("Paths"));
+#else
+
+        havePaths = !children.contains(QLatin1String(platformsSection))
+                || children.contains(QLatin1String("Paths"));
+#endif
+
 #ifndef QT_BUILD_QMAKE
         if (!havePaths)
             settings.reset(0);
@@ -697,13 +698,17 @@ QLibraryInfo::rawLocation(LibraryLocation loc, PathGroup group)
 QStringList QLibraryInfo::platformPluginArguments(const QString &platformName)
 {
 #if !defined(QT_BUILD_QMAKE) && QT_CONFIG(settings)
-    QScopedPointer<const QSettings> settings(QLibraryInfoPrivate::findConfiguration());
-    if (!settings.isNull()) {
-        const QString key = QLatin1String(platformsSection)
-                + QLatin1Char('/')
-                + platformName
+    if (auto configSettings = QLibraryInfoPrivate::configuration()) {
+        const QString key = QLatin1String(platformsSection) + QLatin1Char('/') + platformName
                 + QLatin1String("Arguments");
-        return settings->value(key).toStringList();
+        return configSettings->value(key).toStringList();
+    } else {
+        QScopedPointer<const QSettings> settings(QLibraryInfoPrivate::findConfiguration());
+        if (!settings.isNull()) {
+            const QString key = QLatin1String(platformsSection) + QLatin1Char('/') + platformName
+                    + QLatin1String("Arguments");
+            return settings->value(key).toStringList();
+        }
     }
 #else
     Q_UNUSED(platformName);
@@ -711,15 +716,13 @@ QStringList QLibraryInfo::platformPluginArguments(const QString &platformName)
     return QStringList();
 }
 
-
 QString QLibraryInfo::supportDPIAware()
 {
 #if !defined(QT_BUILD_QMAKE) && QT_CONFIG(settings)
-    QScopedPointer<const QSettings> settings(QLibraryInfoPrivate::findConfiguration());
-    if (!settings.isNull()) {
-        const QString key = QLatin1String("Support/DPIAware");
-        return settings->value(key, QLatin1String("false")).toString();
-	}
+    if (auto settings = QLibraryInfoPrivate::configuration()) {
+        return settings->value(QLatin1String("Support/DPIAware"), QLatin1String("false"))
+                .toString();
+    }
 #endif // !QT_BUILD_QMAKE && settings
     return QLatin1String("true");
 }

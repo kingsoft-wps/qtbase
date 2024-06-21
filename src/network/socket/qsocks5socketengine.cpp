@@ -920,7 +920,8 @@ void QSocks5SocketEnginePrivate::_q_emitPendingReadNotification()
             return;
         // check if there needs to be a new zero read notification
         if (data && data->controlSocket->state() == QAbstractSocket::UnconnectedState
-                && data->controlSocket->error() == QAbstractSocket::RemoteHostClosedError) {
+                && data->controlSocket->error() == QAbstractSocket::RemoteHostClosedError
+                && connectData) {
             connectData->readBuffer.clear();
             emitReadNotification();
         }

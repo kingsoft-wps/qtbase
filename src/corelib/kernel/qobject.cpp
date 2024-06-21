@@ -3779,10 +3779,16 @@ void QMetaObject::activate(QObject *sender, int signalOffset, int local_signal_i
                 QScopedPointer<QtPrivate::QSlotObjectBase, QSlotObjectBaseDeleter> obj(c->slotObj);
                 locker.unlock();
 
+                if (qt_signal_spy_callback_set.slot_object_begin_callback != 0)
+                    qt_signal_spy_callback_set.slot_object_begin_callback(c->slotObj, receiver, argv ? argv : empty_argv);
+
                 {
                     Q_TRACE_SCOPE(QMetaObject_activate_slot_functor, obj.data());
                     obj->call(receiver, argv ? argv : empty_argv);
                 }
+
+                if (qt_signal_spy_callback_set.slot_object_end_callback != 0)
+                    qt_signal_spy_callback_set.slot_object_end_callback(c->slotObj, receiver);
 
                 // Make sure the slot object gets destroyed before the mutex is locked again, as the
                 // destructor of the slot object might also lock a mutex from the signalSlotLock() mutex pool,

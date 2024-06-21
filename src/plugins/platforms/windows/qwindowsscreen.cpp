@@ -571,8 +571,10 @@ bool QWindowsScreenManager::handleScreenChanges()
                 removeScreen(i);
         }     // for existing screens
     }     // not lock screen
-    if (primaryScreenChanged)
-        QWindowsTheme::instance()->refreshFonts();
+    if (primaryScreenChanged) {
+        if (auto theme = QWindowsTheme::instance()) // QTBUG-85734/Wine
+            theme->refreshFonts();
+    }
     return true;
 }
 

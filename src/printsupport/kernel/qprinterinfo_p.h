@@ -62,7 +62,7 @@ QT_BEGIN_NAMESPACE
 class QPrinterInfoPrivate
 {
 public:
-    QPrinterInfoPrivate(const QString& id = QString());
+    QPrinterInfoPrivate(const QString& id = QString(), bool threading = false);
     ~QPrinterInfoPrivate();
 
     QPrintDevice m_printDevice;

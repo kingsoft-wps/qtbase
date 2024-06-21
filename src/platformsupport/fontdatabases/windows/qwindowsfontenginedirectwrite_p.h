@@ -94,7 +94,8 @@ public:
     void recalcAdvances(QGlyphLayout *glyphs, ShaperFlags) const override;
 
     void addGlyphsToPath(glyph_t *glyphs, QFixedPoint *positions, int nglyphs,
-                         QPainterPath *path, QTextItem::RenderFlags flags) override;
+                         QPainterPath *path, QTextItem::RenderFlags flags,
+                         const QFixed *advances = nullptr, const QGlyphAttributes *attributes = nullptr) override;
 
     glyph_metrics_t boundingBox(const QGlyphLayout &glyphs) override;
     glyph_metrics_t boundingBox(glyph_t g) override;

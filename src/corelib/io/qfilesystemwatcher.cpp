@@ -67,7 +67,7 @@
 
 QT_BEGIN_NAMESPACE
 
-QFileSystemWatcherEngine *QFileSystemWatcherPrivate::createNativeEngine(QObject *parent)
+QFileSystemWatcherEngine *QFileSystemWatcherPrivate::createNativeEngine(QObject *parent, int latencyMs)
 {
 #if defined(Q_OS_WIN)
     return new QWindowsFileSystemWatcherEngine(parent);
@@ -78,7 +78,7 @@ QFileSystemWatcherEngine *QFileSystemWatcherPrivate::createNativeEngine(QObject 
 #elif defined(Q_OS_FREEBSD) || defined(Q_OS_NETBSD) || defined(Q_OS_OPENBSD) || defined(QT_PLATFORM_UIKIT)
     return QKqueueFileSystemWatcherEngine::create(parent);
 #elif defined(Q_OS_OSX)
-    return QFseventsFileSystemWatcherEngine::create(parent);
+    return QFseventsFileSystemWatcherEngine::create(parent, latencyMs);
 #else
     Q_UNUSED(parent);
     return 0;
@@ -90,10 +90,10 @@ QFileSystemWatcherPrivate::QFileSystemWatcherPrivate()
 {
 }
 
-void QFileSystemWatcherPrivate::init()
+void QFileSystemWatcherPrivate::init(int latencyMs)
 {
     Q_Q(QFileSystemWatcher);
-    native = createNativeEngine(q);
+    native = createNativeEngine(q, latencyMs);
     if (native) {
         QObject::connect(native,
                          SIGNAL(fileChanged(QString,bool)),
@@ -269,6 +269,16 @@ QFileSystemWatcher::QFileSystemWatcher(const QStringList &paths, QObject *parent
 {
     d_func()->init();
     addPaths(paths);
+}
+
+/*!
+    Constructs a new file system watcher object with the given \a parent
+    which monitors \a response latency in milliseconds（only in MACOS）.
+*/
+QFileSystemWatcher::QFileSystemWatcher(int latencyMs, QObject *parent)
+    : QObject(*new QFileSystemWatcherPrivate, parent)
+{
+    d_func()->init(latencyMs);
 }
 
 /*!

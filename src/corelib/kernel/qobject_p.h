@@ -78,6 +78,12 @@ struct QSignalSpyCallbackSet
                     slot_begin_callback;
     EndCallback signal_end_callback,
                 slot_end_callback;
+
+    typedef void(*BeginSlotObjectCallback)(QtPrivate::QSlotObjectBase* slotObj, QObject* caller, void** argv);
+    typedef void(*EndSlotObjectCallback)(QtPrivate::QSlotObjectBase* slotObj, QObject* caller);
+
+    BeginSlotObjectCallback slot_object_begin_callback;
+    EndSlotObjectCallback slot_object_end_callback;
 };
 void Q_CORE_EXPORT qt_register_signal_spy_callbacks(const QSignalSpyCallbackSet &callback_set);
 
@@ -389,6 +395,7 @@ public:
     inline const QObject *sender() const { return sender_; }
     inline int signalId() const { return signalId_; }
     inline void **args() const { return args_; }
+    inline QtPrivate::QSlotObjectBase *slotObject() const { return slotObj_; }
 
     virtual void placeMetaCall(QObject *object);
 
