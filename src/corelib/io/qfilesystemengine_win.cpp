@@ -293,7 +293,7 @@ static QString readSymLink(const QFileSystemEntry &link)
 {
     QString result;
 #if !defined(Q_OS_WINRT)
-    HANDLE handle = CreateFile((wchar_t*)link.nativeFilePath().utf16(),
+    HANDLE handle = CreateFile((wchar_t*)link.nativeFilePath().c_str16(),
                                FILE_READ_EA,
                                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                                0,
@@ -344,7 +344,7 @@ static QString readSymLink(const QFileSystemEntry &link)
                 const QString volumeName =
                         QLatin1String("\\\\?\\") + result.leftRef(matchVolName.matchedLength());
                 if (ptrGetVolumePathNamesForVolumeNameW(
-                            reinterpret_cast<LPCWSTR>(volumeName.utf16()), buffer, MAX_PATH, &len)
+                            reinterpret_cast<LPCWSTR>(volumeName.c_str16()), buffer, MAX_PATH, &len)
                     != 0)
                     result.replace(0, matchVolName.matchedLength(),
                                    QString::fromWCharArray(buffer));
@@ -381,7 +381,7 @@ static QString readLink(const QFileSystemEntry &link)
         IPersistFile *ppf;
         hres = psl->QueryInterface(IID_IPersistFile, (LPVOID *)&ppf);
         if (SUCCEEDED(hres))  {
-            hres = ppf->Load((LPOLESTR)link.nativeFilePath().utf16(), STGM_READ);
+            hres = ppf->Load((LPOLESTR)link.nativeFilePath().c_str16(), STGM_READ);
             //The original path of the link is retrieved. If the file/folder
             //was moved, the return value still have the old path.
             if (SUCCEEDED(hres)) {
@@ -423,9 +423,9 @@ static inline bool getFindData(QString path, WIN32_FIND_DATA &findData)
     // can't handle drives
     if (!path.endsWith(QLatin1Char(':'))) {
 #ifndef Q_OS_WINRT
-        HANDLE hFind = ::FindFirstFile((wchar_t*)path.utf16(), &findData);
+        HANDLE hFind = ::FindFirstFile((wchar_t*)path.c_str16(), &findData);
 #else
-        HANDLE hFind = ::FindFirstFileEx((const wchar_t*)path.utf16(), FindExInfoStandard, &findData, FindExSearchNameMatch, NULL, 0);
+        HANDLE hFind = ::FindFirstFileEx((const wchar_t*)path.c_str16(), FindExInfoStandard, &findData, FindExSearchNameMatch, NULL, 0);
 #endif
         if (hFind != INVALID_HANDLE_VALUE) {
             ::FindClose(hFind);
@@ -443,7 +443,7 @@ bool QFileSystemEngine::uncListSharesOnServer(const QString &server, QStringList
     SHARE_INFO_1 *BufPtr, *p;
     DWORD er = 0, tr = 0, resume = 0, i;
     do {
-        res = NetShareEnum((wchar_t*)server.utf16(), 1, (LPBYTE *)&BufPtr, DWORD(-1), &er, &tr, &resume);
+        res = NetShareEnum((wchar_t*)server.c_str16(), 1, (LPBYTE *)&BufPtr, DWORD(-1), &er, &tr, &resume);
         if (res == ERROR_SUCCESS || res == ERROR_MORE_DATA) {
             p = BufPtr;
             for (i = 1; i <= er; ++i) {
@@ -510,10 +510,10 @@ QString QFileSystemEngine::nativeAbsoluteFilePath(const QString &path)
     QString absPath;
     QVarLengthArray<wchar_t, MAX_PATH> buf(qMax(MAX_PATH, path.size() + 1));
     wchar_t *fileName = 0;
-    DWORD retLen = GetFullPathName((wchar_t*)path.utf16(), buf.size(), buf.data(), &fileName);
+    DWORD retLen = GetFullPathName((wchar_t*)path.c_str16(), buf.size(), buf.data(), &fileName);
     if (retLen > (DWORD)buf.size()) {
         buf.resize(retLen);
-        retLen = GetFullPathName((wchar_t*)path.utf16(), buf.size(), buf.data(), &fileName);
+        retLen = GetFullPathName((wchar_t*)path.c_str16(), buf.size(), buf.data(), &fileName);
     }
     if (retLen != 0)
         absPath = QString::fromWCharArray(buf.data(), retLen);
@@ -652,7 +652,7 @@ QByteArray QFileSystemEngine::id(const QFileSystemEntry &entry)
 
 #ifndef Q_OS_WINRT
     const HANDLE handle =
-        CreateFile((wchar_t*)entry.nativeFilePath().utf16(), 0,
+        CreateFile((wchar_t*)entry.nativeFilePath().c_str16(), 0,
                    FILE_SHARE_READ, NULL, OPEN_EXISTING,
                    FILE_FLAG_BACKUP_SEMANTICS, NULL);
 #else // !Q_OS_WINRT
@@ -664,7 +664,7 @@ QByteArray QFileSystemEngine::id(const QFileSystemEntry &entry)
     params.lpSecurityAttributes = NULL;
     params.hTemplateFile = NULL;
     const HANDLE handle =
-        CreateFile2((const wchar_t*)entry.nativeFilePath().utf16(), 0,
+        CreateFile2((const wchar_t*)entry.nativeFilePath().c_str16(), 0,
                     FILE_SHARE_READ, OPEN_EXISTING, &params);
 #endif // Q_OS_WINRT
     if (handle != INVALID_HANDLE_VALUE) {
@@ -728,7 +728,7 @@ QString QFileSystemEngine::owner(const QFileSystemEntry &entry, QAbstractFileEng
         {
             PSID pOwner = 0;
             PSECURITY_DESCRIPTOR pSD;
-            if (GetNamedSecurityInfo(reinterpret_cast<const wchar_t*>(entry.nativeFilePath().utf16()), SE_FILE_OBJECT,
+            if (GetNamedSecurityInfo(reinterpret_cast<const wchar_t*>(entry.nativeFilePath().c_str16()), SE_FILE_OBJECT,
                                      own == QAbstractFileEngine::OwnerGroup ? GROUP_SECURITY_INFORMATION : OWNER_SECURITY_INFORMATION,
                                      own == QAbstractFileEngine::OwnerUser ? &pOwner : 0, own == QAbstractFileEngine::OwnerGroup ? &pOwner : 0,
                                      0, 0, &pSD) == ERROR_SUCCESS) {
@@ -782,7 +782,7 @@ bool QFileSystemEngine::fillPermissions(const QFileSystemEntry &entry, QFileSyst
             PSID pGroup = 0;
             PACL pDacl;
             PSECURITY_DESCRIPTOR pSD;
-            DWORD res = GetNamedSecurityInfo(reinterpret_cast<const wchar_t*>(fname.utf16()), SE_FILE_OBJECT,
+            DWORD res = GetNamedSecurityInfo(reinterpret_cast<const wchar_t*>(fname.c_str16()), SE_FILE_OBJECT,
                                              OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
                                              &pOwner, &pGroup, &pDacl, 0, &pSD);
             if(res == ERROR_SUCCESS) {
@@ -899,12 +899,12 @@ bool QFileSystemEngine::fillPermissions(const QFileSystemEntry &entry, QFileSyst
                                 | QFileSystemMetaData::OtherPermissions | QFileSystemMetaData::UserExecutePermission;
         // calculate user permissions
         if (what & QFileSystemMetaData::UserReadPermission) {
-            if (::_waccess((wchar_t*)entry.nativeFilePath().utf16(), R_OK) == 0)
+            if (::_waccess((wchar_t*)entry.nativeFilePath().c_str16(), R_OK) == 0)
                 data.entryFlags |= QFileSystemMetaData::UserReadPermission;
             data.knownFlagsMask |= QFileSystemMetaData::UserReadPermission;
         }
         if (what & QFileSystemMetaData::UserWritePermission) {
-            if (::_waccess((wchar_t*)entry.nativeFilePath().utf16(), W_OK) == 0)
+            if (::_waccess((wchar_t*)entry.nativeFilePath().c_str16(), W_OK) == 0)
                 data.entryFlags |= QFileSystemMetaData::UserWritePermission;
             data.knownFlagsMask |= QFileSystemMetaData::UserWritePermission;
         }
@@ -1067,7 +1067,7 @@ bool QFileSystemEngine::fillMetaData(const QFileSystemEntry &entry, QFileSystemM
         WIN32_FIND_DATA findData;
         // The memory structure for WIN32_FIND_DATA is same as WIN32_FILE_ATTRIBUTE_DATA
         // for all members used by fillFindData().
-        bool ok = ::GetFileAttributesEx(reinterpret_cast<const wchar_t*>(fname.nativeFilePath().utf16()),
+        bool ok = ::GetFileAttributesEx(reinterpret_cast<const wchar_t*>(fname.nativeFilePath().c_str16()),
                                         GetFileExInfoStandard,
                                         reinterpret_cast<WIN32_FILE_ATTRIBUTE_DATA *>(&findData));
         if (ok) {
@@ -1105,7 +1105,7 @@ static inline bool mkDir(const QString &path, DWORD *lastError = 0)
     if (lastError)
         *lastError = 0;
     const QString longPath = QFSFileEnginePrivate::longFileName(path);
-    const bool result = ::CreateDirectory((wchar_t*)longPath.utf16(), 0);
+    const bool result = ::CreateDirectory((wchar_t*)longPath.c_str16(), 0);
     if (lastError) // Capture lastError before any QString is freed since custom allocators might change it.
         *lastError = GetLastError();
     return result;
@@ -1113,7 +1113,7 @@ static inline bool mkDir(const QString &path, DWORD *lastError = 0)
 
 static inline bool rmDir(const QString &path)
 {
-    return ::RemoveDirectory((wchar_t*)QFSFileEnginePrivate::longFileName(path).utf16());
+    return ::RemoveDirectory((wchar_t*)QFSFileEnginePrivate::longFileName(path).c_str16());
 }
 
 static bool isDirPath(const QString &dirPath, bool *existed)
@@ -1124,11 +1124,11 @@ static bool isDirPath(const QString &dirPath, bool *existed)
 
     const QString longPath = QFSFileEnginePrivate::longFileName(path);
 #ifndef Q_OS_WINRT
-    DWORD fileAttrib = ::GetFileAttributes(reinterpret_cast<const wchar_t*>(longPath.utf16()));
+    DWORD fileAttrib = ::GetFileAttributes(reinterpret_cast<const wchar_t*>(longPath.c_str16()));
 #else // Q_OS_WINRT
     DWORD fileAttrib = INVALID_FILE_ATTRIBUTES;
     WIN32_FILE_ATTRIBUTE_DATA data;
-    if (::GetFileAttributesEx(reinterpret_cast<const wchar_t*>(longPath.utf16()),
+    if (::GetFileAttributesEx(reinterpret_cast<const wchar_t*>(longPath.c_str16()),
                               GetFileExInfoStandard, &data)) {
         fileAttrib = data.dwFileAttributes;
     }
@@ -1363,7 +1363,7 @@ bool QFileSystemEngine::setCurrentPath(const QFileSystemEntry &entry)
 
     //TODO: this should really be using nativeFilePath(), but that returns a path in long format \\?\c:\foo
     //which causes many problems later on when it's returned through currentPath()
-    return ::SetCurrentDirectory(reinterpret_cast<const wchar_t*>(QDir::toNativeSeparators(entry.filePath()).utf16())) != 0;
+    return ::SetCurrentDirectory(reinterpret_cast<const wchar_t*>(QDir::toNativeSeparators(entry.filePath()).c_str16())) != 0;
 }
 
 QFileSystemEntry QFileSystemEngine::currentPath()
@@ -1402,14 +1402,14 @@ bool QFileSystemEngine::createLink(const QFileSystemEntry &source, const QFileSy
 bool QFileSystemEngine::copyFile(const QFileSystemEntry &source, const QFileSystemEntry &target, QSystemError &error)
 {
 #ifndef Q_OS_WINRT
-    bool ret = ::CopyFile((wchar_t*)source.nativeFilePath().utf16(),
-                          (wchar_t*)target.nativeFilePath().utf16(), true) != 0;
+    bool ret = ::CopyFile((wchar_t*)source.nativeFilePath().c_str16(),
+                          (wchar_t*)target.nativeFilePath().c_str16(), true) != 0;
 #else // !Q_OS_WINRT
     COPYFILE2_EXTENDED_PARAMETERS copyParams = {
         sizeof(copyParams), COPY_FILE_FAIL_IF_EXISTS, NULL, NULL, NULL
     };
-    HRESULT hres = ::CopyFile2((const wchar_t*)source.nativeFilePath().utf16(),
-                           (const wchar_t*)target.nativeFilePath().utf16(), &copyParams);
+    HRESULT hres = ::CopyFile2((const wchar_t*)source.nativeFilePath().c_str16(),
+                           (const wchar_t*)target.nativeFilePath().c_str16(), &copyParams);
     bool ret = SUCCEEDED(hres);
 #endif // Q_OS_WINRT
     if(!ret)
@@ -1421,11 +1421,11 @@ bool QFileSystemEngine::copyFile(const QFileSystemEntry &source, const QFileSyst
 bool QFileSystemEngine::renameFile(const QFileSystemEntry &source, const QFileSystemEntry &target, QSystemError &error)
 {
 #ifndef Q_OS_WINRT
-    bool ret = ::MoveFile((wchar_t*)source.nativeFilePath().utf16(),
-                          (wchar_t*)target.nativeFilePath().utf16()) != 0;
+    bool ret = ::MoveFile((wchar_t*)source.nativeFilePath().c_str16(),
+                          (wchar_t*)target.nativeFilePath().c_str16()) != 0;
 #else // !Q_OS_WINRT
-    bool ret = ::MoveFileEx((const wchar_t*)source.nativeFilePath().utf16(),
-                            (const wchar_t*)target.nativeFilePath().utf16(), 0) != 0;
+    bool ret = ::MoveFileEx((const wchar_t*)source.nativeFilePath().c_str16(),
+                            (const wchar_t*)target.nativeFilePath().c_str16(), 0) != 0;
 #endif // Q_OS_WINRT
     if(!ret)
         error = QSystemError(::GetLastError(), QSystemError::NativeError);
@@ -1435,8 +1435,8 @@ bool QFileSystemEngine::renameFile(const QFileSystemEntry &source, const QFileSy
 //static
 bool QFileSystemEngine::renameOverwriteFile(const QFileSystemEntry &source, const QFileSystemEntry &target, QSystemError &error)
 {
-    bool ret = ::MoveFileEx(reinterpret_cast<const wchar_t *>(source.nativeFilePath().utf16()),
-                            reinterpret_cast<const wchar_t *>(target.nativeFilePath().utf16()),
+    bool ret = ::MoveFileEx(reinterpret_cast<const wchar_t *>(source.nativeFilePath().c_str16()),
+                            reinterpret_cast<const wchar_t *>(target.nativeFilePath().c_str16()),
                             MOVEFILE_REPLACE_EXISTING) != 0;
     if (!ret)
         error = QSystemError(::GetLastError(), QSystemError::NativeError);
@@ -1446,7 +1446,7 @@ bool QFileSystemEngine::renameOverwriteFile(const QFileSystemEntry &source, cons
 //static
 bool QFileSystemEngine::removeFile(const QFileSystemEntry &entry, QSystemError &error)
 {
-    bool ret = ::DeleteFile((wchar_t*)entry.nativeFilePath().utf16()) != 0;
+    bool ret = ::DeleteFile((wchar_t*)entry.nativeFilePath().c_str16()) != 0;
     if(!ret)
         error = QSystemError(::GetLastError(), QSystemError::NativeError);
     return ret;
@@ -1467,7 +1467,7 @@ bool QFileSystemEngine::setPermissions(const QFileSystemEntry &entry, QFile::Per
     if (mode == 0) // not supported
         return false;
 
-    bool ret = ::_wchmod(reinterpret_cast<const wchar_t*>(entry.nativeFilePath().utf16()), mode) == 0;
+    bool ret = ::_wchmod(reinterpret_cast<const wchar_t*>(entry.nativeFilePath().c_str16()), mode) == 0;
     if(!ret)
         error = QSystemError(errno, QSystemError::StandardLibraryError);
     return ret;

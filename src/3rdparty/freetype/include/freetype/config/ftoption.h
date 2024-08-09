@@ -657,10 +657,11 @@ FT_BEGIN_HEADER
    * [1]
    * https://www.microsoft.com/typography/cleartype/truetypecleartype.aspx
    */
+#if !defined(TT_CONFIG_OPTION_SUBPIXEL_HINTING)
 /* #define TT_CONFIG_OPTION_SUBPIXEL_HINTING  1         */
-#define TT_CONFIG_OPTION_SUBPIXEL_HINTING  2
+#  define TT_CONFIG_OPTION_SUBPIXEL_HINTING  2
 /* #define TT_CONFIG_OPTION_SUBPIXEL_HINTING  ( 1 | 2 ) */
-
+#endif
 
   /**************************************************************************
    *

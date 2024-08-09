@@ -65,6 +65,7 @@ public:
     QPlatformCursor *cursor() const override { return m_cursor.data(); }
 
     QPixmap grabWindow(WId window, int x, int y, int width, int height) const override;
+    QSizeF physicalSize() const override;
 
     static QPlatformWindow *windowContainingCursor;
 

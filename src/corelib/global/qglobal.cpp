@@ -2326,6 +2326,8 @@ static bool readEtcDebianVersion(QUnixOSVersion &v)
 }
 #endif
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
 static bool findUnixOsVersion(QUnixOSVersion &v)
 {
     if (readOsRelease(v))
@@ -2342,6 +2344,7 @@ static bool findUnixOsVersion(QUnixOSVersion &v)
 }
 #  endif // USE_ETC_OS_RELEASE
 #endif // Q_OS_UNIX
+#pragma GCC diagnostic pop
 
 #if defined(Q_OS_ANDROID) && !defined(Q_OS_ANDROID_EMBEDDED)
 static const char *osVer_helper(QOperatingSystemVersion)

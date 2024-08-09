@@ -67,7 +67,7 @@ QLockFile::LockError QLockFilePrivate::tryLock_sys()
     const DWORD dwShareMode = FILE_SHARE_READ;
 #ifndef Q_OS_WINRT
     SECURITY_ATTRIBUTES securityAtts = { sizeof(SECURITY_ATTRIBUTES), NULL, FALSE };
-    HANDLE fh = CreateFile((const wchar_t*)fileEntry.nativeFilePath().utf16(),
+    HANDLE fh = CreateFile((const wchar_t*)fileEntry.nativeFilePath().c_str16(),
                            GENERIC_READ | GENERIC_WRITE,
                            dwShareMode,
                            &securityAtts,
@@ -75,7 +75,7 @@ QLockFile::LockError QLockFilePrivate::tryLock_sys()
                            FILE_ATTRIBUTE_NORMAL,
                            NULL);
 #else // !Q_OS_WINRT
-    HANDLE fh = CreateFile2((const wchar_t*)fileEntry.nativeFilePath().utf16(),
+    HANDLE fh = CreateFile2((const wchar_t*)fileEntry.nativeFilePath().c_str16(),
                             GENERIC_READ | GENERIC_WRITE,
                             dwShareMode,
                             CREATE_NEW, // error if already exists
@@ -91,7 +91,7 @@ QLockFile::LockError QLockFilePrivate::tryLock_sys()
         case ERROR_ACCESS_DENIED:
             // readonly file, or file still in use by another process.
             // Assume the latter if the file exists, since we don't create it readonly.
-            return fileExists((const wchar_t*)fileEntry.nativeFilePath().utf16())
+            return fileExists((const wchar_t*)fileEntry.nativeFilePath().c_str16())
                 ? QLockFile::LockFailedError
                 : QLockFile::PermissionError;
         default:

@@ -799,7 +799,7 @@ bool QFcitxPlatformInputContext::filterEvent(const QEvent *event) {
 
         auto reply =
             proxy->processKeyEvent(keyval, keycode, state, isRelease,
-                                   QDateTime::currentDateTime().toTime_t());
+                                   keyEvent->timestamp());
 
         if (Q_UNLIKELY(m_syncMode)) {
             reply.waitForFinished();

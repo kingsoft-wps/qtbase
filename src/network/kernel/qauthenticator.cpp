@@ -940,7 +940,10 @@ static void qStreamNtlmString(QDataStream& ds, const QString& s, bool unicode)
         qStreamNtlmBuffer(ds, s.toLatin1());
         return;
     }
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
     const ushort *d = s.utf16();
+QT_WARNING_POP
     for (int i = 0; i < s.length(); ++i)
         ds << d[i];
 }
@@ -1082,12 +1085,15 @@ static QByteArray qNtlmPhase1()
 
 static QByteArray qStringAsUcs2Le(const QString& src)
 {
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
     QByteArray rc(2*src.length(), 0);
     const unsigned short *s = src.utf16();
     unsigned short *d = (unsigned short*)rc.data();
     for (int i = 0; i < src.length(); ++i) {
         d[i] = qToLittleEndian(s[i]);
     }
+QT_WARNING_POP
     return rc;
 }
 

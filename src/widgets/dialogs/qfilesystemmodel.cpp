@@ -336,12 +336,12 @@ static QString qt_GetLongPathName(const QString &strShortPath)
         return QString();
     const QString inputString = QLatin1String("\\\\?\\") + QDir::toNativeSeparators(absPath);
     QVarLengthArray<TCHAR, MAX_PATH> buffer(MAX_PATH);
-    DWORD result = ::GetLongPathName((wchar_t*)inputString.utf16(),
+    DWORD result = ::GetLongPathName((wchar_t*)inputString.c_str16(),
                                      buffer.data(),
                                      buffer.size());
     if (result > DWORD(buffer.size())) {
         buffer.resize(result);
-        result = ::GetLongPathName((wchar_t*)inputString.utf16(),
+        result = ::GetLongPathName((wchar_t*)inputString.c_str16(),
                                    buffer.data(),
                                    buffer.size());
     }
@@ -836,7 +836,7 @@ QString QFileSystemModelPrivate::name(const QModelIndex &index) const
     }
 #ifdef Q_OS_LINUX
     QLocale locale;
-    if ("uos" == QSysInfo::productType().toLower() &&
+    if (QLatin1String("uos") == QSysInfo::productType().toLower() &&
             QLocale::Chinese == locale.language() &&
             dirNode->isDir())
     {
@@ -1732,7 +1732,7 @@ QFileSystemModelPrivate::QFileSystemNode* QFileSystemModelPrivate::addNode(QFile
         wchar_t name[MAX_PATH + 1];
         //GetVolumeInformation requires to add trailing backslash
         const QString nodeName = fileName + QLatin1String("\\");
-        BOOL success = ::GetVolumeInformation((wchar_t *)(nodeName.utf16()),
+        BOOL success = ::GetVolumeInformation((wchar_t *)(nodeName.c_str16()),
                 name, MAX_PATH + 1, NULL, 0, NULL, NULL, 0);
         if (success && name[0])
             node->volumeName = QString::fromWCharArray(name);

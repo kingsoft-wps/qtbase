@@ -291,6 +291,7 @@ public:
         QPointer<QWindow> window;
         QPointer<QObject> target;
         QTouchEvent::TouchPoint touchPoint;
+        int activeCount;
     };
     QHash<ActiveTouchPointsKey, ActiveTouchPointsValue> activeTouchPoints;
     QEvent::Type lastTouchType;

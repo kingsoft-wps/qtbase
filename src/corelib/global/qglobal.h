@@ -45,6 +45,7 @@
 #  include <type_traits>
 #  include <cstddef>
 #  include <utility>
+#  include <limits>
 #endif
 #ifndef __ASSEMBLER__
 #  include <assert.h>
@@ -762,7 +763,7 @@ Q_CORE_EXPORT Q_DECL_CONST_FUNCTION bool qSharedBuild() Q_DECL_NOTHROW;
 */
 #ifndef qUtf16Printable
 #  define qUtf16Printable(string) \
-    static_cast<const wchar_t*>(static_cast<const void*>(QString(string).utf16()))
+    static_cast<const wchar_t*>(static_cast<const void*>(QString(string).c_str16()))
 #endif
 
 class QString;

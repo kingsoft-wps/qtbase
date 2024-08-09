@@ -691,6 +691,8 @@ static QTtfTable generateName(const QVector<QTtfNameRecord> &name)
           << quint16(off);
         off += len;
     }
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
     for (int i = 0; i < name.size(); ++i) {
         const QString &n = name.at(i).value;
         const ushort *uc = n.utf16();
@@ -699,6 +701,7 @@ static QTtfTable generateName(const QVector<QTtfNameRecord> &name)
             ++uc;
         }
     }
+QT_WARNING_POP
     return t;
 }
 

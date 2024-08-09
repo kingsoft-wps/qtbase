@@ -52,6 +52,17 @@
 //
 
 #include <QtPrintSupport/private/qtprintsupportglobal_p.h>
+#include "QtCore/qobject.h"
+#include "QtCore/qvariant.h"
+#include "QtCore/qrunnable.h"
+#include "QtCore/qthread.h"
+#include "QtCore/qatomic.h"
+#include "QtCore/qqueue.h"
+#include "QtCore/qeventloop.h"
+#include "QtCore/qsemaphore.h"
+#include "QtCore/qmutex.h"
+#include "QtCore/qtimer.h"
+
 
 #ifndef QT_NO_PRINTER
 
@@ -86,8 +97,8 @@ private:
     TaskFunctor m_task;
     CompletionFunctor m_completion;
     bool m_finished;
-    QVariant m_result;
     bool m_interrupted;
+    QVariant m_result;
     QSemaphore *m_semFinished;
     QAtomicInt m_ref;
 };

@@ -2201,7 +2201,10 @@ QString qt_normalizePathSegments(const QString &name, QDirPrivate::PathNormaliza
     QVarLengthArray<ushort> outVector(len);
     int used = len;
     ushort *out = outVector.data();
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED 
     const ushort *p = name.utf16();
+QT_WARNING_POP
     const ushort *prefix = p;
     int up = 0;
 

@@ -72,7 +72,7 @@ static inline QStringList qWinCmdArgs(const QString &cmdLine)
 {
     QStringList result;
     int size;
-    if (wchar_t **argv = CommandLineToArgvW((const wchar_t *)cmdLine.utf16(), &size)) {
+    if (wchar_t **argv = CommandLineToArgvW((const wchar_t *)cmdLine.c_str16(), &size)) {
         result.reserve(size);
         wchar_t **argvEnd = argv + size;
         for (wchar_t **a = argv; a < argvEnd; ++a)

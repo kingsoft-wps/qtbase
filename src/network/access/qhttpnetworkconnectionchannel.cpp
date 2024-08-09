@@ -1036,9 +1036,11 @@ void QHttpNetworkConnectionChannel::_q_error(QAbstractSocket::SocketError socket
         }
         if (!bHttpsReConnects && pendingEncrypt)
         {
+#ifndef QT_NO_SSL
             QSslSocket* pSocket = static_cast<QSslSocket *>(this->socket);
             pSocket->setProtocol(QSsl::GmSslV1);
             closeAndResendCurrentRequest();
+#endif
             bHttpsReConnects = true;
             return;
         }
@@ -1056,6 +1058,7 @@ void QHttpNetworkConnectionChannel::_q_error(QAbstractSocket::SocketError socket
         break;
     case QAbstractSocket::SslHandshakeFailedError:
         {
+#ifndef QT_NO_SSL
             QSslSocket* pSocket = qobject_cast<QSslSocket *>(this->socket);
             if (pSocket != nullptr && !bHttpsReConnects) {
                 pSocket->setProtocol(QSsl::GmSslV1);
@@ -1063,6 +1066,7 @@ void QHttpNetworkConnectionChannel::_q_error(QAbstractSocket::SocketError socket
                 bHttpsReConnects = true;
                 return;
             }
+#endif
             errorCode = QNetworkReply::SslHandshakeFailedError;
         }
         break;

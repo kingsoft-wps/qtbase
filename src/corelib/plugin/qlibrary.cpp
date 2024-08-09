@@ -655,7 +655,7 @@ bool QLibrary::isLibrary(const QString &fileName)
     validSuffixList << QLatin1String("a") << QLatin1String("so");
 # elif defined(Q_OS_DARWIN)
     // On Apple platforms, dylib look like libmylib.1.0.0.dylib
-    if (suffixes.last() == QLatin1String("dylib"))
+    if (suffixes.last() == QLatin1String(".framework") || suffixes.last() == QLatin1String("dylib"))
         return true;
 
     validSuffixList << QLatin1String("so") << QLatin1String("bundle");

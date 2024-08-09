@@ -77,7 +77,7 @@ static Qt::HANDLE createChangeNotification(const QString &path, uint flags)
     QString nativePath = QDir::toNativeSeparators(path);
     if ((flags & FILE_NOTIFY_CHANGE_ATTRIBUTES) == 0 && !nativePath.endsWith(QLatin1Char('\\')))
         nativePath.append(QLatin1Char('\\'));
-    const HANDLE result = FindFirstChangeNotification(reinterpret_cast<const wchar_t *>(nativePath.utf16()),
+    const HANDLE result = FindFirstChangeNotification(reinterpret_cast<const wchar_t *>(nativePath.c_str16()),
                                                       FALSE, flags);
     DEBUG() << __FUNCTION__ << nativePath << hex <<showbase << flags << "returns" << result;
     return result;

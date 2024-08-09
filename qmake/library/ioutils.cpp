@@ -52,7 +52,7 @@ IoUtils::FileType IoUtils::fileType(const QString &fileName)
 {
     Q_ASSERT(fileName.isEmpty() || isAbsolutePath(fileName));
 #ifdef Q_OS_WIN
-    DWORD attr = GetFileAttributesW((WCHAR*)fileName.utf16());
+    DWORD attr = GetFileAttributesW((WCHAR*)fileName.c_str16());
     if (attr == INVALID_FILE_ATTRIBUTES)
         return FileNotFound;
     return (attr & FILE_ATTRIBUTE_DIRECTORY) ? FileIsDir : FileIsRegular;
@@ -241,7 +241,7 @@ bool IoUtils::touchFile(const QString &targetFileName, const QString &referenceF
         return false;
     }
 #  else
-    HANDLE rHand = CreateFile((wchar_t*)referenceFileName.utf16(),
+    HANDLE rHand = CreateFile((wchar_t*)referenceFileName.c_str16(),
                               GENERIC_READ, FILE_SHARE_READ,
                               NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (rHand == INVALID_HANDLE_VALUE) {
@@ -251,7 +251,7 @@ bool IoUtils::touchFile(const QString &targetFileName, const QString &referenceF
     FILETIME ft;
     GetFileTime(rHand, NULL, NULL, &ft);
     CloseHandle(rHand);
-    HANDLE wHand = CreateFile((wchar_t*)targetFileName.utf16(),
+    HANDLE wHand = CreateFile((wchar_t*)targetFileName.c_str16(),
                               GENERIC_WRITE, FILE_SHARE_READ,
                               NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (wHand == INVALID_HANDLE_VALUE) {

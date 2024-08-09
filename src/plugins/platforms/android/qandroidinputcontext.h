@@ -100,7 +100,7 @@ public:
     static QAndroidInputContext * androidInputContext();
     bool isValid() const override { return true; }
 
-    void reset() override;
+    void reset(bool bCancel) override;
     void commit() override;
     void update(Qt::InputMethodQueries queries) override;
     void invokeAction(QInputMethod::Action action, int cursorPosition) override;

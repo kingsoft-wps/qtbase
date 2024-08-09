@@ -236,10 +236,8 @@ public:
     // GUI style setting
     QStyle *style() const;
     void setStyle(QStyle *);
-#ifdef Q_OS_MAC
     // set style to all child qwidgets and future child
     void setRecursiveStyle(QStyle *);
-#endif // Q_OS_MAC
     // Widget types and states
 
     bool isTopLevel() const;

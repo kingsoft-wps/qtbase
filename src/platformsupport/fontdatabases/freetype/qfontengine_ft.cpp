@@ -2586,9 +2586,12 @@ QFontEngineFT::Glyph *QFontEngineFT::loadGlyph(QGlyphSet *set, uint glyph,
         if (format == Format_A8) {
             int bytes = info.width;
             while (h--) {
-                memcpy(dst, src, bytes);
-                dst += pitch;
-                src += slot->bitmap.pitch;
+                if (src)
+                {
+                    memcpy(dst, src, bytes);
+                    dst += pitch;
+                    src += slot->bitmap.pitch;
+                }
             }
         } else if (format == Format_A32) {
             while (h--) {

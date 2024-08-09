@@ -97,7 +97,7 @@ bool QFileSystemIterator::advance(QFileSystemEntry &fileEntry, QFileSystemMetaDa
         int searchOps =  0;         // FindExSearchNameMatch
         if (onlyDirs)
             searchOps = 1 ;         // FindExSearchLimitToDirectories
-        findFileHandle = FindFirstFileEx((const wchar_t *)nativePath.utf16(), FINDEX_INFO_LEVELS(infoLevel), &findData,
+        findFileHandle = FindFirstFileEx((const wchar_t *)nativePath.c_str16(), FINDEX_INFO_LEVELS(infoLevel), &findData,
                                          FINDEX_SEARCH_OPS(searchOps), 0, dwAdditionalFlags);
         if (findFileHandle == INVALID_HANDLE_VALUE) {
             if (nativePath.startsWith(QLatin1String("\\\\?\\UNC\\"))) {

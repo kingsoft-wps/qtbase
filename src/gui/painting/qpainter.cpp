@@ -1602,6 +1602,12 @@ void *QPainter::getCGContext()
     }
     return nullptr;
 }
+
+void QPainter::clearCGClipping()
+{
+    if (d_ptr->cgPainter)
+        d_ptr->cgPainter->clearClipping();
+}
 #endif
 /*!
     Initializes the painters pen, background and font to the same as
@@ -8554,6 +8560,16 @@ QTransform QPainter::combinedTransformNoHidpi() const
     }
     return d->state->worldMatrix * d->viewTransform();
 }
+
+QTransform QPainter::devicePixelRatioTransform() const
+{
+    Q_D(const QPainter);
+    qreal scale = 1.0;
+    if (d->engine)
+        scale = 1.0 / d->effectiveDevicePixelRatio();
+    return QTransform::fromScale(scale, scale);
+}
+
 /*!
     \since 4.7
 

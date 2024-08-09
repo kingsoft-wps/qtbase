@@ -125,7 +125,7 @@ bool QFSFileEnginePrivate::nativeOpen(QIODevice::OpenMode openMode)
     // Create the file handle.
 #ifndef Q_OS_WINRT
     SECURITY_ATTRIBUTES securityAtts = { sizeof(SECURITY_ATTRIBUTES), NULL, FALSE };
-    fileHandle = CreateFile((const wchar_t*)fileEntry.nativeFilePath().utf16(),
+    fileHandle = CreateFile((const wchar_t*)fileEntry.nativeFilePath().c_str16(),
                             accessRights,
                             shareMode,
                             &securityAtts,
@@ -133,7 +133,7 @@ bool QFSFileEnginePrivate::nativeOpen(QIODevice::OpenMode openMode)
                             FILE_ATTRIBUTE_NORMAL,
                             NULL);
 #else // !Q_OS_WINRT
-    fileHandle = CreateFile2((const wchar_t*)fileEntry.nativeFilePath().utf16(),
+    fileHandle = CreateFile2((const wchar_t*)fileEntry.nativeFilePath().c_str16(),
                              accessRights,
                              shareMode,
                              creationDisp,
@@ -620,15 +620,15 @@ bool QFSFileEngine::link(const QString &newName)
 
     if (SUCCEEDED(hres)) {
         const QString nativeAbsoluteName = fileName(AbsoluteName).replace(QLatin1Char('/'), QLatin1Char('\\'));
-        hres = psl->SetPath(reinterpret_cast<const wchar_t *>(nativeAbsoluteName.utf16()));
+        hres = psl->SetPath(reinterpret_cast<const wchar_t *>(nativeAbsoluteName.c_str16()));
         if (SUCCEEDED(hres)) {
             const QString nativeAbsolutePathName = fileName(AbsolutePathName).replace(QLatin1Char('/'), QLatin1Char('\\'));
-            hres = psl->SetWorkingDirectory(reinterpret_cast<const wchar_t *>(nativeAbsolutePathName.utf16()));
+            hres = psl->SetWorkingDirectory(reinterpret_cast<const wchar_t *>(nativeAbsolutePathName.c_str16()));
             if (SUCCEEDED(hres)) {
                 IPersistFile *ppf;
                 hres = psl->QueryInterface(IID_IPersistFile, reinterpret_cast<void **>(&ppf));
                 if (SUCCEEDED(hres)) {
-                    hres = ppf->Save(reinterpret_cast<const wchar_t *>(linkName.utf16()), TRUE);
+                    hres = ppf->Save(reinterpret_cast<const wchar_t *>(linkName.c_str16()), TRUE);
                     if (SUCCEEDED(hres))
                          ret = true;
                     ppf->Release();
@@ -941,7 +941,7 @@ uchar *QFSFileEnginePrivate::map(qint64 offset, qint64 size,
 #ifdef Q_USE_DEPRECATED_MAP_API
         nativeClose();
         // handle automatically closed by kernel with mapHandle (below).
-        handle = ::CreateFileForMapping((const wchar_t*)fileEntry.nativeFilePath().utf16(),
+        handle = ::CreateFileForMapping((const wchar_t*)fileEntry.nativeFilePath().c_str16(),
                 GENERIC_READ | (openMode & QIODevice::WriteOnly ? GENERIC_WRITE : 0),
                 0,
                 NULL,

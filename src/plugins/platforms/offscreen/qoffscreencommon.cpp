@@ -93,7 +93,7 @@ private:
 };
 
 QOffscreenScreen::QOffscreenScreen()
-    : m_geometry(0, 0, 800, 600)
+    : m_geometry(0, 0, 1920, 1080)
     , m_cursor(new QOffscreenCursor)
 {
 }
@@ -124,6 +124,13 @@ QPixmap QOffscreenScreen::grabWindow(WId id, int x, int y, int width, int height
     if (store)
         return store->grabWindow(id, rect);
     return QPixmap();
+}
+
+QSizeF QOffscreenScreen::physicalSize() const
+{
+    // weboffice DPI force 96
+    static const int dpi = 96;
+    return QSizeF(geometry().size()) / dpi * qreal(25.4);
 }
 
 QOffscreenBackingStore::QOffscreenBackingStore(QWindow *window)

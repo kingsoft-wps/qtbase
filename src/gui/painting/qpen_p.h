@@ -82,6 +82,7 @@ public:
     uint defaultWidth : 1; // default-constructed width? used for cosmetic pen compatibility
     bool bDrawCustomTextBold;
     bool bSupportComoplex;
+    uint bDrawPdfTextBoldContent : 1;
     qreal boldFactor;
 };
 

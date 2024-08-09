@@ -135,7 +135,8 @@
             "Werror": { "type": "boolean", "name": "warnings_are_errors" },
             "widgets": "boolean",
             "xplatform": "string",
-            "zlib": { "type": "enum", "name": "system-zlib", "values": { "system": "yes", "qt": "no" } }
+            "zlib": { "type": "enum", "name": "system-zlib", "values": { "system": "yes", "qt": "no" } },
+            "safebuild": "boolean"
         },
         "prefix": {
             "D": "defines",
@@ -293,34 +294,27 @@
             "type": "compile",
             "test": {
                 "head": [
-                    "#if __cplusplus > 201103L",
+                    "#if __cplusplus >= 201402L",
                     "// Compiler claims to support C++14, trust it",
                     "#else",
-                    "#  error __cplusplus must be > 201103L (the value of C++11)",
+                    "#  error __cplusplus must be >= 201402L (the value of C++14)",
                     "#endif"
                 ],
                 "qmake": "CONFIG += c++11 c++14"
             }
         },
-        "c++1z": {
-            "label": "C++1z support",
+        "c++17": {
+            "label": "C++17 support",
             "type": "compile",
             "test": {
                 "head": [
-                    "#if __cplusplus > 201402L",
-                    "// Compiler claims to support experimental C++1z, trust it",
+                    "#if __cplusplus >= 201703L",
+                    "// Compiler claims to support C++17, trust it",
                     "#else",
-                    "#  error __cplusplus must be > 201402L (the value for C++14)",
-                    "#endif",
-                    "#include <map>  // https://bugs.llvm.org//show_bug.cgi?id=33117",
-                    "#include <variant>"
+                    "#  error __cplusplus must be >= 201703L (the value of C++14)",
+                    "#endif"
                 ],
-                "main": [
-                    "std::variant<int> v(42);",
-                    "int i = std::get<int>(v);",
-                    "std::visit([](const auto &) { return 1; }, v);"
-                ],
-                "qmake": "CONFIG += c++11 c++14 c++1z"
+                "qmake": "CONFIG += c++11 c++14 C++17"
             }
         },
         "precompile_header": {
@@ -848,9 +842,12 @@
             "condition": "features.c++11 && tests.c++14",
             "output": [ "publicFeature", "publicQtConfig" ]
         },
-        "c++1z": {
-            "label": "C++1z",
-            "condition": "features.c++14 && tests.c++1z",
+        "c++17": {
+            "label": "C++17",
+            "output": [ "publicFeature", "publicQtConfig" ]
+        },
+        "c++20": {
+            "label": "C++20",
             "output": [ "publicFeature", "publicQtConfig" ]
         },
         "c89": {
@@ -1247,6 +1244,11 @@
             "autoDetect": false,
             "condition": "!features.shared",
             "output": [ "publicConfig", "publicQtConfig" ]
+        },
+        "safebuild": {
+            "label": "Using safe option build",
+            "autoDetect": false,
+            "output": [ "privateConfig" ]
         }
     },
 
@@ -1345,7 +1347,7 @@ Configure with '-qreal float' to create a build that is binary-compatible with 5
                 {
                     "message": "Using C++ standard",
                     "type": "firstAvailableFeature",
-                    "args": "c++1z c++14 c++11"
+                    "args": "c++20 c++17 c++14 c++11"
                 },
                 {
                     "type": "feature",

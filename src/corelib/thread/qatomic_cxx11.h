@@ -189,7 +189,9 @@ template <> Q_DECL_CONSTEXPR inline bool QAtomicTraits<2>::isLockFree()
 
 #if QT_CONFIG(std_atomic64)
 template<> struct QAtomicOpsSupport<8> { enum { IsSupported = 1 }; };
-#  define Q_ATOMIC_INT64_IS_SUPPORTED
+#  if !defined(Q_ATOMIC_INT64_IS_SUPPORTED)
+#    define Q_ATOMIC_INT64_IS_SUPPORTED
+#  endif
 #  if ATOMIC_LLONG_LOCK_FREE == 2
 #    define Q_ATOMIC_INT16_REFERENCE_COUNTING_IS_ALWAYS_NATIVE
 #    define Q_ATOMIC_INT16_TEST_AND_SET_IS_ALWAYS_NATIVE

@@ -297,7 +297,8 @@ namespace {
             return QString();
 
         QString oldFamilyName = familyName(nameTableDirectoryEntry);
-
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
         // Reserve size for name table header, five required name records and string
         const int requiredRecordCount = 5;
         quint16 nameIds[requiredRecordCount] = { 1, 2, 3, 4, 6 };
@@ -357,7 +358,7 @@ namespace {
         nameTableDirectoryEntry->length = qbswap<quint32>(fullSize);
 
         m_fontData.append(newNameTable);
-
+QT_WARNING_POP
         return oldFamilyName;
     }
 
@@ -1026,6 +1027,8 @@ QFontNames qt_getCanonicalFontNames(const LOGFONT &lf)
 
 static QChar *createFontFile(const QString &faceName)
 {
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
     QChar *faceNamePtr = nullptr;
     if (!faceName.isEmpty()) {
         const int nameLength = qMin(faceName.length(), LF_FACESIZE - 1);
@@ -1033,6 +1036,7 @@ static QChar *createFontFile(const QString &faceName)
         memcpy(static_cast<void *>(faceNamePtr), faceName.utf16(), sizeof(wchar_t) * nameLength);
         faceNamePtr[nameLength] = 0;
     }
+QT_WARNING_POP
     return faceNamePtr;
 }
 
@@ -1700,7 +1704,8 @@ QStringList QWindowsFontDatabase::addApplicationFont(const QByteArray &fontData,
     QVector<QFontValues> fontValues;
     QList<QFontNames> families;
     QStringList familyNames;
-
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
     if (!fontData.isEmpty()) {
         getFamiliesAndSignatures(fontData, &families, &signatures, &fontValues);
         if (families.isEmpty())
@@ -1771,7 +1776,7 @@ QStringList QWindowsFontDatabase::addApplicationFont(const QByteArray &fontData,
             populateFamily(familyName);
         }
     }
-
+QT_WARNING_POP
     m_applicationFonts << font;
 
     return familyNames;
@@ -1779,6 +1784,8 @@ QStringList QWindowsFontDatabase::addApplicationFont(const QByteArray &fontData,
 
 bool QWindowsFontDatabase::removeApplicationFont(const QString& fileName, void* handle)
 {
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
     for (auto it = m_applicationFonts.begin(); it != m_applicationFonts.end(); ++it) {
         const WinApplicationFont& font = *it;
         if (handle && font.handle == handle) {
@@ -1793,12 +1800,14 @@ bool QWindowsFontDatabase::removeApplicationFont(const QString& fileName, void* 
             return true;
         }
     }
-
+QT_WARNING_POP
     return false;
 }
 
 void QWindowsFontDatabase::removeApplicationFonts()
 {
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
     for (const WinApplicationFont &font : qAsConst(m_applicationFonts)) {
         if (font.handle) {
             RemoveFontMemResourceEx(font.handle);
@@ -1807,6 +1816,7 @@ void QWindowsFontDatabase::removeApplicationFonts()
                                   FR_PRIVATE, nullptr);
         }
     }
+QT_WARNING_POP
     m_applicationFonts.clear();
     m_eudcFonts.clear();
 }
@@ -2040,9 +2050,10 @@ LOGFONT QWindowsFontDatabase::fontDefToLOGFONT(const QFontDef &request, const QS
 
     if (fam == QLatin1String("Arial Black") || fam == QLatin1String("@Arial Black"))
         lf.lfWeight = (QFont::Black * 900) / 99;
-
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
     memcpy(lf.lfFaceName, fam.utf16(), fam.size() * sizeof(wchar_t));
-
+QT_WARNING_POP
     return lf;
 }
 
@@ -2220,7 +2231,10 @@ QFontEngine *QWindowsFontDatabase::createEngine(const QFontDef &request, const Q
         const QString nameSubstitute = QWindowsFontEngineDirectWrite::fontNameSubstitute(fam);
         if (nameSubstitute != fam) {
             const int nameSubstituteLength = qMin(nameSubstitute.length(), LF_FACESIZE - 1);
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
             memcpy(lf.lfFaceName, nameSubstitute.utf16(), nameSubstituteLength * sizeof(wchar_t));
+QT_WARNING_POP
             lf.lfFaceName[nameSubstituteLength] = 0;
         }
 

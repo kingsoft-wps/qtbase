@@ -263,6 +263,7 @@ public:
     QMatrix combinedMatrix() const;
     QTransform combinedTransform() const;
     QTransform combinedTransformNoHidpi() const;
+    QTransform devicePixelRatioTransform() const;
 
     void setMatrixEnabled(bool enabled);
     bool matrixEnabled() const;

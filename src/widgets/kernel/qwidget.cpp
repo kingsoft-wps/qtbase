@@ -2829,10 +2829,8 @@ QStyle *QWidget::style() const
 
     if (d->extra && d->extra->style)
         return d->extra->style;
-#ifdef Q_OS_MAC
     if (d->extra && d->extra->recursiveStyle)
         return d->extra->recursiveStyle;
-#endif // Q_OS_MAC
     return QApplication::style();
 }
 
@@ -2876,7 +2874,6 @@ void QWidget::setStyle(QStyle *style)
         d->setStyle_helper(style, false);
 }
 
-#ifdef Q_OS_MAC
 /*!
  * \brief QWidget::setRecursiveStyle
  * \param style
@@ -2892,7 +2889,6 @@ void QWidget::setRecursiveStyle(QStyle *style)
         if (child->isWidgetType())
             static_cast<QWidget*>(child)->setRecursiveStyle(style);
 }
-#endif // Q_OS_MAC
 
 void QWidgetPrivate::setStyle_helper(QStyle *newStyle, bool propagate)
 {
@@ -11214,10 +11210,8 @@ void QWidget::setParent(QWidget *parent, Qt::WindowFlags f)
                 d->setUpdatesEnabled_helper(parent ? parent->updatesEnabled() : true);
         }
         d->inheritStyle();
-#ifdef Q_OS_MAC
         if (parent && parent->d_func()->extra && parent->d_func()->extra->recursiveStyle)
             setRecursiveStyle(parent->d_func()->extra->recursiveStyle);
-#endif // Q_OS_MAC
         // send and post remaining QObject events
         if (parent && d->sendChildEvents) {
             QChildEvent e(QEvent::ChildAdded, this);

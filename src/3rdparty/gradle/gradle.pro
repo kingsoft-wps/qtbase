@@ -11,9 +11,6 @@ INSTALLS += gradle
 
 !prefix_build:!equals(OUT_PWD, $$PWD) {
     RETURN = $$escape_expand(\\n\\t)
-    equals(QMAKE_HOST.os, Windows) {
-        RETURN = $$escape_expand(\\r\\n\\t)
-    }
     OUT_PATH = $$shell_path($$OUT_PWD)
 
     QMAKE_POST_LINK += \

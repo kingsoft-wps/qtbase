@@ -71,26 +71,30 @@ FT_BEGIN_HEADER
 
 
   /* The size of an `int` type. */
-#if                                 FT_UINT_MAX == 0xFFFFUL
-#define FT_SIZEOF_INT  ( 16 / FT_CHAR_BIT )
-#elif                               FT_UINT_MAX == 0xFFFFFFFFUL
-#define FT_SIZEOF_INT  ( 32 / FT_CHAR_BIT )
-#elif FT_UINT_MAX > 0xFFFFFFFFUL && FT_UINT_MAX == 0xFFFFFFFFFFFFFFFFUL
-#define FT_SIZEOF_INT  ( 64 / FT_CHAR_BIT )
-#else
-#error "Unsupported size of `int' type!"
+#if !defined(FT_SIZEOF_INT)
+#  if                                 FT_UINT_MAX == 0xFFFFUL
+#  define FT_SIZEOF_INT  ( 16 / FT_CHAR_BIT )
+#  elif                               FT_UINT_MAX == 0xFFFFFFFFUL
+#  define FT_SIZEOF_INT  ( 32 / FT_CHAR_BIT )
+#  elif FT_UINT_MAX > 0xFFFFFFFFUL && FT_UINT_MAX == 0xFFFFFFFFFFFFFFFFUL
+#  define FT_SIZEOF_INT  ( 64 / FT_CHAR_BIT )
+#  else
+#  error "Unsupported size of `int' type!"
+#  endif
 #endif
 
   /* The size of a `long` type.  A five-byte `long` (as used e.g. on the */
   /* DM642) is recognized but avoided.                                   */
-#if                                  FT_ULONG_MAX == 0xFFFFFFFFUL
-#define FT_SIZEOF_LONG  ( 32 / FT_CHAR_BIT )
-#elif FT_ULONG_MAX > 0xFFFFFFFFUL && FT_ULONG_MAX == 0xFFFFFFFFFFUL
-#define FT_SIZEOF_LONG  ( 32 / FT_CHAR_BIT )
-#elif FT_ULONG_MAX > 0xFFFFFFFFUL && FT_ULONG_MAX == 0xFFFFFFFFFFFFFFFFUL
-#define FT_SIZEOF_LONG  ( 64 / FT_CHAR_BIT )
-#else
-#error "Unsupported size of `long' type!"
+#if !defined(FT_SIZEOF_LONG)
+#  if                                  FT_ULONG_MAX == 0xFFFFFFFFUL
+#  define FT_SIZEOF_LONG  ( 32 / FT_CHAR_BIT )
+#  elif FT_ULONG_MAX > 0xFFFFFFFFUL && FT_ULONG_MAX == 0xFFFFFFFFFFUL
+#  define FT_SIZEOF_LONG  ( 32 / FT_CHAR_BIT )
+#  elif FT_ULONG_MAX > 0xFFFFFFFFUL && FT_ULONG_MAX == 0xFFFFFFFFFFFFFFFFUL
+#  define FT_SIZEOF_LONG  ( 64 / FT_CHAR_BIT )
+#  else
+#  error "Unsupported size of `long' type!"
+#  endif
 #endif
 
 

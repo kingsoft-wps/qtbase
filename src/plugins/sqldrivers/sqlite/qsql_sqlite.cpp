@@ -505,6 +505,8 @@ bool QSQLiteResult::exec()
             if (value.isNull()) {
                 res = sqlite3_bind_null(d->stmt, i + 1);
             } else {
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED 
                 switch (value.type()) {
                 case QVariant::ByteArray: {
                     const QByteArray *ba = static_cast<const QByteArray*>(value.constData());
@@ -549,6 +551,7 @@ bool QSQLiteResult::exec()
                                               (str.size()) * sizeof(QChar), SQLITE_TRANSIENT);
                     break; }
                 }
+QT_WARNING_POP
             }
             if (res != SQLITE_OK) {
                 setLastError(qMakeError(d->drv_d_func()->access, QCoreApplication::translate("QSQLiteResult",

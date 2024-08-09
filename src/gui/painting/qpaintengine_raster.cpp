@@ -3451,10 +3451,19 @@ bool QRasterPaintEngine::drawCachedGlyphBatch(int numGlyphs, const glyph_t *glyp
                         fontEngine->expectsGammaCorrectedBlending());
         }
     } else {
+        QTransform matrix = s->matrix;
+#ifdef Q_OS_LINUX
+        if (fontEngine->fontDef.paintDeviceMatrix.m22() > 0) {
+            qreal scaleY = fontEngine->fontDef.paintDeviceMatrix.m22() > 0
+                    ? qreal(1 / fontEngine->fontDef.paintDeviceMatrix.m22())
+                    : 1;
+            matrix.scale(scaleY, scaleY);
+        }
+#endif
         QImageTextureGlyphCache *cache = static_cast<QImageTextureGlyphCache *>(
-                fontEngine->glyphCache(0, glyphFormat, s->matrix, QColor(s->penData.solid.color)));
+                fontEngine->glyphCache(0, glyphFormat, matrix, QColor(s->penData.solid.color)));
         if (!cache) {
-            cache = new QImageTextureGlyphCache(glyphFormat, s->matrix, QColor(s->penData.solid.color));
+            cache = new QImageTextureGlyphCache(glyphFormat, matrix, QColor(s->penData.solid.color));
             fontEngine->setGlyphCache(0, cache);
         }
 

@@ -1015,15 +1015,6 @@ void QWidgetWindow::handleTouchEvent(QTouchEvent *event)
     if (event->type() == QEvent::TouchCancel) {
         QApplicationPrivate::translateTouchCancel(event->device(), event->timestamp());
         event->accept();
-#ifdef Q_OS_MAC
-    // If the pop-up menu handles the touch event, it is easy to cause some operation problems
-    // ignore
-#else
-    } else if (qApp->d_func()->inPopupMode()) {
-        // Ignore touch events for popups. This will cause QGuiApplication to synthesise mouse
-        // events instead, which QWidgetWindow::handleMouseEvent will forward correctly:
-        event->ignore();
-#endif // Q_OS_MAC
     } else {
         event->setAccepted(QApplicationPrivate::translateRawTouchEvent(m_widget, event->device(), event->touchPoints(), event->timestamp()));
     }

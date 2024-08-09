@@ -136,7 +136,7 @@ Build options:
                          for example, -sanitize address cannot be combined with
                          -sanitize thread.
 
-  -c++std <edition> .... Select C++ standard <edition> [c++1z/c++14/c++11]
+  -c++std <edition> .... Select C++ standard <edition> [c++17/c++14/c++11]
                          (Not supported with MSVC)
 
   -sse2 ................ Use SSE2 instructions [auto]

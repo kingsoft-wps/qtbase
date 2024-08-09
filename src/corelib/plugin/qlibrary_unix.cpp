@@ -100,10 +100,11 @@ QStringList QLibraryPrivate::suffixes_sys(const QString& fullVersion)
 #endif
 # ifdef Q_OS_MAC
     if (!fullVersion.isEmpty()) {
+        suffixes << QString::fromLatin1(".%1.framework").arg(fullVersion);
         suffixes << QString::fromLatin1(".%1.bundle").arg(fullVersion);
         suffixes << QString::fromLatin1(".%1.dylib").arg(fullVersion);
     } else {
-        suffixes << QLatin1String(".bundle") << QLatin1String(".dylib");
+        suffixes << QLatin1String(".framework") << QLatin1String(".bundle") << QLatin1String(".dylib");
     }
 #endif
     return suffixes;
@@ -116,6 +117,9 @@ QStringList QLibraryPrivate::prefixes_sys()
 
 bool QLibraryPrivate::load_sys()
 {
+    if (fileName.endsWith(QLatin1String("dll")))
+        return false;
+
     QString attempt;
     QFileSystemEntry fsEntry(fileName);
 
@@ -228,6 +232,11 @@ bool QLibraryPrivate::load_sys()
                 // However, we are only able to apply this check for absolute filenames (since they are
                 // not influenced by the content of LD_LIBRARY_PATH, /etc/ld.so.cache, DT_RPATH etc...)
                 // This is all because dlerror is flawed and cannot tell us the reason why it failed.
+                if (suffixes.at(suffix) == QLatin1String(".framework"))
+                {
+                    attempt += QLatin1Char('/') + name;
+                    pHnd = dlopen(QFile::encodeName(attempt), dlFlags);
+                }
                 retry = false;
             }
         }
@@ -244,6 +253,13 @@ bool QLibraryPrivate::load_sys()
             CFURLGetFileSystemRepresentation(url, true, reinterpret_cast<UInt8*>(executableFile), FILENAME_MAX);
             attempt = QString::fromUtf8(executableFile);
             pHnd = dlopen(QFile::encodeName(attempt), dlFlags);
+        }
+        else{
+            if (!fsEntry.isAbsolute() && !fileName.endsWith(QLatin1String(".framework")))
+            {
+                QString frameworkName = fileName + QLatin1String(".framework/") + name;
+                pHnd = dlopen(QFile::encodeName(frameworkName), dlFlags);
+            }
         }
     }
 #endif

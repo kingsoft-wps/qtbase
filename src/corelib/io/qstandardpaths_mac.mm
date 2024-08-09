@@ -175,14 +175,10 @@ static QString baseWritableLocation(QStandardPaths::StandardLocation type,
             break;
         }
     }
-    if(QStandardPaths::DesktopLocation == type)
-    {
-        QFileInfo file(path);
-        if(file.isSymLink())
-        {
-            path = file.symLinkTarget();
-        }
-    }
+
+    QFileInfo file(path);
+    if(file.isSymLink())
+        path = file.symLinkTarget();
 
     return path;
 }

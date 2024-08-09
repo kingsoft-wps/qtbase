@@ -247,9 +247,7 @@ struct QWExtra {
     QCursor *curs;
 #endif
     QPointer<QStyle> style;
-#ifdef Q_OS_MAC
     QPointer<QStyle> recursiveStyle;
-#endif // Q_OS_MAC
     QPointer<QWidget> focus_proxy;
 
     // Implicit pointers (shared_empty/shared_null).

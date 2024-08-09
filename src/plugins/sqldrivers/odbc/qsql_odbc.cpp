@@ -774,6 +774,8 @@ QChar QODBCDriverPrivate::quoteChar()
 
 bool QODBCDriverPrivate::setConnectionOptions(const QString& connOpts)
 {
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
     // Set any connection attributes
     const QStringList opts(connOpts.split(QLatin1Char(';'), QString::SkipEmptyParts));
     SQLRETURN r = SQL_SUCCESS;
@@ -874,6 +876,7 @@ bool QODBCDriverPrivate::setConnectionOptions(const QString& connOpts)
             qSqlWarning(QString::fromLatin1("QODBCDriver::open: Unable to set connection attribute'%1'").arg(
                         opt), this);
     }
+QT_WARNING_POP
     return true;
 }
 

@@ -141,7 +141,7 @@ static void mergeKeySets(NameSet *dest, const QStringList &src)
 static HKEY openKey(HKEY parentHandle, REGSAM perms, const QString &rSubKey, REGSAM access = 0)
 {
     HKEY resultHandle = 0;
-    LONG res = RegOpenKeyEx(parentHandle, reinterpret_cast<const wchar_t *>(rSubKey.utf16()),
+    LONG res = RegOpenKeyEx(parentHandle, reinterpret_cast<const wchar_t *>(rSubKey.c_str16()),
                             0, perms | access, &resultHandle);
 
     if (res == ERROR_SUCCESS)
@@ -160,7 +160,7 @@ static HKEY createOrOpenKey(HKEY parentHandle, REGSAM perms, const QString &rSub
         return resultHandle;
 
     // try to create it
-    LONG res = RegCreateKeyEx(parentHandle, reinterpret_cast<const wchar_t *>(rSubKey.utf16()), 0, 0,
+    LONG res = RegCreateKeyEx(parentHandle, reinterpret_cast<const wchar_t *>(rSubKey.c_str16()), 0, 0,
                               REG_OPTION_NON_VOLATILE, perms | access, 0, &resultHandle, 0);
 
     if (res == ERROR_SUCCESS)
@@ -293,7 +293,7 @@ static void deleteChildGroups(HKEY parentHandle, REGSAM access = 0)
         RegCloseKey(childGroupHandle);
 
         // delete group itself
-        LONG res = RegDeleteKey(parentHandle, reinterpret_cast<const wchar_t *>(group.utf16()));
+        LONG res = RegDeleteKey(parentHandle, reinterpret_cast<const wchar_t *>(group.c_str16()));
         if (res != ERROR_SUCCESS) {
             qWarning("QSettings: RegDeleteKey failed on subkey \"%s\": %s",
                      qPrintable(group), qPrintable(qt_error_string(int(res))));
@@ -487,7 +487,7 @@ bool QWinSettingsPrivate::readKey(HKEY parentHandle, const QString &rSubKey, QVa
     // get the size and type of the value
     DWORD dataType;
     DWORD dataSize;
-    LONG res = RegQueryValueEx(handle, reinterpret_cast<const wchar_t *>(rSubkeyName.utf16()), 0, &dataType, 0, &dataSize);
+    LONG res = RegQueryValueEx(handle, reinterpret_cast<const wchar_t *>(rSubkeyName.c_str16()), 0, &dataType, 0, &dataSize);
     if (res != ERROR_SUCCESS) {
         RegCloseKey(handle);
         return false;
@@ -501,7 +501,7 @@ bool QWinSettingsPrivate::readKey(HKEY parentHandle, const QString &rSubKey, QVa
 
     // get the value
     QByteArray data(dataSize, 0);
-    res = RegQueryValueEx(handle, reinterpret_cast<const wchar_t *>(rSubkeyName.utf16()), 0, 0,
+    res = RegQueryValueEx(handle, reinterpret_cast<const wchar_t *>(rSubkeyName.c_str16()), 0, 0,
                            reinterpret_cast<unsigned char*>(data.data()), &dataSize);
     if (res != ERROR_SUCCESS) {
         RegCloseKey(handle);
@@ -593,7 +593,7 @@ QWinSettingsPrivate::~QWinSettingsPrivate()
 {
     if (deleteWriteHandleOnExit && writeHandle() != 0) {
         QString emptyKey;
-        DWORD res = RegDeleteKey(writeHandle(), reinterpret_cast<const wchar_t *>(emptyKey.utf16()));
+        DWORD res = RegDeleteKey(writeHandle(), reinterpret_cast<const wchar_t *>(emptyKey.c_str16()));
         if (res != ERROR_SUCCESS) {
             qWarning("QSettings: Failed to delete key \"%s\": %s",
                      qPrintable(regList.at(0).key()), qPrintable(qt_error_string(int(res))));
@@ -617,7 +617,7 @@ void QWinSettingsPrivate::remove(const QString &uKey)
     LONG res;
     HKEY handle = openKey(writeHandle(), registryPermissions, keyPath(rKey), access);
     if (handle != 0) {
-        res = RegDeleteValue(handle, reinterpret_cast<const wchar_t *>(keyName(rKey).utf16()));
+        res = RegDeleteValue(handle, reinterpret_cast<const wchar_t *>(keyName(rKey).c_str16()));
         RegCloseKey(handle);
     }
 
@@ -630,14 +630,14 @@ void QWinSettingsPrivate::remove(const QString &uKey)
             const QStringList childKeys = childKeysOrGroups(handle, QSettingsPrivate::ChildKeys);
 
             for (const QString &group : childKeys) {
-                LONG res = RegDeleteValue(handle, reinterpret_cast<const wchar_t *>(group.utf16()));
+                LONG res = RegDeleteValue(handle, reinterpret_cast<const wchar_t *>(group.c_str16()));
                 if (res != ERROR_SUCCESS) {
                     qWarning("QSettings: RegDeleteValue failed on subkey \"%s\": %s",
                              qPrintable(group), qPrintable(qt_error_string(int(res))));
                 }
             }
         } else {
-            res = RegDeleteKey(writeHandle(), reinterpret_cast<const wchar_t *>(rKey.utf16()));
+            res = RegDeleteKey(writeHandle(), reinterpret_cast<const wchar_t *>(rKey.c_str16()));
 
             if (res != ERROR_SUCCESS) {
                 qWarning("QSettings: RegDeleteKey failed on key \"%s\": %s",
@@ -684,12 +684,12 @@ void QWinSettingsPrivate::set(const QString &uKey, const QVariant &value)
 
             if (type == REG_BINARY) {
                 QString s = variantToString(value);
-                regValueBuff = QByteArray(reinterpret_cast<const char*>(s.utf16()), s.length() * 2);
+                regValueBuff = QByteArray(reinterpret_cast<const char*>(s.c_str16()), s.length() * 2);
             } else {
                 QStringList::const_iterator it = l.constBegin();
                 for (; it != l.constEnd(); ++it) {
                     const QString &s = *it;
-                    regValueBuff += QByteArray(reinterpret_cast<const char*>(s.utf16()), (s.length() + 1) * 2);
+                    regValueBuff += QByteArray(reinterpret_cast<const char*>(s.c_str16()), (s.length() + 1) * 2);
                 }
                 regValueBuff.append((char)0);
                 regValueBuff.append((char)0);
@@ -724,14 +724,14 @@ void QWinSettingsPrivate::set(const QString &uKey, const QVariant &value)
             int length = s.length();
             if (type == REG_SZ)
                 ++length;
-            regValueBuff = QByteArray(reinterpret_cast<const char *>(s.utf16()),
+            regValueBuff = QByteArray(reinterpret_cast<const char *>(s.c_str16()),
                                       int(sizeof(wchar_t)) * length);
             break;
         }
     }
 
     // set the value
-    LONG res = RegSetValueEx(handle, reinterpret_cast<const wchar_t *>(keyName(rKey).utf16()), 0, type,
+    LONG res = RegSetValueEx(handle, reinterpret_cast<const wchar_t *>(keyName(rKey).c_str16()), 0, type,
                              reinterpret_cast<const unsigned char*>(regValueBuff.constData()),
                              regValueBuff.size());
 

@@ -239,7 +239,8 @@ inline QPenPrivate::QPenPrivate(const QBrush &_brush, qreal _width, Qt::PenStyle
       cosmetic(false), defaultWidth(_defaultWidth),
       bDrawCustomTextBold(false),
       boldFactor(1),
-      bSupportComoplex(true)
+      bSupportComoplex(true),
+      bDrawPdfTextBoldContent(0)
 {
     width = _width;
     brush = _brush;
@@ -1039,6 +1040,16 @@ void QPen::setDrawCustomTextBold(bool bCustomBold)
 bool QPen::isDrawCustomTextBold() const
 {
     return d->bDrawCustomTextBold;
+}
+
+void QPen::setDrawPdfTextBoldContent(bool bDrawPdfTextBoldContent)
+{
+    d->bDrawPdfTextBoldContent = bDrawPdfTextBoldContent;
+}
+
+bool QPen::isDrawPdfTextBoldContent() const
+{
+    return d->bDrawPdfTextBoldContent;
 }
 
 void QPen::setCustomBoldFactor(qreal factor)

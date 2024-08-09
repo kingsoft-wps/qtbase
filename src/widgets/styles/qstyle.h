@@ -857,10 +857,6 @@ public:
                               QStyleOption *option = nullptr, QWidget *widget = nullptr) const;
 
     const QStyle * proxy() const;
-#ifdef Q_OS_MAC
-    // Need to be used in style judgment
-    virtual bool isPromeStyle() const { return false; }
-#endif // Q_OS_MAC
 private:
     Q_DISABLE_COPY(QStyle)
     friend class QWidget;

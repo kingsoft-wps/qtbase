@@ -569,7 +569,8 @@ QVariant QSystemLocalePrivate::toCurrencyString(const QSystemLocale::CurrencyToS
     default:
         return QVariant();
     }
-
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
     QVarLengthArray<wchar_t, 64> out(64);
 
     QString decimalSep;
@@ -611,7 +612,7 @@ QVariant QSystemLocalePrivate::toCurrencyString(const QSystemLocale::CurrencyToS
         getCurrencyFormat(0, reinterpret_cast<const wchar_t *>(value.utf16()),
                             pformat, out.data(), out.size());
     }
-
+QT_WARNING_POP
     value = QString::fromWCharArray(out.data());
     if (substitution() == SAlways)
         substituteDigits( value);

@@ -1367,7 +1367,10 @@ void QWidgetTextControlPrivate::onWideChar(const QString &s)
         return;
     }
     QThaiInputCorrector syl;
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
     syl.parse(cursor.block().text().utf16(), cursor.positionInBlock(), s.at(0).unicode());
+QT_WARNING_POP
     if (!syl.valid())
         return;
     QString vs = syl.value();

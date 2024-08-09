@@ -4549,6 +4549,22 @@ bool QApplicationPrivate::translateRawTouchEvent(QWidget *window,
         // deliver to the user (which might want to store the struct for later use).
         touchPoint.d = touchPoint.d->detach();
 
+        QWidget* receiver = window;
+#ifdef Q_OS_LINUX
+        // linux will appear activepopwidget will not receiver touchevent but first popup window.
+        // refer to handlemouseevent.
+        if (inPopupMode()) {
+            QWidget *activePopupWidget = QApplication::activePopupWidget();
+            if (activePopupWidget != nullptr && activePopupWidget != window && 
+                activePopupWidget->isEnabled())
+            {
+                QPoint mapped = activePopupWidget->mapFromGlobal(touchPoint.screenPos().toPoint());
+                if (activePopupWidget->rect().contains(mapped))
+                    receiver = activePopupWidget;
+            }
+        }
+#endif
+
         // update state
         QPointer<QObject> target;
         ActiveTouchPointsKey touchInfoKey(device, touchPoint.id());
@@ -4563,13 +4579,13 @@ bool QApplicationPrivate::translateRawTouchEvent(QWidget *window,
 
             if (!target) {
                 // determine which widget this event will go to
-                if (!window)
-                    window = QApplication::topLevelAt(touchPoint.screenPos().toPoint());
-                if (!window)
+                if (!receiver)
+                    receiver = QApplication::topLevelAt(touchPoint.screenPos().toPoint());
+                if (!receiver)
                     continue;
-                target = window->childAt(window->mapFromGlobal(touchPoint.screenPos().toPoint()));
+                target = receiver->childAt(receiver->mapFromGlobal(touchPoint.screenPos().toPoint()));
                 if (!target)
-                    target = window;
+                    target = receiver;
             }
 
             if (device->type() == QTouchDevice::TouchScreen) {

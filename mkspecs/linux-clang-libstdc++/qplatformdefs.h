@@ -3,7 +3,7 @@
 ** Copyright (C) 2016 The Qt Company Ltd.
 ** Contact: https://www.qt.io/licensing/
 **
-** This file is part of the QtPrintSupport module of the Qt Toolkit.
+** This file is part of the qmake spec of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -37,24 +37,4 @@
 **
 ****************************************************************************/
 
-#ifndef QTPRINTSUPPORTGLOBAL_P_H
-#define QTPRINTSUPPORTGLOBAL_P_H
-
-//
-//  W A R N I N G
-//  -------------
-//
-// This file is not part of the Qt API.  It exists purely as an
-// implementation detail.  This header file may change from version to
-// version without notice, or even be removed.
-//
-// We mean it.
-//
-
-#include <QtPrintSupport/qtprintsupportglobal.h>
-#include <QtPrintSupport/private/qtprintsupport-config_p.h>
-#if QT_CONFIG(printdialog)
-#include <QtWidgets/private/qtwidgetsglobal_p.h>
-#endif
-
-#endif // QTPRINTSUPPORTGLOBAL_P_H
+#include "../linux-clang/qplatformdefs.h"

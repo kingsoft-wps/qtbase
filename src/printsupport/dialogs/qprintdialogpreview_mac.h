@@ -33,9 +33,9 @@
 
 #ifndef QPRINTDIALOGPREVIEW_MAC_H
 #define QPRINTDIALOGPREVIEW_MAC_H
-#include "qprintdialog.h"
 #define SCALE_RECTINPREVIEW 1
 #ifdef __OBJC__
+#include "qprintdialog.h"
 #include <Cocoa/Cocoa.h>
 @interface QPrintDialogPreview:NSView
 {

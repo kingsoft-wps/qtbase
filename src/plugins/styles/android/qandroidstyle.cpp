@@ -75,7 +75,7 @@ QAndroidStyle::QAndroidStyle()
     QHash<QByteArray, QFont> *qwidgetsFonts = reinterpret_cast<QHash<QByteArray, QFont> *>(nativeInterface->nativeResourceForIntegration("AndroidQWidgetFonts"));
     if (qwidgetsFonts) {
         for (auto it = qwidgetsFonts->constBegin(); it != qwidgetsFonts->constEnd(); ++it)
-            QApplication::setFont(it.value(), it.key());
+            QApplication::setFont(it.value(), it.key().constData());
         qwidgetsFonts->clear(); // free the memory
     }
 

@@ -165,8 +165,20 @@ void QCoreTextFontDatabase::populateFamily(const QString &familyName)
     }
 
     const int numFonts = CFArrayGetCount(matchingFonts);
+    QCFType<CFStringRef> prevFontName = nil;
     for (int i = 0; i < numFonts; ++i)
-        populateFromDescriptor(CTFontDescriptorRef(CFArrayGetValueAtIndex(matchingFonts, i)), familyName);
+    {
+        if (@available(macOS 15.0, *)) {
+            CTFontDescriptorRef def = (CTFontDescriptorRef)CFArrayGetValueAtIndex(matchingFonts, i);
+            QCFType<CFStringRef> curName = (CFStringRef)CTFontDescriptorCopyAttribute(def, kCTFontNameAttribute);
+            if (prevFontName && curName && CFStringCompare(prevFontName, curName, 0) == kCFCompareEqualTo)
+                continue;
+            populateFromDescriptor(def, familyName);
+            prevFontName = curName;
+        } else {
+            populateFromDescriptor(CTFontDescriptorRef(CFArrayGetValueAtIndex(matchingFonts, i)), familyName);
+        }
+    }
 }
 
 void QCoreTextFontDatabase::invalidate()

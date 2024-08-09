@@ -16,11 +16,12 @@ CONFIG -= qt
 # links) to the target. This is hardcoded in the qmake code, so for now we use
 # the plugin configs to get what we want.
 CONFIG += plugin no_plugin_name_prefix
+JAVA_HOME = $$system(echo %JAVA_HOME%)
 
 javac.input = JAVASOURCES
 javac.output = $$CLASS_DIR
 javac.CONFIG += combine
-javac.commands = javac -source 6 -target 6 -Xlint:unchecked -bootclasspath $$ANDROID_JAR_FILE -cp $$shell_quote($$system_path($$join(JAVACLASSPATH, $$DIRLIST_SEPARATOR))) -d $$shell_quote($$CLASS_DIR) ${QMAKE_FILE_IN}
+javac.commands = $$JAVA_HOME/bin/javac -source 6 -target 6 -Xlint:unchecked -bootclasspath $$ANDROID_JAR_FILE -cp $$shell_quote($$system_path($$join(JAVACLASSPATH, $$DIRLIST_SEPARATOR))) -d $$shell_quote($$CLASS_DIR) ${QMAKE_FILE_IN}
 # Force rebuild every time, because we don't know the paths of the destination files
 # as they depend on the code.
 javac.depends = FORCE
@@ -37,7 +38,7 @@ QMAKE_LIBS =
 QMAKE_LIBS_OPENGL_ES2 =
 QMAKE_LIBDIR =
 QMAKE_EXTENSION_SHLIB = jar
-QMAKE_LINK_SHLIB_CMD = jar cf $(TARGET) -C $$CLASS_DIR .
+QMAKE_LINK_SHLIB_CMD = $$JAVA_HOME/bin/jar cf $(TARGET) -C $$CLASS_DIR .
 
 # Force link step to always happen, since we are always updating the
 # .class files

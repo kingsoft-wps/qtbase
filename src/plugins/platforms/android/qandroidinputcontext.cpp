@@ -556,8 +556,9 @@ static inline int getBlockPosition(const QSharedPointer<QInputMethodQueryEvent> 
     return  absolutePos.isValid() ? absolutePos.toInt() - query->value(Qt::ImCursorPosition).toInt() : 0;
 }
 
-void QAndroidInputContext::reset()
+void QAndroidInputContext::reset(bool bCancel)
 {
+    Q_UNUSED(bCancel)
     focusObjectStopComposing();
     clear();
     m_batchEditNestingLevel = 0;
@@ -981,7 +982,7 @@ void QAndroidInputContext::setFocusObject(QObject *object)
     if (object != m_focusObject) {
         focusObjectStopComposing();
         m_focusObject = object;
-        reset();
+        reset(false);
     }
     QPlatformInputContext::setFocusObject(object);
     updateSelectionHandles();

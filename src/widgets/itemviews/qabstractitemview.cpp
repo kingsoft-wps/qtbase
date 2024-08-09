@@ -1679,6 +1679,21 @@ bool QAbstractItemView::event(QEvent *event)
     case QEvent::FontChange:
         d->doDelayedItemsLayout(); // the size of the items will change
         break;
+    case QEvent::Gesture:
+    {
+        QGestureEvent *ge = static_cast<QGestureEvent *>(event);
+        QPanGesture *g = static_cast<QPanGesture *>(ge->gesture(Qt::PanGesture));
+        if (g)
+        {
+            if (g->state() == Qt::GestureStarted)
+            {
+                setAutoScroll(false);
+                setVerticalScrollMode(QAbstractItemView::ScrollMode::ScrollPerPixel);
+                setHorizontalScrollMode(QAbstractItemView::ScrollMode::ScrollPerPixel);
+            }
+        }
+    }
+    break;
     default:
         break;
     }

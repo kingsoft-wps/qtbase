@@ -148,6 +148,9 @@ public:
     void setDrawCustomTextBold(bool bCustomBold);
     bool isDrawCustomTextBold() const;
 
+    void setDrawPdfTextBoldContent(bool bDrawPdfTextBoldContent);
+    bool isDrawPdfTextBoldContent() const;
+
     void setCustomBoldFactor(qreal factor);
     qreal customBoldFactor();
 

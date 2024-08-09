@@ -978,7 +978,10 @@ void QWidgetLineControl::onWideChar(const QString &s)
         int remaining = m_maxLength - m_text.length();
         if (remaining != 0) {
             QThaiInputCorrector syl;
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
             syl.parse(m_text.utf16(), m_cursor, s.at(0).unicode());
+QT_WARNING_POP
             if (syl.valid())
             {
                 for (int i = 0; i < syl.getSrcLen(); ++i) {

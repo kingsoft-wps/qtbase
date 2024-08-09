@@ -1004,7 +1004,8 @@ void QRegularExpressionPrivate::compilePattern()
 
     int options = convertToPcreOptions(patternOptions);
     options |= PCRE2_UTF;
-
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
     PCRE2_SIZE patternErrorOffset;
     compiledPattern = pcre2_compile_16(pattern.utf16(),
                                        pattern.length(),
@@ -1012,7 +1013,7 @@ void QRegularExpressionPrivate::compilePattern()
                                        &errorCode,
                                        &patternErrorOffset,
                                        NULL);
-
+QT_WARNING_POP
     if (!compiledPattern) {
         errorOffset = static_cast<int>(patternErrorOffset);
         return;
@@ -1149,11 +1150,12 @@ int QRegularExpressionPrivate::captureIndexForName(QStringView name) const
 
     if (!compiledPattern)
         return -1;
-
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
     int index = pcre2_substring_number_from_name_16(compiledPattern, reinterpret_cast<PCRE2_SPTR16>(name.utf16()));
     if (index >= 0)
         return index;
-
+QT_WARNING_POP
     return -1;
 }
 
@@ -1264,9 +1266,10 @@ QRegularExpressionMatchPrivate *QRegularExpressionPrivate::doMatch(const QString
     pcre2_match_context_16 *matchContext = pcre2_match_context_create_16(NULL);
     pcre2_jit_stack_assign_16(matchContext, &qtPcreCallback, NULL);
     pcre2_match_data_16 *matchData = pcre2_match_data_create_from_pattern_16(compiledPattern, NULL);
-
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
     const unsigned short * const subjectUtf16 = subject.utf16() + subjectStart;
-
+QT_WARNING_POP
     int result;
 
     if (!previousMatchWasEmpty) {

@@ -47,8 +47,6 @@ QT_BEGIN_NAMESPACE
 
 class QVertices;
 struct vertex_dist;
-template<typename T>
-class QUnshareVector;
 
 class QMathStroker
 {
@@ -87,15 +85,16 @@ private:
     void StrokeOpenSubPath(const QPolygonF &subPath, QPainterPath &outPath) const;
 
     void CalcPoints(const QVertices& vertices, int first, int second, int third, 
-        QUnshareVector<QPointF>& firstPts, QUnshareVector<QPointF>& secondPts,
+        QVector<QPointF>& firstPts, QVector<QPointF>& secondPts,
+        QVector<QPointF> &firstptstemp, QVector<QPointF> &secondptstemp,
         QVector<QVector<QPointF> > & compoundPts) const; 
 
     void CalcStartPoints(const QVertices& vertices, 
-        QUnshareVector<QPointF>& firstPts, QUnshareVector<QPointF>& secondPts,
-        QVector<QVector<QPointF> > & compoundPts, QUnshareVector<QPointF>& startCapPts) const;
+        QVector<QPointF>& firstPts, QVector<QPointF>& secondPts,
+        QVector<QVector<QPointF> > & compoundPts, QVector<QPointF>& startCapPts) const;
     void CalcEndPoints(const QVertices& vertices,
-        QUnshareVector<QPointF>& firstPts, QUnshareVector<QPointF>& secondPts,
-        QVector<QVector<QPointF> > & compoundPts, QUnshareVector<QPointF>& endCapPts) const;
+        QVector<QPointF>& firstPts, QVector<QPointF>& secondPts,
+        QVector<QVector<QPointF> > & compoundPts, QVector<QPointF>& endCapPts) const;
 
     void CalcStartPoints(const QPointF& p0, const QPointF& p1, qreal len01, QPointF& firstPt, QPointF& secondPt) const;
     void CalcStartPoints(QPointF& firstPt, QPointF& secondPt, const QPointF& p0, const QPointF& p1, const QPointF& p2, 
@@ -106,36 +105,37 @@ private:
 
     void CalcCompoundPoints(const QVector<QPointF>& firstpts, const QVector<QPointF>& secondpts, QVector<QVector<QPointF> >& compoundpts) const;
 
+    void ScalePoint(QPointF& pt, const QPointF &centerPt) const;
     void ScalePoints(QPointF *pts, int nCount, const QPointF& centerPt) const;
 
-    void CalcCap(const QPointF& p0, const QPointF& p1, qreal len01, Qt::PenCapStyle lineCap, QUnshareVector<QPointF>& capPts) const;
-    void CalcJoin(QUnshareVector<QPointF>& firstpts, QUnshareVector<QPointF>& secondpts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal len01, qreal len12) const;
+    void CalcCap(const QPointF& p0, const QPointF& p1, qreal len01, Qt::PenCapStyle lineCap, QVector<QPointF>& capPts) const;
+    void CalcJoin(QVector<QPointF>& firstpts, QVector<QPointF>& secondpts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal len01, qreal len12) const;
 
-    void CalcCapFlat(const QPointF& p0, const QPointF& p1, qreal dx, qreal dy, QUnshareVector<QPointF>& capPts) const;
-    void CalcCapSquare(const QPointF& p0, const QPointF& p1, qreal dx, qreal dy, QUnshareVector<QPointF>& capPts) const;
-    void CalcCapTriangle(const QPointF& p0, const QPointF& p1, qreal dx, qreal dy, QUnshareVector<QPointF>& capPts) const;
-    void CalcCapRound(const QPointF& p0, const QPointF& p1, qreal dx, qreal dy, QUnshareVector<QPointF>& capPts) const;
+    void CalcCapFlat(const QPointF& p0, const QPointF& p1, qreal dx, qreal dy, QVector<QPointF>& capPts) const;
+    void CalcCapSquare(const QPointF& p0, const QPointF& p1, qreal dx, qreal dy, QVector<QPointF>& capPts) const;
+    void CalcCapTriangle(const QPointF& p0, const QPointF& p1, qreal dx, qreal dy, QVector<QPointF>& capPts) const;
+    void CalcCapRound(const QPointF& p0, const QPointF& p1, qreal dx, qreal dy, QVector<QPointF>& capPts) const;
 
-    void CalcInnerJoin(QUnshareVector<QPointF>& pts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal dx1, qreal dy1, qreal dx2, qreal dy2, qreal len01, qreal len12) const;
-    void CalcOuterJoin(QUnshareVector<QPointF>& pts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal dx1, qreal dy1, qreal dx2, qreal dy2) const;	
-    void CalcStraightJoin(QUnshareVector<QPointF>& firstpts, QUnshareVector<QPointF>& secondpts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal dx1, qreal dy1, qreal dx2, qreal dy2) const;
+    void CalcInnerJoin(QVector<QPointF>& pts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal dx1, qreal dy1, qreal dx2, qreal dy2, qreal len01, qreal len12) const;
+    void CalcOuterJoin(QVector<QPointF>& pts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal dx1, qreal dy1, qreal dx2, qreal dy2) const;	
+    void CalcStraightJoin(QVector<QPointF>& firstpts, QVector<QPointF>& secondpts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal dx1, qreal dy1, qreal dx2, qreal dy2) const;
 
-    void CalcLineJoinMiter(QUnshareVector<QPointF>& pts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal dx1, qreal dy1, qreal dx2, qreal dy2) const;
-    void CalcLineJoinMiterClipped(QUnshareVector<QPointF>& pts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal dx1, qreal dy1, qreal dx2, qreal dy2) const;
-    void CalcLineJoinBevel(QUnshareVector<QPointF>& pts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal dx1, qreal dy1, qreal dx2, qreal dy2) const;
-    void CalcLineJoinRound(QUnshareVector<QPointF>& pts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal dx1, qreal dy1, qreal dx2, qreal dy2) const;
+    void CalcLineJoinMiter(QVector<QPointF>& pts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal dx1, qreal dy1, qreal dx2, qreal dy2) const;
+    void CalcLineJoinMiterClipped(QVector<QPointF>& pts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal dx1, qreal dy1, qreal dx2, qreal dy2) const;
+    void CalcLineJoinBevel(QVector<QPointF>& pts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal dx1, qreal dy1, qreal dx2, qreal dy2) const;
+    void CalcLineJoinRound(QVector<QPointF>& pts, const QPointF& p0, const QPointF& p1, const QPointF& p2, qreal dx1, qreal dy1, qreal dx2, qreal dy2) const;
 
 private:
     Q_DISABLE_COPY(QMathStroker)
-    qreal	 m_width;
+    qreal    m_scaleX;
+    qreal    m_scaleY;
+    qreal    m_width;
+    qreal    m_miterLimit;
     Qt::PenJoinStyle m_lineJoin;
-    qreal	 m_miterLimit;
     Qt::PenCapStyle	 m_startCap;
     Qt::PenCapStyle  m_endCap;
+    Qt::PenAlignment m_penAlignment;
     QVector<qreal> m_compoundArray;
-    Qt::PenAlignment m_penAlignment; 
-
-    qreal m_scaleX, m_scaleY;
 };
 
 class QSimplePolygon
@@ -171,7 +171,7 @@ public:
     void ZoomPath(const QPainterPath& path2zoom, QPainterPath& pathAfterZoom, const qreal flatness) const;
 
 private:
-	static void GetEdgeOffsetPts(const QPointF& pt0, const QPointF& pt1, qreal offset, QLineF& newLine);
+    static void GetEdgeOffsetPts(const QPointF& pt0, const QPointF& pt1, qreal offset, QLineF& newLine);
 
 private:
     qreal m_offset;
@@ -210,10 +210,9 @@ private:
     void AddPoint(const vertex_dist& v0, const vertex_dist& v1, qreal dist, QPainterPath& outPath) const;
 
 private:
+    qreal m_width;
     qreal m_dashOffset;
     QVector<qreal> m_dashPattern;
-
-    qreal m_width;
     QRectF m_clipRect;
 };
 

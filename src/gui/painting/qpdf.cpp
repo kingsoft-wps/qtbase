@@ -1107,14 +1107,25 @@ void QPdfEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     if (!d->hasPen || (d->clipEnabled && d->allClipped))
         return;
 
-#ifndef Q_OS_WIN
+#ifdef Q_OS_MAC
     // Solve the problem of incorrect printing of vertical text box angle
     QPaintEngine::drawTextItem(p, textItem);
     return ;
 #endif
-    if (d->stroker.matrix.type() >= QTransform::TxProject) {
+    if (d->stroker.matrix.type() >= QTransform::TxProject
+#ifdef Q_OS_LINUX
+       || textItem.font().verticalMetrics()
+#endif
+       ) {
         QPaintEngine::drawTextItem(p, textItem);
         return;
+    }
+
+    if (textItem.font().weight() >= QFont::Bold || (d->pen.isDrawCustomTextBold() && d->pen.widthF() > 0)) {
+        QPaintEngine::drawTextItem(p, textItem);
+        if (!d->pen.isDrawPdfTextBoldContent()) {
+            return;
+        }
     }
 
     *d->currentPage << "q\n";
@@ -2265,13 +2276,14 @@ void QPdfEnginePrivate::printString(const QString &string)
         write("()");
         return;
     }
-
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
     // The 'text string' type in PDF is encoded either as PDFDocEncoding, or
     // Unicode UTF-16 with a Unicode byte order mark as the first character
     // (0xfeff), with the high-order byte first.
     QByteArray array("(\xfe\xff");
     const ushort *utf16 = string.utf16();
-
+QT_WARNING_POP
     for (int i=0; i < string.size(); ++i) {
         char part[2] = {char((*(utf16 + i)) >> 8), char((*(utf16 + i)) & 0xff)};
         for(int j=0; j < 2; ++j) {

@@ -1,0 +1,5 @@
+gcc {
+    QMAKE_CXXFLAGS += -fstack-protector-strong -D_FORTIFY_SOURCE=1
+    QMAKE_LFLAGS_SHLIB += -Wl,-z,relro,-z,now -Wl,-z,noexecstack -s
+    QMAKE_LFLAGS_RPATH =
+}

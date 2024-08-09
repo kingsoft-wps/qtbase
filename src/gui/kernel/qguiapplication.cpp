@@ -2884,6 +2884,7 @@ void QGuiApplicationPrivate::processTouchEvent(QWindowSystemInterfacePrivate::To
                 touchPoint.d->pressure = qreal(1.);
 
             touchInfo.touchPoint = touchPoint;
+            (touchInfo.activeCount)++;
             break;
 
         case Qt::TouchPointReleased:
@@ -3076,8 +3077,14 @@ void QGuiApplicationPrivate::processTouchEvent(QWindowSystemInterfacePrivate::To
     // before sending the event.
     for (int i = 0; i < e->points.count(); ++i) {
         QTouchEvent::TouchPoint touchPoint = e->points.at(i);
-        if (touchPoint.state() == Qt::TouchPointReleased)
-            d->activeTouchPoints.remove(ActiveTouchPointsKey(e->device, touchPoint.id()));
+        ActiveTouchPointsKey key(e->device, touchPoint.id());
+        if (touchPoint.state() == Qt::TouchPointReleased && d->activeTouchPoints.contains(key)) {
+            ActiveTouchPointsValue &value = d->activeTouchPoints[key];
+            if (value.activeCount > 1)
+                (value.activeCount)--;
+            else
+                d->activeTouchPoints.remove(key);
+        }
     }
 }
 

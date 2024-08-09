@@ -11,5 +11,9 @@ qnx: DEFINES += _QNX_SOURCE
 integrity: QMAKE_CFLAGS += -include qplatformdefs.h
 INCLUDEPATH +=  $$PWD/sqlite
 SOURCES +=      $$PWD/sqlite/sqlite3.c
+!msvc {
+    QMAKE_CFLAGS += -Wno-unused-variable
+    QMAKE_CXXFLAGS += -Wno-unused-variable
+}
 
 TR_EXCLUDE += $$PWD/*

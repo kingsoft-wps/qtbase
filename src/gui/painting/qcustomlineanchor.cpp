@@ -631,19 +631,19 @@ void QCustomLineAnchorState::CalcTransform(qreal width, const QPointF& fromPt, c
     mtx *= translateMatrix;
 }
 
-bool QCustomLineAnchorState::CalcCrossYPts(const QPainterPath& path, QUnshareVector<qreal>& dists,
+bool QCustomLineAnchorState::CalcCrossYPts(const QPainterPath& path, QVector<qreal>& dists,
                                            qreal width) const
 {
     QMatrix mtx;
     const qreal scale = width * widthScale();
     QMatrix scaleMatrix(scale, 0.0, 0.0, scale, 0.0, 0.0);
     mtx = scaleMatrix * mtx;
+    QVector<int> flags;
     const QList<QPolygonF> polygons = path.toSubpathPolygons(QTransform(mtx), m_flatness);
     for (int subIndex = 0; subIndex < polygons.size(); ++subIndex) {
         const QPolygonF &poly = polygons[subIndex];
         const int count = poly.count();
         const QPointF *pPoints = poly.constData();
-        static QUnshareVector<int> flags;
         flags.resize(count);
         int *pFlags = flags.data();
         for (int i = 0; i < count; ++i) {
@@ -676,7 +676,7 @@ void QCustomLineAnchorState::CopyTo(QCustomLineAnchorState& capState) const
 }
 
 void QCustomLineAnchorState::CalcCrossYPt(const QPointF& pt1, const QPointF& pt2, int flag1,
-                                          int flag2, QUnshareVector<qreal>& dists)
+                                          int flag2, QVector<qreal>& dists)
 {
     const int f = flag1 * flag2;
     if (f < 0)
@@ -718,8 +718,7 @@ QCustomLineAnchorState *QCustomFillAnchor::Clone() const
 
 qreal QCustomFillAnchor::GetDevideDistance(qreal width) const
 {
-    static QUnshareVector<qreal> dists;
-    dists.resize(0);
+    QVector<qreal> dists;
     if (CalcCrossYPts(m_capPath, dists, width)) {
         if (dists[0] >= 0)
             return 0;
